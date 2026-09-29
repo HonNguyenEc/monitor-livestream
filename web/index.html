@@ -1,81 +1,569 @@
 <!doctype html>
 <html lang="vi">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Livestream QC Demo</title>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
   <style>
-    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#e8edf7;background:#0b1020;font-synthesis:none}
-    *{box-sizing:border-box}body{margin:0}.shell{max-width:1480px;margin:auto;padding:30px 28px 50px}
-    header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:24px}
-    h1{font-size:25px;margin:0 0 6px}.sub{color:#96a3bb;font-size:14px}.actions{display:flex;gap:10px;align-items:center}
-    button{border:1px solid #36435e;background:#19243a;color:#eaf0fb;border-radius:9px;padding:10px 14px;font-size:13px;font-weight:650;cursor:pointer}
-    button:hover{background:#243552}button.primary{border:0;background:#5b69e8}button:disabled{opacity:.5;cursor:wait}
-    .summary{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px}.pill{padding:8px 12px;background:#121b2d;border:1px solid #202c42;border-radius:99px;color:#b7c3d8;font-size:12px}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px}.card{background:#111a2b;border:1px solid #23304a;border-radius:14px;overflow:hidden;min-width:0}
-    .tabs{display:flex;gap:8px;overflow:auto;margin:0 0 16px;padding:2px 1px 8px}.tab{white-space:nowrap;border-radius:999px;padding:8px 13px}.tab.active{background:#5b69e8;border-color:#5b69e8}.view{display:none}.view.active{display:block}.view .grid{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
-    .media{position:relative;background:#060a12;aspect-ratio:16/9;display:grid;place-items:center;color:#697893}.media img,.media video{width:100%;height:100%;object-fit:contain}.media video{display:none}
-    .overlay{position:absolute;left:12px;top:12px;display:flex;gap:7px}.badge{font-size:11px;font-weight:750;letter-spacing:.03em;padding:6px 9px;border-radius:99px;background:#36445d;color:#d8e1f1}
-    .badge.live{background:#a32c42;color:#fff}.badge.ok{background:#12563f;color:#8df0c6}.badge.warn{background:#65471e;color:#ffdc91}
-    .info{padding:15px}.top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.name{font-weight:700;font-size:15px;overflow-wrap:anywhere}.platform{color:#96a3bb;font-size:12px;margin-top:4px}
-    .time{font-size:11px;color:#8190aa;text-align:right;white-space:nowrap}.detail{font-size:12px;color:#a6b2c7;line-height:1.5;min-height:36px;margin:12px 0}
-    .card-actions{display:flex;gap:8px;flex-wrap:wrap}.card-actions button{flex:1 1 42%}.foot{margin-top:20px;color:#7f8da5;font-size:12px;line-height:1.6}.empty{padding:48px;text-align:center;color:#96a3bb}
-    @media(max-width:600px){.shell{padding:20px 14px}.grid{grid-template-columns:1fr}header{align-items:flex-start;flex-direction:column}.actions{width:100%}.actions button{flex:1}}
+    :root{
+      --bg:#0b1020;--surface:#111a2b;--surface-2:#19243a;--surface-3:#243552;--border:#23304a;--border-strong:#36435e;
+      --text:#e8edf7;--muted:#96a3bb;--faint:#8b98b0;--accent:#4a57d6;--accent-hover:#3f4cc8;
+      --ok-bg:#12563f;--ok:#8df0c6;--warn-bg:#65471e;--warn:#ffdc91;--danger-bg:#5a1f2b;--danger:#ff9fb0;
+      --radius:12px;--radius-sm:9px;--gap:16px;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--text);background:var(--bg);font-synthesis:none
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg)}
+    [hidden]{display:none!important}
+    button,input{font:inherit;color:inherit}
+    button{border:1px solid var(--border-strong);background:var(--surface-2);border-radius:var(--radius-sm);padding:9px 13px;font-size:13px;font-weight:650;cursor:pointer}
+    button:hover{background:var(--surface-3)}
+    button:disabled{opacity:.55;cursor:wait}
+    button.primary{border-color:var(--accent);background:var(--accent)}
+    button.primary:hover{background:var(--accent-hover)}
+    button.danger{border-color:#7a2a3b;background:var(--danger-bg);color:var(--danger)}
+    button:focus-visible,input:focus-visible,.shop-item:focus-visible,.tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+    .shell{max-width:1480px;margin:auto;padding:24px 16px 40px}
+    .app-header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+    h1{font-size:22px;margin:0 0 4px}
+    .sub{color:var(--muted);font-size:13px}
+    .summary{color:var(--muted);font-size:12px;margin-top:6px}
+
+    .tabs{display:flex;gap:6px;border-bottom:1px solid var(--border);margin-bottom:var(--gap)}
+    .tab{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:10px 14px;color:var(--muted)}
+    .tab:hover{background:none;color:var(--text)}
+    .tab--active{color:var(--text);border-bottom-color:var(--accent)}
+    .tab-count{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;background:var(--surface-2);font-size:11px}
+
+    .layout{display:grid;grid-template-columns:1fr;gap:var(--gap)}
+    .sidebar,.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);min-width:0}
+    .sidebar{display:flex;flex-direction:column}
+    .sidebar-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px;border-bottom:1px solid var(--border)}
+    .sidebar-head h2{font-size:14px;margin:0}
+    .shop-list{list-style:none;margin:0;padding:8px;display:flex;flex-direction:column;gap:4px;max-height:40vh;overflow:auto}
+    .shop-item{width:100%;display:flex;align-items:center;gap:10px;text-align:left;border:1px solid transparent;background:none;padding:10px;border-radius:var(--radius-sm)}
+    .shop-item:hover{background:var(--surface-2)}
+    .shop-item--active{background:var(--surface-2);border-color:var(--accent)}
+    .shop-item-main{flex:1;min-width:0}
+    .shop-item-name{display:block;font-weight:650;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .shop-item-meta{display:block;color:var(--faint);font-size:11px;margin-top:2px}
+    .dot{width:9px;height:9px;border-radius:50%;background:#4a5670;flex:none}
+    .dot--ok{background:#2fd08e}.dot--warn{background:#f0b44c}.dot--busy{background:var(--accent)}
+    .list-empty{color:var(--muted);font-size:13px;padding:18px 10px;text-align:center}
+
+
+    .panel{padding:var(--gap)}
+    .panel-empty{color:var(--muted);text-align:center;padding:60px 10px}
+    .media{position:relative;background:#060a12;aspect-ratio:16/9;max-height:50vh;border-radius:var(--radius-sm);overflow:hidden;display:grid;place-items:center;color:var(--muted);font-size:13px}
+    .media img,.media video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+    .overlay{position:absolute;left:12px;top:12px;display:flex;gap:7px;z-index:1}
+    .badge{font-size:11px;font-weight:750;letter-spacing:.03em;padding:6px 9px;border-radius:99px;background:#36445d;color:#d8e1f1}
+    .badge--ok{background:var(--ok-bg);color:var(--ok)}.badge--warn{background:var(--warn-bg);color:var(--warn)}.badge--live{background:#a32c42;color:#fff}
+
+    .panel-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin:14px 0 8px}
+    .panel-title{font-size:18px;font-weight:700;margin:0;overflow-wrap:anywhere}
+    .panel-platform{color:var(--muted);font-size:12px;margin-top:3px}
+    .panel-time{font-size:11px;color:var(--faint);white-space:nowrap}
+    .detail{font-size:13px;color:#c3cde0;line-height:1.5;margin:0 0 4px;min-height:20px;overflow-wrap:anywhere}
+    .last-error{font-size:12px;color:var(--faint);line-height:1.5;margin:0 0 12px;overflow-wrap:anywhere}
+    .actions{display:flex;gap:8px;flex-wrap:wrap}
+    .actions button{flex:1 1 140px}
+
+    .config{margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+    .config h3{font-size:14px;margin:0 0 12px}
+    .form-grid{display:grid;grid-template-columns:1fr;gap:12px}
+    .field label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px}
+    .field input{width:100%;padding:9px 11px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--bg);font-size:14px}
+    .field input:invalid:not(:placeholder-shown){border-color:#a0465a}
+    .field--wide{grid-column:1/-1}
+    .field-hint{font-size:11px;color:var(--faint);margin-top:4px}
+    .req{color:var(--danger)}
+    .form-actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+    .form-actions .spacer{flex:1}
+
+    .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);max-width:calc(100% - 32px);padding:11px 16px;border-radius:var(--radius-sm);font-size:13px;background:var(--surface-3);border:1px solid var(--border-strong);box-shadow:0 8px 30px rgba(0,0,0,.4);z-index:10}
+    .toast--error{background:var(--danger-bg);border-color:#7a2a3b;color:var(--danger)}
+    .toast--ok{background:var(--ok-bg);border-color:#1f7a59;color:var(--ok)}
+    .foot{margin-top:18px;color:var(--faint);font-size:12px;line-height:1.6}
+
+    @media (min-width:640px){
+      .shell{padding:28px 24px 48px}
+      .form-grid{grid-template-columns:1fr 1fr}
+    }
+    @media (min-width:1024px){
+      .layout{grid-template-columns:320px 1fr;align-items:start}
+      .sidebar{position:sticky;top:16px;max-height:calc(100vh - 32px)}
+      .shop-list{max-height:none;flex:1}
+    }
+    @media (max-width:639px){
+      .app-header{flex-direction:column;align-items:stretch}
+      .panel-head{flex-direction:column}
+    }
   </style>
 </head>
-<body><div class="shell">
-  <header><div><h1>Livestream QC</h1><div class="sub">Demo trạng thái và xem trực tiếp TikTok / Shopee</div></div>
-    <div class="actions"><button id="refresh" class="primary" onclick="refreshAll()">Kiểm tra các shop</button></div></header>
-  <div id="summary" class="summary"></div><nav id="tabs" class="tabs" aria-label="Tab livestream"></nav><main id="views"><section id="view-all" class="view active"><div id="grid" class="grid"><div class="empty">Đang tải dữ liệu…</div></div></section></main>
-  <div class="foot">“Có tín hiệu” nghĩa là worker đã resolve và capture thành công ở lần kiểm tra gần nhất. “Chưa xác định” nghĩa là resolver chưa xác nhận được trạng thái live. Video trực tiếp cần nguồn phát truy cập được; phiên live không được kết luận offline chỉ vì lỗi resolver.</div>
+<body>
+<div class="shell">
+  <header class="app-header">
+    <div>
+      <h1>Livestream QC</h1>
+      <div class="sub">Theo dõi livestream TikTok / Shopee</div>
+      <div id="summary" class="summary">Đang tải dữ liệu…</div>
+    </div>
+    <button id="refresh" class="primary" type="button">Kiểm tra tất cả shop</button>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Nền tảng">
+    <button class="tab" role="tab" type="button" data-tab="tiktok" id="tab-tiktok" aria-controls="layout">TikTok<span class="tab-count" id="count-tiktok">0</span></button>
+    <button class="tab" role="tab" type="button" data-tab="shopee" id="tab-shopee" aria-controls="layout">Shopee<span class="tab-count" id="count-shopee">0</span></button>
+  </nav>
+
+  <main class="layout" id="layout" role="tabpanel">
+    <aside class="sidebar" aria-labelledby="list-title">
+      <div class="sidebar-head">
+        <h2 id="list-title">Danh sách shop</h2>
+        <button id="add-shop" type="button">+ Thêm shop</button>
+      </div>
+      <ul id="shop-list" class="shop-list"></ul>
+    </aside>
+
+    <section class="panel" aria-live="polite">
+      <div id="panel-empty" class="panel-empty">Chọn một shop bên trái để xem và cấu hình.</div>
+
+      <div id="panel-view" hidden>
+        <div class="media">
+          <span id="media-empty">Chưa có ảnh capture</span>
+          <video id="player" controls playsinline muted hidden></video>
+          <div class="overlay"><span id="status-badge" class="badge"></span></div>
+        </div>
+        <div class="panel-head">
+          <div><h2 id="panel-title" class="panel-title"></h2><div id="panel-platform" class="panel-platform"></div></div>
+          <div id="panel-time" class="panel-time"></div>
+        </div>
+        <p id="detail" class="detail"></p>
+        <p id="last-error" class="last-error"></p>
+        <div id="actions" class="actions">
+          <button type="button" class="primary" data-action="mpv" id="mpv-button">Chạy mpv liên tục</button>
+          <button type="button" data-action="browser">Mở trang sàn</button>
+          <button type="button" data-action="probe">Probe Direct</button>
+          <button type="button" data-action="play">Xem qua dashboard</button>
+          <button type="button" data-action="stop">Dừng dashboard</button>
+        </div>
+      </div>
+
+      <form id="shop-form" class="config" novalidate hidden>
+        <h3 id="form-title">Cấu hình shop</h3>
+        <div id="form-fields" class="form-grid"></div>
+        <div class="form-actions">
+          <button type="submit" class="primary" id="form-save">Lưu</button>
+          <button type="button" id="form-cancel">Huỷ</button>
+          <span class="spacer"></span>
+          <button type="button" class="danger" id="form-delete">Xoá shop</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <footer class="foot">“Có tín hiệu” nghĩa là worker đã resolve và capture thành công ở lần kiểm tra gần nhất. “Chưa xác định” nghĩa là resolver chưa xác nhận được trạng thái live; phiên live không được kết luận offline chỉ vì lỗi resolver.</footer>
 </div>
+<div id="toast" class="toast" role="status" hidden></div>
+
 <script>
-const players = new Map();
-let activeTab='all', shopsCache=[];
-function esc(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function statusText(s){return ({captured:'CÓ TÍN HIỆU',capture_failed:'STREAM LỖI',probe_inconclusive:'CHƯA XÁC ĐỊNH',not_checked:'CHƯA KIỂM TRA',resolver_failed:'CHƯA XÁC ĐỊNH'})[s]||s}
-function badgeClass(s){return s==='captured'?'ok':(s==='capture_failed'?'warn':'')}
-function showTime(s){if(!s)return 'Chưa kiểm tra';const d=new Date(s);return 'Kiểm tra '+d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
-async function load(){const r=await fetch('/api/shops',{cache:'no-store'});const data=await r.json();
-  shopsCache=data.shops;
-  document.getElementById('summary').innerHTML=`<span class="pill">${data.shops.length} shop</span><span class="pill">${data.shops.filter(x=>x.status==='captured').length} có tín hiệu gần nhất</span><span class="pill">${data.refreshing?'Đang kiểm tra…':'Sẵn sàng'}</span>`;
-  document.getElementById('refresh').disabled=data.refreshing;
-  renderTabs();
-  renderCards();
+const PLATFORMS = {tiktok: 'TikTok', shopee: 'Shopee'};
+const FIELDS = {
+  tiktok: [
+    {name: 'username', label: 'Username TikTok', required: true, placeholder: 'vd: frisovietnam', hint: 'Không cần dấu @.'},
+    {name: 'live_url', label: 'Link live (tuỳ chọn)', type: 'url', placeholder: 'https://www.tiktok.com/@…/live', hint: 'Dùng cho nút “Mở trang sàn”.'},
+  ],
+  shopee: [
+    {name: 'cookie', label: 'Cookie Seller Center', required: true, secret: true, wide: true, type: 'password',
+     placeholder: 'SPC_SC_SESSION=…; SC_SSO=…',
+     hint: 'Header “cookie” của một request tới banhang.shopee.vn. Chỉ SPC_SC_SESSION được lưu; tên và ID bên dưới tự điền.'},
+    {name: 'name', label: 'Tên hiển thị (tuỳ chọn)', placeholder: 'Tự lấy từ Seller Center'},
+    {name: 'user_id', label: 'User ID (tuỳ chọn)', numeric: true, placeholder: 'Tự lấy từ cookie'},
+    {name: 'shop_id', label: 'Shop ID (tuỳ chọn)', numeric: true, placeholder: 'Tự lấy từ cookie'},
+    {name: 'live_url', label: 'Link share live (tuỳ chọn)', type: 'url', placeholder: 'https://live.shopee.vn/share?from=live&session=…',
+     hint: 'Để trống để tự tìm phiên đang live của shop.'},
+  ],
+};
+const MPV_ACTIVE = ['retrying', 'checking_image', 'playing', 'stopping'];
+const STATUS_TEXT = {captured: 'CÓ TÍN HIỆU', capture_failed: 'STREAM LỖI', probe_inconclusive: 'CHƯA XÁC ĐỊNH', not_checked: 'CHƯA KIỂM TRA'};
+
+const state = {tab: 'tiktok', selected: {tiktok: null, shopee: null}, creating: false,
+               shops: [], refreshing: false, messages: {}, loaded: false};
+let hls = null, playingKey = null, toastTimer = null, refreshTimer = null;
+const $ = id => document.getElementById(id);
+
+try {
+  const saved = JSON.parse(localStorage.getItem('qc-ui') || '{}');
+  if (PLATFORMS[saved.tab]) state.tab = saved.tab;
+  if (saved.selected) Object.assign(state.selected, saved.selected);
+} catch (e) { /* storage unavailable: use defaults */ }
+
+function persist() {
+  try { localStorage.setItem('qc-ui', JSON.stringify({tab: state.tab, selected: state.selected})); } catch (e) { /* ignore */ }
 }
-function renderTabs(){
-  const tabs=[{key:'all',label:'Tất cả',items:shopsCache},...shopsCache.map(s=>({key:s.key,label:s.label,items:[s]}))];
-  document.getElementById('tabs').innerHTML=tabs.map(t=>`<button class="tab ${activeTab===t.key?'active':''}" onclick="selectTab('${esc(t.key)}')">${esc(t.label)}</button>`).join('');
-  const views=document.getElementById('views');
-  for(const s of shopsCache){let section=document.getElementById('view-'+CSS.escape(s.key));if(!section){section=document.createElement('section');section.id='view-'+s.key;section.className='view';section.innerHTML=`<div class="grid"></div>`;views.appendChild(section)}}
-  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===(activeTab==='all'?'view-all':'view-'+activeTab)));
+function esc(x) { return String(x ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c])); }
+function showTime(s) { return s ? 'Kiểm tra ' + new Date(s).toLocaleTimeString('vi-VN', {hour: '2-digit', minute: '2-digit', second: '2-digit'}) : 'Chưa kiểm tra'; }
+function tabShops() { return state.shops.filter(s => s.platform === state.tab); }
+function currentShop() { return state.shops.find(s => s.key === state.selected[state.tab] && s.platform === state.tab) || null; }
+
+function toast(message, kind = '') {
+  const el = $('toast');
+  el.textContent = message;
+  el.className = 'toast' + (kind ? ' toast--' + kind : '');
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 4000);
 }
-function selectTab(key){activeTab=key;renderTabs();renderCards()}
-function renderCards(){
-  const targets=[{id:'grid',items:activeTab==='all'?shopsCache:shopsCache.filter(s=>s.key===activeTab)},...shopsCache.map(s=>({id:null,items:[s],key:s.key}))];
-  for(const target of targets){const container=target.id?document.getElementById(target.id):document.querySelector(`#view-${CSS.escape(target.key)} .grid`);if(!container)continue;const list=target.items;
-  container.innerHTML=list.map(s=>{
-    const frame=s.frame?`<img src="${esc(s.frame)}?v=${Date.now()}" alt="Frame capture gần nhất">`:'<div>Chưa có ảnh capture</div>';
-    const error=s.error?esc(s.error):'Có thể thử resolve stream trực tiếp từ nguồn.';
-    const mpvState=s.mpv_state||'stopped';const mpvBusy=['retrying','checking_image','playing','stopping'].includes(mpvState);
-    const mpvText=mpvState==='playing'?'ĐÃ CÓ HÌNH · mpv ĐANG CHẠY':mpvState==='checking_image'?'ĐANG KIỂM TRA HÌNH':mpvState==='retrying'?`ĐANG THỬ mpv · LẦN ${s.mpv_attempts||0}`:mpvState==='stopping'?'ĐANG DỪNG':mpvState==='error'?'mpv LỖI':error;
-    return `<article class="card" data-key="${esc(s.key)}"><div class="media"><img class="snapshot" src="${esc(s.frame||'')}" style="${s.frame?'':'display:none'}" alt="Frame gần nhất"><video class="player" controls playsinline muted></video><div class="overlay"><span class="badge ${badgeClass(s.status)}">${statusText(s.status)}</span></div></div><div class="info"><div class="top"><div><div class="name">${esc(s.label)}</div><div class="platform">${esc(s.platform.toUpperCase())}</div></div><div class="time">${showTime(s.checked_at)}</div></div><div class="detail">${esc(mpvText)}</div><div class="card-actions">${s.platform==='tiktok'?`<button class="primary" onclick="toggleMpv('${esc(s.key)}',${mpvBusy})">${mpvBusy?'Dừng mpv':'Chạy mpv liên tục'}</button>`:''}<button onclick="openPage('${esc(s.key)}')">Mở trang sàn</button><button onclick="approach('${esc(s.key)}','direct_stream')">Probe Direct</button><button onclick="play('${esc(s.key)}')">Xem qua dashboard</button><button onclick="stop('${esc(s.key)}')">Dừng dashboard</button></div></div></article>`
-  }).join('');}
+
+async function withBusy(button, busyText, task) {
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = busyText;
+  try { return await task(); } finally { button.disabled = false; button.textContent = original; }
 }
-async function refreshAll(){await fetch('/api/refresh',{method:'POST'});await load();let timer=setInterval(async()=>{await load();const x=await (await fetch('/api/shops')).json();if(!x.refreshing)clearInterval(timer)},2500)}
-async function approach(key,method){const card=document.querySelector(`[data-key="${CSS.escape(key)}"]`);const detail=card.querySelector('.detail');detail.textContent='Đang thử '+method+'…';try{const r=await fetch(`/api/approach/${method}/${encodeURIComponent(key)}`,{method:'POST'});const d=await r.json();detail.textContent=`${d.status||'error'} · report: ${d.report||'approach_results/'+method+'/'}`+(d.error?' · '+d.error:'')+(d.note?' · '+d.note:'');}catch(e){detail.textContent=e.message}}
-async function toggleMpv(key,stop){const route=stop?'stop':'start';try{await fetch(`/api/mpv/${route}/${encodeURIComponent(key)}`,{method:'POST'});await load()}catch(e){const card=document.querySelector(`[data-key="${CSS.escape(key)}"]`);if(card)card.querySelector('.detail').textContent=e.message}}
-async function openPage(key){await approach(key,'browser')}
-async function play(key){const card=document.querySelector(`[data-key="${CSS.escape(key)}"]`);const detail=card.querySelector('.detail');detail.textContent='Đang resolve nguồn và khởi động player…';
-  try{const r=await fetch('/api/play/'+encodeURIComponent(key),{method:'POST'});const data=await r.json();if(!r.ok)throw Error(data.error||'Không lấy được stream');
-    const video=card.querySelector('.player');card.querySelector('.snapshot').style.display='none';video.style.display='block';
-    const source=location.origin+data.url;
-    if(video.canPlayType('application/vnd.apple.mpegurl')){video.src=source;await video.play().catch(()=>{});}
-    else if(window.Hls&&Hls.isSupported()){const hls=new Hls({liveSyncDurationCount:2});hls.loadSource(source);hls.attachMedia(video);players.set(key,hls);hls.on(Hls.Events.MANIFEST_PARSED,()=>video.play().catch(()=>{}));}
-    else throw Error('Trình duyệt này không hỗ trợ phát HLS');
-    detail.textContent='Đang phát qua worker cục bộ.';
-  }catch(e){detail.textContent=e.message;}
+
+async function api(path, body) {
+  const options = {method: body === undefined ? 'GET' : 'POST', cache: 'no-store'};
+  if (body !== undefined && body !== null) {
+    options.headers = {'Content-Type': 'application/json'};
+    options.body = JSON.stringify(body);
+  }
+  const response = await fetch(path, options);
+  let data = {};
+  try { data = await response.json(); } catch (e) { /* non-JSON body */ }
+  if (!response.ok) throw new Error(data.message || data.error || `Lỗi máy chủ (${response.status})`);
+  return data;
 }
-async function stop(key){await fetch('/api/stop/'+encodeURIComponent(key),{method:'POST'});const card=document.querySelector(`[data-key="${CSS.escape(key)}"]`);if(!card)return;const hls=players.get(key);if(hls){hls.destroy();players.delete(key)}const v=card.querySelector('.player');v.pause();v.removeAttribute('src');v.load();v.style.display='none';card.querySelector('.snapshot').style.display='';card.querySelector('.detail').textContent='Đã dừng player.'}
-load();setInterval(load,5000);
-</script></body></html>
+
+// ---- Data ---------------------------------------------------------------
+
+async function load() {
+  try {
+    const data = await api('/api/shops');
+    state.shops = data.shops;
+    state.refreshing = data.refreshing;
+    const firstLoad = !state.loaded;
+    state.loaded = true;
+    for (const platform of Object.keys(PLATFORMS)) {
+      const list = state.shops.filter(s => s.platform === platform);
+      if (!list.some(s => s.key === state.selected[platform])) state.selected[platform] = list[0]?.key || null;
+    }
+    render({form: firstLoad});
+  } catch (e) {
+    $('summary').textContent = 'Không tải được dữ liệu: ' + e.message;
+  }
+}
+
+// ---- Rendering ----------------------------------------------------------
+
+function render({form = false} = {}) {
+  renderHeader();
+  renderList();
+  renderPanel();
+  if (form) renderForm();
+}
+
+function renderHeader() {
+  const captured = state.shops.filter(s => s.status === 'captured').length;
+  $('summary').textContent = `${state.shops.length} shop · ${captured} có tín hiệu gần nhất · ${state.refreshing ? 'Đang kiểm tra…' : 'Sẵn sàng'}`;
+  $('refresh').disabled = state.refreshing;
+  $('refresh').textContent = state.refreshing ? 'Đang kiểm tra…' : 'Kiểm tra tất cả shop';
+  for (const platform of Object.keys(PLATFORMS)) {
+    const tab = $('tab-' + platform);
+    const active = platform === state.tab;
+    tab.classList.toggle('tab--active', active);
+    tab.setAttribute('aria-selected', String(active));
+    $('count-' + platform).textContent = state.shops.filter(s => s.platform === platform).length;
+  }
+}
+
+function missingCookie(s) { return s.platform === 'shopee' && !s.cookie_set; }
+
+function dotClass(s) {
+  if (missingCookie(s)) return 'dot--warn';
+  if (s.mpv_state === 'playing' || s.streaming) return 'dot--ok';
+  if (MPV_ACTIVE.includes(s.mpv_state)) return 'dot--busy';
+  if (s.status === 'captured') return 'dot--ok';
+  if (s.status === 'capture_failed' || s.mpv_state === 'error') return 'dot--warn';
+  return '';
+}
+
+function itemMeta(s) {
+  if (s.mpv_state === 'playing') return 'mpv đang phát';
+  if (MPV_ACTIVE.includes(s.mpv_state)) return `mpv đang thử · lần ${s.mpv_attempts || 0}`;
+  if (s.streaming) return 'Đang phát qua dashboard';
+  if (missingCookie(s)) return 'thiếu cookie Seller Center';
+  return STATUS_TEXT[s.status] ? STATUS_TEXT[s.status].toLowerCase() : s.status;
+}
+
+function renderList() {
+  $('list-title').textContent = `Shop ${PLATFORMS[state.tab]}`;
+  const list = tabShops();
+  const selected = state.creating ? null : state.selected[state.tab];
+  $('shop-list').innerHTML = list.length ? list.map(s => `
+    <li><button type="button" class="shop-item ${s.key === selected ? 'shop-item--active' : ''}" data-key="${esc(s.key)}" aria-current="${s.key === selected}">
+      <span class="dot ${dotClass(s)}" aria-hidden="true"></span>
+      <span class="shop-item-main"><span class="shop-item-name">${esc(s.label)}</span><span class="shop-item-meta">${esc(itemMeta(s))}</span></span>
+    </button></li>`).join('')
+    : `<li class="list-empty">Chưa có shop ${PLATFORMS[state.tab]}. Bấm “+ Thêm shop”.</li>`;
+}
+
+function detailText(s) {
+  if (MPV_ACTIVE.includes(s.mpv_state) || s.mpv_state === 'error') return s.mpv_message || '';
+  return state.messages[s.key] || (s.streaming ? 'Đang phát qua worker cục bộ.' : 'Sẵn sàng. Chọn một thao tác bên dưới.');
+}
+
+function renderPanel() {
+  const shop = state.creating ? null : currentShop();
+  $('panel-empty').hidden = !!shop || state.creating;
+  $('panel-empty').textContent = tabShops().length ? 'Chọn một shop bên trái để xem và cấu hình.' : 'Chưa có shop nào trong tab này.';
+  $('panel-view').hidden = !shop;
+  $('shop-form').hidden = !shop && !state.creating;
+  if (!shop) return;
+
+  const badge = $('status-badge');
+  badge.textContent = STATUS_TEXT[shop.status] || shop.status;
+  badge.className = 'badge' + (shop.status === 'captured' ? ' badge--ok' : shop.status === 'capture_failed' ? ' badge--warn' : '');
+  $('panel-title').textContent = shop.label;
+  $('panel-platform').textContent = PLATFORMS[shop.platform] || shop.platform;
+  $('panel-time').textContent = showTime(shop.checked_at);
+  $('detail').textContent = detailText(shop);
+  $('last-error').textContent = shop.error ? 'Kiểm tra gần nhất: ' + shop.error : '';
+
+  const busy = MPV_ACTIVE.includes(shop.mpv_state);
+  const mpvButton = $('mpv-button');
+  if (!mpvButton.disabled) mpvButton.textContent = busy ? 'Dừng mpv' : 'Chạy mpv liên tục';
+  mpvButton.dataset.running = String(busy);
+
+  const img = shop.frame ? snapshotImage() : $('snapshot');
+  const showingVideo = playingKey === shop.key;
+  if (shop.frame && img.dataset.src !== shop.frame) { img.src = shop.frame; img.dataset.src = shop.frame; }
+  if (img) img.hidden = !shop.frame || showingVideo;
+  $('media-empty').hidden = !!shop.frame || showingVideo;
+}
+
+function renderForm() {
+  const shop = state.creating ? null : currentShop();
+  const platform = state.tab;
+  const config = shop ? shop.config : {};
+  $('form-title').textContent = shop ? 'Cấu hình shop' : `Thêm shop ${PLATFORMS[platform]}`;
+  $('form-delete').hidden = !shop;
+  $('form-cancel').hidden = !!shop;
+  $('form-fields').innerHTML = FIELDS[platform].map(f => {
+    // Secrets are never sent back to the page; once saved, leaving the field empty keeps them.
+    const stored = f.secret && shop?.cookie_set;
+    const required = f.required && !stored;
+    const placeholder = stored ? 'Đã lưu — dán cookie mới để thay' : f.placeholder || '';
+    const value = f.secret ? '' : config[f.name] ?? '';
+    return `
+    <div class="field${f.wide ? ' field--wide' : ''}">
+      <label for="f-${f.name}">${esc(f.label)}${required ? ' <span class="req">*</span>' : ''}</label>
+      <input id="f-${f.name}" name="${f.name}" type="${f.type || 'text'}" ${f.numeric ? 'inputmode="numeric" pattern="[0-9]+"' : ''}
+        ${f.secret ? 'autocomplete="off"' : ''} ${required ? 'required' : ''} placeholder="${esc(placeholder)}" value="${esc(value)}">
+      ${f.hint ? `<div class="field-hint">${esc(f.hint)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// Created on first use so the page never ships an <img> without a source.
+function snapshotImage() {
+  let img = $('snapshot');
+  if (!img) {
+    img = new Image();
+    img.id = 'snapshot';
+    img.alt = 'Frame capture gần nhất';
+    img.hidden = true;
+    $('player').before(img);
+  }
+  return img;
+}
+
+// ---- Selection ----------------------------------------------------------
+
+function stopLocalPlayback() {
+  if (hls) { hls.destroy(); hls = null; }
+  const video = $('player');
+  video.pause();
+  video.removeAttribute('src');
+  video.load();
+  video.hidden = true;
+  playingKey = null;
+}
+
+function selectTab(platform) {
+  if (platform === state.tab) return;
+  stopLocalPlayback();
+  state.tab = platform;
+  state.creating = false;
+  persist();
+  render({form: true});
+}
+
+function selectShop(key) {
+  if (key === state.selected[state.tab] && !state.creating) return;
+  stopLocalPlayback();
+  state.selected[state.tab] = key;
+  state.creating = false;
+  persist();
+  render({form: true});
+}
+
+// ---- Shop actions -------------------------------------------------------
+
+function setMessage(key, text) {
+  state.messages[key] = text;
+  if (currentShop()?.key === key) $('detail').textContent = text;
+}
+
+async function runApproach(key, method) {
+  const d = await api(`/api/approach/${method}/${encodeURIComponent(key)}`, null);
+  setMessage(key, `${d.status || 'error'} · report: ${d.report || 'approach_results/' + method + '/'}` + (d.error ? ' · ' + d.error : '') + (d.note ? ' · ' + d.note : ''));
+}
+
+async function toggleMpv(key, running) {
+  await api(`/api/mpv/${running ? 'stop' : 'start'}/${encodeURIComponent(key)}`, null);
+  await load();
+}
+
+async function play(key) {
+  setMessage(key, 'Đang resolve nguồn và khởi động player…');
+  const data = await api('/api/play/' + encodeURIComponent(key), null);
+  stopLocalPlayback();
+  const video = $('player');
+  const source = location.origin + data.url;
+  if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src = source;
+  } else if (window.Hls && Hls.isSupported()) {
+    hls = new Hls({liveSyncDurationCount: 2});
+    hls.loadSource(source);
+    hls.attachMedia(video);
+  } else {
+    throw new Error('Trình duyệt này không hỗ trợ phát HLS');
+  }
+  playingKey = key;
+  video.hidden = false;
+  if ($('snapshot')) $('snapshot').hidden = true;
+  $('media-empty').hidden = true;
+  video.play().catch(() => { /* autoplay may be blocked; controls remain */ });
+  setMessage(key, 'Đang phát qua worker cục bộ.');
+}
+
+async function stop(key) {
+  await api('/api/stop/' + encodeURIComponent(key), null);
+  stopLocalPlayback();
+  setMessage(key, 'Đã dừng player.');
+  renderPanel();
+}
+
+const ACTIONS = {
+  mpv: {busy: 'Đang xử lý…', run: (key, btn) => toggleMpv(key, btn.dataset.running === 'true')},
+  browser: {busy: 'Đang mở…', run: key => runApproach(key, 'browser')},
+  probe: {busy: 'Đang probe…', run: key => runApproach(key, 'direct_stream')},
+  play: {busy: 'Đang khởi động…', run: key => play(key)},
+  stop: {busy: 'Đang dừng…', run: key => stop(key)},
+};
+
+$('actions').addEventListener('click', async event => {
+  const button = event.target.closest('button[data-action]');
+  const shop = currentShop();
+  if (!button || !shop) return;
+  const action = ACTIONS[button.dataset.action];
+  try {
+    await withBusy(button, action.busy, () => action.run(shop.key, button));
+  } catch (e) {
+    setMessage(shop.key, e.message);
+    toast(e.message, 'error');
+  }
+  renderPanel();
+});
+
+// ---- Config forms -------------------------------------------------------
+
+$('shop-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const invalid = [...form.querySelectorAll('input')].find(input => !input.checkValidity());
+  if (invalid) {
+    const label = form.querySelector(`label[for="${invalid.id}"]`).textContent.replace('*', '').trim();
+    toast(invalid.validity.valueMissing ? `Vui lòng nhập ${label}.` : `${label} không hợp lệ.`, 'error');
+    invalid.focus();
+    return;
+  }
+  const shop = {platform: state.tab};
+  for (const input of form.querySelectorAll('input')) shop[input.name] = input.value.trim();
+  const originalKey = state.creating ? null : state.selected[state.tab];
+  try {
+    const result = await withBusy($('form-save'), 'Đang lưu…', () => api('/api/shops/save', {original_key: originalKey, shop}));
+    if (originalKey && originalKey !== result.data.key) stopLocalPlayback();
+    state.selected[state.tab] = result.data.key;
+    state.creating = false;
+    persist();
+    toast(result.message, 'ok');
+    await load();
+    renderForm();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+});
+
+$('form-delete').addEventListener('click', async () => {
+  const shop = currentShop();
+  if (!shop || !confirm(`Xoá shop “${shop.label}” khỏi cấu hình?`)) return;
+  try {
+    const result = await withBusy($('form-delete'), 'Đang xoá…', () => api('/api/shops/delete/' + encodeURIComponent(shop.key), null));
+    stopLocalPlayback();
+    state.selected[state.tab] = null;
+    persist();
+    toast(result.message, 'ok');
+    await load();
+    renderForm();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+});
+
+$('form-cancel').addEventListener('click', () => {
+  state.creating = false;
+  render({form: true});
+});
+
+$('add-shop').addEventListener('click', () => {
+  stopLocalPlayback();
+  state.creating = true;
+  render({form: true});
+  $('shop-form').querySelector('input')?.focus();
+});
+
+// ---- Navigation & polling ----------------------------------------------
+
+document.querySelector('.tabs').addEventListener('click', event => {
+  const tab = event.target.closest('[data-tab]');
+  if (tab) selectTab(tab.dataset.tab);
+});
+
+$('shop-list').addEventListener('click', event => {
+  const item = event.target.closest('[data-key]');
+  if (item) selectShop(item.dataset.key);
+});
+
+$('refresh').addEventListener('click', async () => {
+  try {
+    await api('/api/refresh', null);
+    await load();
+    clearInterval(refreshTimer);
+    refreshTimer = setInterval(async () => {
+      await load();
+      if (!state.refreshing) clearInterval(refreshTimer);
+    }, 2500);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+});
+
+load();
+setInterval(load, 5000);
+</script>
+</body>
+</html>

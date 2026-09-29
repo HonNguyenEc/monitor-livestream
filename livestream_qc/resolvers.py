@@ -3,27 +3,40 @@ from __future__ import annotations
 
 import json
 import sys
-from urllib.parse import urlparse
+from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qs, urlparse
+from urllib.request import Request, urlopen
 
-from .config import shop_platform
+from .config import shop_platform, shopee_cookie_for
 from .utils import run, safe_error
 
 Resolved = tuple[list[str] | None, str]
 
-PLAYBACK_URL_FIELDS = {'playurl', 'play_url', 'streamurl', 'stream_url', 'm3u8_url'}
+# Public buyer API, used only to find the ongoing session (ported from
+# ihmily/DouyinLiveRecorder: iOS app user agent, share page as referer).
+SHOPEE_API = 'https://live.shopee.vn'
+SHOPEE_SHARE_URL = SHOPEE_API + '/share?from=live&session={session_id}'
+SHOPEE_HEADERS = {
+    'accept': 'application/json, text/plain, */*',
+    'accept-language': 'vi-VN,vi;q=0.9,en;q=0.8',
+    'user-agent': 'ios/7.830 (ios 17.0; ; iPhone 15 (A2846/A3089/A3090/A3092))',
+}
+
+# Seller Center APIs. Unlike live.shopee.vn's session API they need no page
+# signature, only the shop's Seller Center login cookie (SPC_SC_SESSION).
+SELLER_CENTER = 'https://banhang.shopee.vn'
+SELLER_CENTER_LOGIN = SELLER_CENTER + '/api/v2/login/'
+SELLER_CENTER_SESSION_INFO = SELLER_CENTER + '/api/supply/lm/sellercenter/realtime/dashboard/sessionInfo?sessionId={session_id}'
+SELLER_CENTER_HEADERS = {
+    'accept': 'application/json, text/plain, */*',
+    'referer': SELLER_CENTER + '/',
+    'user-agent': ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                   '(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'),
+}
 
 
 def tiktok_url(shop: dict) -> str:
     return f"https://www.tiktok.com/@{shop['username']}/live"
-
-
-def shopee_candidates(shop: dict) -> list[str]:
-    # shop_id/user_id identify the seller, not the current livestream session.
-    # The correct session_id must first be discovered from the actual live page.
-    session_id = shop.get('session_id')
-    if not session_id:
-        return []
-    return [f"https://live.shopee.vn/api/v1/session/{int(session_id)}"]
 
 
 def resolve_tiktok(shop: dict, timeout: int) -> Resolved:
@@ -34,38 +47,85 @@ def resolve_tiktok(shop: dict, timeout: int) -> Resolved:
     return None, safe_error(p.stderr or p.stdout or f'yt-dlp exited {p.returncode}')
 
 
-def _playback_urls(value) -> list[str]:
-    # Public API responses may include a nested playback URL. Match known field
-    # names rather than searching arbitrary HTML for a media suffix.
-    found = []
-    if isinstance(value, dict):
-        for key, child in value.items():
-            if key.lower() in PLAYBACK_URL_FIELDS and isinstance(child, str) and child.startswith('http'):
-                found.append(child)
-            found.extend(_playback_urls(child))
-    elif isinstance(value, list):
-        for child in value:
-            found.extend(_playback_urls(child))
-    return found
+def _get_json(url: str, headers: dict, timeout: int, cookie: str | None = None) -> tuple[int, dict]:
+    """GET `url`; return (http_status, json_body or {})."""
+    headers = {**headers, 'Cookie': cookie} if cookie else headers
+    try:
+        with urlopen(Request(url, headers=headers), timeout=timeout) as resp:
+            status, body = resp.status, resp.read()
+    except HTTPError as exc:
+        status, body = exc.code, exc.read()
+    try:
+        return status, json.loads(body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return status, {}
+
+
+def seller_center_account(cookie: str, timeout: int) -> dict | None:
+    """Identify the shop behind a Seller Center cookie: {user_id, shop_id, username}, or None if rejected."""
+    status, data = _get_json(SELLER_CENTER_LOGIN, SELLER_CENTER_HEADERS, timeout, cookie)
+    if status != 200 or not str(data.get('id') or '').isdigit():
+        return None
+    shop_id = str(data.get('shopid') or '')
+    return {'user_id': int(data['id']), 'shop_id': int(shop_id) if shop_id.isdigit() else None,
+            'username': data.get('username') or ''}
+
+
+def _session_from_link(url: str, timeout: int) -> int | None:
+    """Session id from a share link (live.shopee.vn/share?session=...) or an shp.ee short link."""
+    if 'live.shopee' not in url:
+        with urlopen(Request(url, headers=SHOPEE_HEADERS), timeout=timeout) as resp:  # follow shp.ee redirect
+            url = resp.geturl()
+    session = parse_qs(urlparse(url).query).get('session', [''])[0]
+    return int(session) if session.isdigit() else None
+
+
+def shopee_ongoing_session(shop: dict, timeout: int, cookie: str | None = None) -> tuple[int | None, str]:
+    """Session to watch: share link in live_url, else the seller's ongoing live (user_id from config or cookie)."""
+    if shop.get('live_url'):
+        session_id = _session_from_link(shop['live_url'], timeout)
+        if session_id:
+            return session_id, 'live_url'
+    uid = shop.get('user_id')
+    if not uid and cookie:
+        uid = (seller_center_account(cookie, timeout) or {}).get('user_id')
+    if not uid:
+        return None, 'missing_user_id: save the shop again with its Seller Center cookie'
+    referer = SHOPEE_SHARE_URL.format(session_id='') + '&share_user_id='
+    status, data = _get_json(f'{SHOPEE_API}/api/v1/shop_page/live/ongoing?uid={int(uid)}',
+                             {**SHOPEE_HEADERS, 'referer': referer}, timeout)
+    ongoing = (data.get('data') or {}).get('ongoing_live')
+    if ongoing and ongoing.get('session_id'):
+        return int(ongoing['session_id']), ongoing.get('title') or ''
+    if status == 200 and data.get('err_code') == 0:
+        return None, 'not_live: seller has no ongoing Shopee Live session'
+    return None, f"ongoing_lookup_failed: http {status} err {data.get('err_code', data.get('error'))}"
 
 
 def resolve_shopee(shop: dict, timeout: int) -> Resolved:
-    # This endpoint expects session_id, not shop_id or user_id. Discovery of an
-    # active session is a separate step and is not guessed here.
-    if not shop.get('session_id'):
-        return None, 'missing_session_id: shop_id/user_id are seller identifiers; discover the active session_id from the live page first'
-    failures = []
-    for url in shopee_candidates(shop):
-        p = run(['curl.exe', '-L', '-sS', '--max-time', str(timeout), '-A', 'Mozilla/5.0', url], timeout + 3)
-        try:
-            data = json.loads(p.stdout)
-        except json.JSONDecodeError:
-            data = {}
-        urls = _playback_urls(data)
-        if p.returncode == 0 and urls:
-            return urls, 'media_url_found'
-        failures.append(f'{urlparse(url).netloc}: session detail did not return a playback URL')
-    return None, '; '.join(failures)
+    cookie = shopee_cookie_for(shop)
+    if not cookie:
+        return None, "missing_cookie: add the shop's Seller Center cookie (SPC_SC_SESSION) in its config"
+    try:
+        session_id, detail = shopee_ongoing_session(shop, timeout, cookie)
+        if not session_id:
+            return None, detail
+        status, data = _get_json(SELLER_CENTER_SESSION_INFO.format(session_id=session_id),
+                                 SELLER_CENTER_HEADERS, timeout, cookie)
+    except (URLError, TimeoutError, OSError) as exc:
+        return None, safe_error(f'shopee_request_failed: {exc}')
+    if status != 200 or data.get('code') not in (0, None):
+        message = data.get('msg') or data.get('message') or ''
+        return None, f'seller_center_auth_failed: http {status} {message}; Seller Center login expired?'
+    info = data.get('data') or {}
+    if not info:
+        return None, f'seller_center_no_access: session {session_id} belongs to a shop this login does not manage'
+    if info.get('sessionStatus') != 1:
+        return None, f"not_live: session {session_id} sessionStatus={info.get('sessionStatus')}"
+    url = info.get('sessionStreamingUrl')
+    if url:
+        return [url], f"session {session_id} via Seller Center ({info.get('sessionTitle') or ''})"
+    return None, f'no_play_url: Seller Center returned no sessionStreamingUrl for session {session_id}'
 
 
 def resolve(shop: dict, timeout: int) -> Resolved:

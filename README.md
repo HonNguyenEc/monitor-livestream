@@ -20,13 +20,14 @@ The root scripts are thin entry points; the logic lives in `livestream_qc/`:
 | --- | --- |
 | `config.py` | Paths, constants, `shops.json` loading, shop key/label helpers |
 | `utils.py` | Subprocess helpers, error redaction, timestamps, logging |
-| `resolvers.py` | TikTok (yt-dlp) and Shopee (session API) stream resolution |
+| `resolvers.py` | TikTok (yt-dlp) and Shopee (DouyinLiveRecorder-style session API) stream resolution |
 | `media.py` | FFmpeg frame capture, single-frame check, HLS command |
 | `players.py` | Locate mpv / mpv.net / VLC and build their commands |
 | `probe.py` | Batch probe of all shops → `results/<timestamp>/report.json` |
 | `approaches.py` | Approaches A/B/C → `approach_results/<method>/<timestamp>/` |
 | `streams.py` | Local HLS preview processes for the dashboard |
-| `mpv_retry.py` | Continuous mpv retry loop with image detection (TikTok) |
+| `mpv_retry.py` | Continuous mpv retry loop with image detection |
+| `shop_store.py` | Validated shop add/edit/delete from the dashboard |
 | `server.py` | Dashboard state and HTTP routes |
 
 ## Approach A: Browser page
@@ -49,6 +50,13 @@ Expected limitations: dynamic/expiring URLs, request headers or cookies, intermi
 
 Real Android controlled through ADB is intentionally not included in this demo; it remains the final fallback option.
 
-## Shopee identifiers
+## Shopee setup
 
-`shop_id` and `user_id` identify the seller, not the active stream session. Shopee direct playback needs a current `session_id` or a live share URL from which it can be discovered. The current script does not guess one from seller IDs.
+A Shopee shop only needs its **Seller Center cookie**. In the shop's config, paste the `cookie` header of any `banhang.shopee.vn` request; only `SPC_SC_SESSION` is kept, in `shopee_cookies.json` (git-ignored, keyed by `user_id`). On save the cookie is checked against `https://banhang.shopee.vn/api/v2/login/`, which also fills in the shop's `name` (Seller Center username if left empty), `user_id` and `shop_id`. When editing, leave the cookie field empty to keep the stored one.
+
+Resolving a stream:
+
+1. Session: a share link in `live_url` (`https://live.shopee.vn/share?from=live&session=<id>`, `shp.ee` links are followed), else `live.shopee.vn/api/v1/shop_page/live/ongoing?uid=<user_id>` (public, ported from [ihmily/DouyinLiveRecorder](https://github.com/ihmily/DouyinLiveRecorder)).
+2. Stream: `https://banhang.shopee.vn/api/supply/lm/sellercenter/realtime/dashboard/sessionInfo?sessionId=<id>` with the cookie returns `sessionStreamingUrl`, a signed FLV on `play-spe.livestream.shopee.vn` with an `expire_ts`. It is fetched fresh on every resolve; FFmpeg/mpv read it without cookies.
+
+A login only sees its own shop's sessions (`seller_center_no_access` otherwise). `seller_center_auth_failed` means the cookie expired: paste a new one. The buyer-side `live.shopee.vn/api/v1/session/<id>` endpoint is not used; Shopee VN blocks it with HTTP 403 / `90309999` even with login cookies.

@@ -1,42 +1,48 @@
-﻿{
-    "capture_seconds":  10,
-    "frame_interval_seconds":  2,
-    "shops":  [
-                  {
-                      "platform":  "tiktok",
-                      "username":  "unidry_official"
-                  },
-                  {
-                      "platform":  "tiktok",
-                      "username":  "ecentricmuasamchinhhang"
-                  },
-                  {
-                      "platform":  "tiktok",
-                      "username":  "frisovietnam"
-                  },
-                  {
-                      "platform":  "tiktok",
-                      "username":  "bongbachtuyet.official"
-                  },
-                  {
-                      "platform":  "shopee",
-                      "name":  "frisovietnam",
-                      "shop_id":  127691603,
-                      "user_id":  127693427
-                  },
-                  {
-                      "platform":  "shopee",
-                      "name":  "nivea",
-                      "shop_id":  61922582,
-                      "user_id":  61924024,
-                      "session_id":  41556990
-                  },
-                  {
-                      "platform":  "shopee",
-                      "name":  "vitadairy",
-                      "shop_id":  108058401,
-                      "user_id":  108059880,
-                      "session_id":  41547863
-                  }
-              ]
+{
+    "capture_seconds": 10,
+    "frame_interval_seconds": 2,
+    "shops": [
+        {
+            "platform": "tiktok",
+            "username": "unidry_official"
+        },
+        {
+            "platform": "tiktok",
+            "username": "ecentricmuasamchinhhang"
+        },
+        {
+            "platform": "tiktok",
+            "username": "frisovietnam"
+        },
+        {
+            "platform": "tiktok",
+            "username": "bongbachtuyet.official"
+        },
+        {
+            "platform": "shopee",
+            "name": "frisovietnam",
+            "user_id": 127693427,
+            "shop_id": 127691603
+        },
+        {
+            "platform": "shopee",
+            "name": "nivea",
+            "shop_id": 61922582,
+            "user_id": 61924024,
+            "session_id": 41556990
+        },
+        {
+            "platform": "shopee",
+            "name": "vitadairy",
+            "shop_id": 108058401,
+            "user_id": 108059880,
+            "session_id": 41547863
+        },
+        {
+            "platform": "shopee",
+            "name": "Inochi",
+            "user_id": 85694239,
+            "shop_id": 85692762
+        }
+    ]
 }

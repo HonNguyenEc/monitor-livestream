@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / 'shops.json'
+SHOPEE_COOKIES_PATH = ROOT / 'shopee_cookies.json'  # git-ignored; {user_id: Seller Center cookie}
 WEB_DIR = ROOT / 'web'
 RESULTS_DIR = ROOT / 'results'
 APPROACH_RESULTS_DIR = ROOT / 'approach_results'
@@ -25,6 +26,18 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
 
 def load_shops(path: Path = CONFIG_PATH) -> list[dict]:
     return load_config(path).get('shops', [])
+
+
+def load_shopee_cookies() -> dict[str, str]:
+    try:
+        return json.loads(SHOPEE_COOKIES_PATH.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def shopee_cookie_for(shop: dict) -> str | None:
+    """Seller Center cookie saved for this Shopee shop (keyed by user_id), read fresh on every call."""
+    return load_shopee_cookies().get(str(shop.get('user_id'))) if shop.get('user_id') else None
 
 
 def capture_settings(cfg: dict) -> tuple[int, int]:

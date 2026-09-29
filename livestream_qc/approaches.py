@@ -10,10 +10,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from .config import (APPROACH_RESULTS_DIR, TIMEOUT, capture_settings, load_config, shop_key, shop_label,
-                     shop_platform)
+                     shop_platform, shopee_cookie_for)
 from .media import capture
 from .players import find_player, open_command
-from .resolvers import resolve
+from .resolvers import SHOPEE_SHARE_URL, resolve, shopee_ongoing_session
 from .utils import spawn, timestamp, utc_now, write_json
 
 METHODS = ('browser', 'direct_stream', 'desktop_player')
@@ -23,9 +23,19 @@ def _browser(shop: dict, folder: Path, timeout: int) -> dict:
     if shop_platform(shop) == 'tiktok':
         url = shop.get('live_url') or f"https://www.tiktok.com/@{shop['username']}/live"
         page_kind = 'tiktok_live_page'
+    elif shop.get('live_url'):
+        url, page_kind = shop['live_url'], 'shopee_live_link'
     else:
-        url = shop.get('live_url') or f"https://shopee.vn/shop/{shop['shop_id']}"
-        page_kind = 'shopee_live_link' if shop.get('live_url') else 'shopee_shop_page_needs_manual_live_selection'
+        try:
+            session_id, detail = shopee_ongoing_session(shop, timeout, shopee_cookie_for(shop))
+        except OSError as exc:
+            session_id, detail = None, str(exc)
+        if session_id:
+            url, page_kind = SHOPEE_SHARE_URL.format(session_id=session_id), 'shopee_share_page'
+        elif shop.get('shop_id'):
+            url, page_kind = f"https://shopee.vn/shop/{shop['shop_id']}", 'shopee_shop_page_no_ongoing_live'
+        else:
+            return {'status': 'probe_inconclusive', 'error': detail}
     opened = webbrowser.open(url, new=2)
     return {'status': 'browser_opened' if opened else 'browser_launch_requested', 'page_kind': page_kind,
             'note': 'Check login, iframe restrictions, and whether the live player starts in the browser.'}

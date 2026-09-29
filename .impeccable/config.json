@@ -1,0 +1,23 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-09-29T08:02:16.375Z",
+        "reason": "Claude triage: Inter was the font of the original dashboard before this session; kept to preserve existing style"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "web/index.html"
+        ],
+        "createdAt": "2026-09-29T08:02:16.524Z",
+        "reason": "Claude triage: only flagged element is .media, a 16:9 video/snapshot frame that intentionally fills edge to edge"
+      }
+    ]
+  }
+}

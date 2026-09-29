@@ -11,9 +11,10 @@ from urllib.parse import unquote, urlparse
 
 from .approaches import METHODS, run_approach
 from .config import HOST, PORT, RESULTS_DIR, STREAMS_DIR, WEB_DIR, find_shop, load_config, load_shops, \
-    shop_key, shop_label, shop_platform
+    shop_key, shop_label, shop_platform, shopee_cookie_for
 from .mpv_retry import MpvRetryManager
 from .probe import latest_report, probe_all
+from .shop_store import ShopError, delete_shop, save_shop
 from .streams import HlsStreams
 from .utils import safe_error
 
@@ -77,6 +78,7 @@ class Dashboard:
                           'checked_at': row.get('checked_at'), 'error': row.get('error'),
                           'frame': self._latest_frame(key, report_dir),
                           'stream_available': self.streams.is_available(key), 'streaming': self.streams.is_running(key),
+                          'config': shop, 'cookie_set': platform == 'shopee' and bool(shopee_cookie_for(shop)),
                           **self.mpv.status(key)})
         return {'shops': shops, 'refreshing': refreshing}
 
@@ -147,6 +149,37 @@ class Handler(BaseHTTPRequestHandler):
                 return action(self, *match.groups())
         return self.send_json({'error': 'not_found'}, 404)
 
+    def _read_json(self) -> dict:
+        length = int(self.headers.get('Content-Length') or 0)
+        if not 0 < length <= 64_000:
+            return {}
+        try:
+            data = json.loads(self.rfile.read(length))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _form_result(self, action, success_message: str):
+        """Run a config edit and reply with {success, message, data?}."""
+        try:
+            data = action()
+        except ShopError as exc:
+            return self.send_json({'success': False, 'message': str(exc)}, 400)
+        except (OSError, ValueError) as exc:
+            return self.send_json({'success': False, 'message': f'Không lưu được cấu hình: {exc}'}, 500)
+        self.send_json({'success': True, 'message': success_message, **({'data': data} if data else {})})
+
+    def post_shop_save(self):
+        body = self._read_json()
+        original = body.get('original_key') or None
+        self._form_result(lambda: save_shop(body.get('shop') or {}, original),
+                          'Đã cập nhật shop.' if original else 'Đã thêm shop.')
+
+    def post_shop_delete(self, key: str):
+        self.app.streams.stop(key)
+        self.app.mpv.stop(key)
+        self._form_result(lambda: delete_shop(key), 'Đã xoá shop.')
+
     def _shop_or_404(self, key: str) -> dict | None:
         shop = find_shop(key)
         if not shop:
@@ -178,11 +211,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def post_mpv_start(self, key: str):
         shop = self._shop_or_404(key)
-        if not shop:
-            return
-        if shop_platform(shop) != 'tiktok':
-            return self.send_json({'error': 'mpv_retry_currently_tiktok_only'}, 400)
-        self.send_json(self.app.mpv.start(key, shop))
+        if shop:
+            self.send_json(self.app.mpv.start(key, shop))
 
     def post_mpv_stop(self, key: str):
         self.app.mpv.stop(key)
@@ -191,6 +221,8 @@ class Handler(BaseHTTPRequestHandler):
 
 POST_ROUTES = [
     (r'/api/refresh', Handler.post_refresh),
+    (r'/api/shops/save', Handler.post_shop_save),
+    (rf'/api/shops/delete/{KEY}', Handler.post_shop_delete),
     (rf'/api/approach/({"|".join(METHODS)})/{KEY}', Handler.post_approach),
     (rf'/api/play/{KEY}', Handler.post_play),
     (rf'/api/stop/{KEY}', Handler.post_stop),

@@ -1,4 +1,4 @@
-"""Keep an mpv window open on a TikTok live, retrying until real frames arrive."""
+"""Keep an mpv window open on a shop's live, retrying until real frames arrive."""
 from __future__ import annotations
 
 import subprocess
@@ -6,14 +6,16 @@ import threading
 import time
 from urllib.parse import urlparse
 
-from .config import MPV_CHECKS_DIR, MPV_CONFIGS_DIR, TIMEOUT, shop_label
+from .config import MPV_CHECKS_DIR, MPV_CONFIGS_DIR, TIMEOUT, shop_label, shop_platform
 from .media import grab_frame
 from .players import find_player, mpv_instance_args
-from .resolvers import resolve_tiktok
+from .resolvers import resolve
 from .utils import console_log, safe_error, spawn, terminate
 
 ACTIVE_STATES = {'retrying', 'checking_image', 'playing'}
 IMAGE_CHECK_SECONDS = 20
+# Seconds between failed resolves; Shopee is slower to avoid hammering its anti-bot gate.
+RETRY_DELAY = {'shopee': 15}
 
 
 class MpvRetryManager:
@@ -95,7 +97,7 @@ class MpvRetryManager:
                 return
             console_log('resolve_start', key, f'lần={attempt}')
             try:
-                urls, detail = resolve_tiktok(shop, TIMEOUT)
+                urls, detail = resolve(shop, TIMEOUT)
             except Exception as exc:
                 urls, detail = None, str(exc)[:300]
             if stop_event.is_set():
@@ -103,7 +105,7 @@ class MpvRetryManager:
             if not urls:
                 console_log('resolve_failed', key, safe_error(detail))
                 self._update(key, stop_event, message=f'Lần {attempt}: {detail[:220]}')
-                stop_event.wait(5)
+                stop_event.wait(RETRY_DELAY.get(shop_platform(shop), 5))
                 continue
 
             url = urls[0]

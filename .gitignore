@@ -7,3 +7,6 @@ approach_results/
 mpv_checks/
 mpv_configs/
 *.log
+shopee_cookie.txt
+browser_profile/
+shopee_cookies.json
