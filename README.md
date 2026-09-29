@@ -20,13 +20,14 @@ The root scripts are thin entry points; the logic lives in `livestream_qc/`:
 | --- | --- |
 | `config.py` | Paths, constants, `shops.json` loading, shop key/label helpers |
 | `utils.py` | Subprocess helpers, error redaction, timestamps, logging |
-| `resolvers.py` | TikTok (yt-dlp) and Shopee (DouyinLiveRecorder-style session API) stream resolution |
+| `resolvers.py` | TikTok (room API `api-live/user/room`, yt-dlp fallback) and Shopee (DouyinLiveRecorder-style session API) stream resolution |
 | `media.py` | FFmpeg frame capture, single-frame check, HLS command |
 | `players.py` | Locate mpv / mpv.net / VLC and build their commands |
 | `probe.py` | Batch probe of all shops → `results/<timestamp>/report.json` |
 | `approaches.py` | Approaches A/B/C → `approach_results/<method>/<timestamp>/` |
 | `streams.py` | Local HLS preview processes for the dashboard |
-| `mpv_retry.py` | Continuous mpv retry loop with image detection |
+| `mpv_retry.py` | Continuous mpv loop per shop: reopens mpv on each live, reports `live` only while mpv plays real frames |
+| `monitor.py` | "Theo dõi tất cả": keeps one mpv job running for every monitored shop |
 | `shop_store.py` | Validated shop add/edit/delete from the dashboard |
 | `server.py` | Dashboard state and HTTP routes |
 

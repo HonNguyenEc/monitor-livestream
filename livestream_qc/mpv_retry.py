@@ -1,4 +1,8 @@
-"""Keep an mpv window open on a shop's live, retrying until real frames arrive."""
+"""Keep an mpv window open on a shop's live, retrying until real frames arrive and reopening after it ends.
+
+The mpv job is also the source of truth for whether a shop is live: `live` means mpv is
+playing a stream in which real frames were detected.
+"""
 from __future__ import annotations
 
 import subprocess
@@ -7,15 +11,28 @@ import time
 from urllib.parse import urlparse
 
 from .config import MPV_CHECKS_DIR, MPV_CONFIGS_DIR, TIMEOUT, shop_label, shop_platform
-from .media import grab_frame
+from .mpv_ipc import frames_shown, ipc_path, screenshot
 from .players import find_player, mpv_instance_args
 from .resolvers import resolve
-from .utils import console_log, safe_error, spawn, terminate
+from .utils import console_log, safe_error, spawn, terminate, utc_now
 
 ACTIVE_STATES = {'retrying', 'checking_image', 'playing'}
 IMAGE_CHECK_SECONDS = 20
+# While playing, mpv is asked this often whether new frames arrived; it also refreshes the dashboard thumbnail.
+PLAYING_CHECK_SECONDS = 30
 # Seconds between failed resolves; Shopee is slower to avoid hammering its anti-bot gate.
 RETRY_DELAY = {'shopee': 15}
+# Seconds between checks while the platform says the shop is not live.
+OFFLINE_DELAY = {'tiktok': 20, 'shopee': 60}
+# Failed attempts before a live shop is reported as no longer live, so one dropped
+# connection or flaky resolve does not end the session.
+LIVE_GRACE_ATTEMPTS = 2
+# Resolver messages that mean the platform itself says the shop is not live.
+OFFLINE_MARKERS = ('not currently live', 'not_live')
+
+
+def classify_miss(detail: str) -> str:
+    return 'offline' if any(m in detail.lower() for m in OFFLINE_MARKERS) else 'unknown'
 
 
 class MpvRetryManager:
@@ -26,10 +43,19 @@ class MpvRetryManager:
     def status(self, key: str) -> dict:
         with self._lock:
             job = self._jobs.get(key, {})
-            if job.get('state') == 'playing' and (not job.get('proc') or job['proc'].poll() is not None):
-                job.update(state='stopped', message='Cửa sổ mpv đã đóng.')
+            active = job.get('state') in ACTIVE_STATES
+            status = job.get('verdict') if active else None
+            frame = MPV_CHECKS_DIR / key / 'latest.jpg'
             return {'mpv_state': job.get('state', 'stopped'), 'mpv_attempts': job.get('attempts', 0),
-                    'mpv_message': job.get('message')}
+                    'mpv_message': job.get('message'),
+                    'status': status or ('checking' if active else 'not_checked'),
+                    'checked_at': job.get('checked_at') if active else None,
+                    'live_since': job.get('live_since') if status == 'live' else None,
+                    'frame': f'/api/mpv/frame/{key}?t={int(frame.stat().st_mtime)}' if frame.is_file() else None}
+
+    def active(self, key: str) -> bool:
+        with self._lock:
+            return self._jobs.get(key, {}).get('state') in ACTIVE_STATES
 
     def start(self, key: str, shop: dict) -> dict:
         with self._lock:
@@ -63,6 +89,26 @@ class MpvRetryManager:
             job.update(fields)
             return True
 
+    def _verdict(self, key: str, stop_event: threading.Event, verdict: str) -> None:
+        """Record the outcome of one attempt; a live shop needs repeated misses to stop being live."""
+        with self._lock:
+            job = self._jobs.get(key)
+            if not job or job['stop'] is not stop_event:
+                return
+            previous = job.get('verdict')
+            job['checked_at'] = utc_now()
+            if verdict == 'live':
+                job['misses'] = 0
+                if previous != 'live':
+                    job['live_since'] = utc_now()
+            else:
+                job['misses'] = job.get('misses', 0) + 1
+                if previous == 'live' and job['misses'] < LIVE_GRACE_ATTEMPTS:
+                    verdict = 'live'
+            job['verdict'] = verdict
+        if previous != verdict:
+            console_log('live_state', key, f'{previous or "-"} -> {verdict}')
+
     def _next_attempt(self, key: str, stop_event: threading.Event) -> int | None:
         with self._lock:
             job = self._jobs.get(key)
@@ -73,15 +119,27 @@ class MpvRetryManager:
             job.update(state='retrying', message=f'Lần thử {attempt}: đang lấy stream…')
             return attempt
 
-    def _wait_for_image(self, key: str, url: str, proc: subprocess.Popen, stop_event: threading.Event) -> bool:
+    def _wait_for_image(self, key: str, proc: subprocess.Popen, stop_event: threading.Event) -> bool:
+        """Ask mpv itself whether it has shown a video frame; no second connection to the stream."""
         deadline = time.monotonic() + IMAGE_CHECK_SECONDS
-        while time.monotonic() < deadline and not stop_event.is_set() and proc.poll() is None:
-            time.sleep(1)
-            size = grab_frame(url, MPV_CHECKS_DIR / key / 'latest.jpg')
-            if size:
-                console_log('image_detected', key, f'frame_bytes={size}')
+        while time.monotonic() < deadline and not stop_event.wait(1) and proc.poll() is None:
+            frames = frames_shown(ipc_path(key))
+            if frames:
+                screenshot(ipc_path(key), MPV_CHECKS_DIR / key / 'latest.jpg')
+                console_log('image_detected', key, f'frames={frames}')
                 return True
         return False
+
+    def _watch_playing(self, key: str, proc: subprocess.Popen, stop_event: threading.Event) -> None:
+        """Return when mpv exits, is stopped, or stops receiving new frames."""
+        last = frames_shown(ipc_path(key))
+        while not stop_event.wait(PLAYING_CHECK_SECONDS) and proc.poll() is None:
+            frames = frames_shown(ipc_path(key))
+            if frames <= last:
+                console_log('image_stalled', key, f'frames={frames}')
+                return
+            last = frames
+            screenshot(ipc_path(key), MPV_CHECKS_DIR / key / 'latest.jpg')
 
     def _worker(self, key: str, shop: dict, stop_event: threading.Event) -> None:
         player = find_player(include_vlc=False)
@@ -104,14 +162,18 @@ class MpvRetryManager:
                 break
             if not urls:
                 console_log('resolve_failed', key, safe_error(detail))
-                self._update(key, stop_event, message=f'Lần {attempt}: {detail[:220]}')
-                stop_event.wait(RETRY_DELAY.get(shop_platform(shop), 5))
+                verdict = classify_miss(detail)
+                self._verdict(key, stop_event, verdict)
+                message = 'Kênh không live, sẽ tự mở mpv khi kênh lên live.' if verdict == 'offline' else detail[:220]
+                self._update(key, stop_event, message=f'Lần {attempt}: {message}')
+                delays = OFFLINE_DELAY if verdict == 'offline' else RETRY_DELAY
+                stop_event.wait(delays.get(shop_platform(shop), 5))
                 continue
 
             url = urls[0]
             console_log('resolve_ok', key, f'lần={attempt} host={urlparse(url).hostname or "unknown"}')
-            command = [player, *instance_args, '--force-window=yes', '--keep-open=no',
-                       '--title=Livestream ' + shop_label(shop), url]
+            command = [player, *instance_args, '--input-ipc-server=' + ipc_path(key), '--force-window=yes',
+                       '--keep-open=no', '--title=Livestream ' + shop_label(shop), url]
             try:
                 proc = spawn(command)
             except OSError as exc:
@@ -124,14 +186,24 @@ class MpvRetryManager:
                 terminate(proc)
                 return
 
-            if self._wait_for_image(key, url, proc, stop_event):
-                self._update(key, stop_event, state='playing', message='Đã nhận được hình ảnh trong luồng mpv.')
-                while not stop_event.wait(1) and proc.poll() is None:
-                    pass
+            if self._wait_for_image(key, proc, stop_event):
+                self._verdict(key, stop_event, 'live')
+                self._update(key, stop_event, state='playing', message='mpv đang phát, đã nhận được hình ảnh.')
+                self._watch_playing(key, proc, stop_event)
                 terminate(proc)
-                break
+                if stop_event.is_set():
+                    break
+                try:  # the next window reuses this shop's IPC pipe name
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                # The window closed, the stream ended or froze: go back to checking so the next live is caught.
+                console_log('mpv_exited', key, f'exit={proc.poll()}')
+                self._update(key, stop_event, proc=None, message='Cửa sổ mpv đã đóng, đang kiểm tra lại…')
+                continue
 
             terminate(proc)
+            self._verdict(key, stop_event, 'no_signal')
             console_log('image_not_detected', key, f'lần={attempt}; mpv_exit={proc.poll()}')
             try:
                 proc.wait(timeout=3)

@@ -4,16 +4,15 @@ from __future__ import annotations
 import json
 import mimetypes
 import re
-import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from .approaches import METHODS, run_approach
-from .config import HOST, PORT, RESULTS_DIR, STREAMS_DIR, WEB_DIR, find_shop, load_config, load_shops, \
-    shop_key, shop_label, shop_platform, shopee_cookie_for
+from .config import HOST, MPV_CHECKS_DIR, PORT, STREAMS_DIR, WEB_DIR, find_shop, load_shops, shop_key, \
+    shop_label, shop_platform, shopee_cookie_for
+from .monitor import LiveMonitor
 from .mpv_retry import MpvRetryManager
-from .probe import latest_report, probe_all
 from .shop_store import ShopError, delete_shop, save_shop
 from .streams import HlsStreams
 from .utils import safe_error
@@ -25,62 +24,19 @@ class Dashboard:
     """Server-side state shared by all request threads."""
 
     def __init__(self):
-        self._lock = threading.RLock()
-        self._refreshing = False
-        self._report_dir: Path | None = None
-        self._rows: dict[str, dict] = {}
         self.streams = HlsStreams()
         self.mpv = MpvRetryManager()
-
-    def reload_latest(self) -> None:
-        found = latest_report(RESULTS_DIR)
-        if not found:
-            return
-        report_dir, report = found
-        with self._lock:
-            self._report_dir = report_dir
-            self._rows = {f"{r.get('platform')}:{r.get('shop')}": r for r in report.get('results', [])}
-
-    def refresh(self) -> None:
-        """Start a background batch probe unless one is already running."""
-        with self._lock:
-            if self._refreshing:
-                return
-            self._refreshing = True
-        threading.Thread(target=self._refresh_worker, daemon=True).start()
-
-    def _refresh_worker(self) -> None:
-        try:
-            _, rows = probe_all(load_config())
-            for row in rows:
-                if row.get('stream_host'):
-                    self.streams.mark_available(row['key'])
-            self.reload_latest()
-        finally:
-            with self._lock:
-                self._refreshing = False
-
-    def _latest_frame(self, key: str, report_dir: Path | None) -> str | None:
-        if not report_dir:
-            return None
-        frames = sorted((report_dir / key).glob('frame_*.jpg'))
-        return f'/api/frame/{report_dir.name}/{key}/{frames[-1].name}' if frames else None
+        self.monitor = LiveMonitor(self.mpv)
 
     def snapshot(self) -> dict:
-        self.reload_latest()
-        with self._lock:
-            refreshing, report_dir, rows = self._refreshing, self._report_dir, dict(self._rows)
         shops = []
         for shop in load_shops():
-            platform, label, key = shop_platform(shop), shop_label(shop), shop_key(shop)
-            row = rows.get(f'{platform}:{label}', {})
-            shops.append({'key': key, 'platform': platform, 'label': label, 'status': row.get('status', 'not_checked'),
-                          'checked_at': row.get('checked_at'), 'error': row.get('error'),
-                          'frame': self._latest_frame(key, report_dir),
+            platform, key = shop_platform(shop), shop_key(shop)
+            shops.append({'key': key, 'platform': platform, 'label': shop_label(shop),
                           'stream_available': self.streams.is_available(key), 'streaming': self.streams.is_running(key),
                           'config': shop, 'cookie_set': platform == 'shopee' and bool(shopee_cookie_for(shop)),
                           **self.mpv.status(key)})
-        return {'shops': shops, 'refreshing': refreshing}
+        return {'shops': shops, 'monitoring': self.monitor.running}
 
 
 def _safe_file(base: Path, parts: list[str], suffixes: set[str]) -> Path | None:
@@ -131,8 +87,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/shops':
             return self.send_json(self.app.snapshot())
         parts = path.strip('/').split('/')
-        if path.startswith('/api/frame/'):
-            target = len(parts) == 5 and _safe_file(RESULTS_DIR, parts[2:], {'.jpg', '.jpeg'})
+        if path.startswith('/api/mpv/frame/'):
+            target = len(parts) == 4 and _safe_file(MPV_CHECKS_DIR, [parts[3], 'latest.jpg'], {'.jpg'})
             return self.send_file(target) if target else self.send_json({'error': 'frame_not_found'}, 404)
         if path.startswith('/streams/'):
             target = len(parts) == 3 and _safe_file(STREAMS_DIR, parts[1:], {'.m3u8', '.ts'})
@@ -186,9 +142,16 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({'error': 'shop_not_found'}, 404)
         return shop
 
-    def post_refresh(self):
-        self.app.refresh()
-        self.send_json({'started': True})
+    def post_monitor_start(self):
+        platforms = {str(p).lower() for p in self._read_json().get('platforms') or []}
+        if not platforms:
+            return self.send_json({'error': 'Chưa chọn nền tảng để theo dõi.'}, 400)
+        self.app.monitor.start(platforms)
+        self.send_json({'monitoring': True})
+
+    def post_monitor_stop(self):
+        self.app.monitor.stop()
+        self.send_json({'monitoring': False})
 
     def post_approach(self, method: str, key: str):
         shop = find_shop(key)
@@ -220,7 +183,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 POST_ROUTES = [
-    (r'/api/refresh', Handler.post_refresh),
+    (r'/api/monitor/start', Handler.post_monitor_start),
+    (r'/api/monitor/stop', Handler.post_monitor_stop),
     (r'/api/shops/save', Handler.post_shop_save),
     (rf'/api/shops/delete/{KEY}', Handler.post_shop_delete),
     (rf'/api/approach/({"|".join(METHODS)})/{KEY}', Handler.post_approach),
@@ -234,6 +198,5 @@ POST_ROUTES = [
 def main() -> None:
     STREAMS_DIR.mkdir(exist_ok=True)
     Handler.app = Dashboard()
-    Handler.app.reload_latest()
     print(f'Livestream QC demo: http://{HOST}:{PORT}')
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()

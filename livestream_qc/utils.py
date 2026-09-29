@@ -46,4 +46,8 @@ def write_json(path: Path, data) -> None:
 def console_log(event: str, key: str, message: str = '') -> None:
     stamp = datetime.now().astimezone().isoformat(timespec='seconds')
     suffix = f' | {message}' if message else ''
-    print(f'[{stamp}] [{key}] {event}{suffix}', flush=True)
+    line = f'[{stamp}] [{key}] {event}{suffix}'
+    try:
+        print(line, flush=True)
+    except UnicodeEncodeError:  # console without UTF-8 (e.g. redirected on Windows): never crash a worker
+        print(line.encode('ascii', 'backslashreplace').decode(), flush=True)
