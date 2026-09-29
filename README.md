@@ -8,7 +8,26 @@ Requirements: Python 3.10+, FFmpeg on PATH, `python -m pip install -r requiremen
 python server.py
 ```
 
+Batch probe from the CLI: `python qc_probe.py`. Single approach: `python approach_runner.py <browser|direct_stream|desktop_player> <shop_key>`.
+
 Open `http://127.0.0.1:8765`. Each shop card has separate actions for the approaches below. Their reports are isolated under `approach_results/<approach>/<timestamp>/report.json` so results do not overwrite one another.
+
+## Code layout
+
+The root scripts are thin entry points; the logic lives in `livestream_qc/`:
+
+| Module | Responsibility |
+| --- | --- |
+| `config.py` | Paths, constants, `shops.json` loading, shop key/label helpers |
+| `utils.py` | Subprocess helpers, error redaction, timestamps, logging |
+| `resolvers.py` | TikTok (yt-dlp) and Shopee (session API) stream resolution |
+| `media.py` | FFmpeg frame capture, single-frame check, HLS command |
+| `players.py` | Locate mpv / mpv.net / VLC and build their commands |
+| `probe.py` | Batch probe of all shops → `results/<timestamp>/report.json` |
+| `approaches.py` | Approaches A/B/C → `approach_results/<method>/<timestamp>/` |
+| `streams.py` | Local HLS preview processes for the dashboard |
+| `mpv_retry.py` | Continuous mpv retry loop with image detection (TikTok) |
+| `server.py` | Dashboard state and HTTP routes |
 
 ## Approach A: Browser page
 
