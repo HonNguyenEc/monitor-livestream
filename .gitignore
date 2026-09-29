@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+.venv/
+results/
+streams/
+approach_results/
+mpv_checks/
+mpv_configs/
+*.log
