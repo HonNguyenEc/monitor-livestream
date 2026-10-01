@@ -2,172 +2,448 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Livestream QC Demo</title>
+  <title>Livestream QC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root{
-      --bg:#f4f6fa;--surface:#fff;--surface-2:#f2f5fa;--surface-3:#e8edf5;--border:#e0e5ed;--border-strong:#c9d1de;
-      --text:#172235;--muted:#4d5b70;--faint:#59677b;--accent:#294f9b;--accent-hover:#203f7b;
-      --ok-bg:#e4f5eb;--ok:#176a3a;--warn-bg:#fff2d6;--warn:#855600;--danger-bg:#fde9eb;--danger:#a62c3a;
-      --radius:16px;--radius-sm:10px;--gap:18px;
-      font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--text);background:var(--bg);font-synthesis:none
+      --bg:#f4f6fa;--surface:#fff;--surface-2:#f7f9fc;--surface-3:#eef1f6;--border:#e4e8ef;--border-strong:#d0d7e2;
+      --text:#111827;--muted:#5b6578;--faint:#8a93a4;--accent:#3157d5;--accent-hover:#2647b8;--accent-soft:#eaf0fe;
+      --ok:#12805c;--ok-soft:#e3f5ee;--warn:#a2590b;--warn-soft:#fdf2e1;--danger:#c4372f;--danger-soft:#fdecea;
+      --info:#3157d5;--info-soft:#eaf0fe;--neutral-soft:#eef1f5;
+      --sidebar:#0f172a;--sidebar-text:#cbd5e1;--sidebar-muted:#7c8aa3;--sidebar-active:#1e293b;
+      --media:#0b111c;--shadow:0 1px 2px rgba(16,24,40,.05);--shadow-lg:0 12px 32px rgba(16,24,40,.12);
+      --radius:12px;--radius-sm:8px;--gap:20px;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--text);font-synthesis:none;
+      -webkit-font-smoothing:antialiased;font-feature-settings:"cv11","ss01"
+    }
+    @media (prefers-color-scheme:dark){
+      :root{
+        --bg:#0b0f17;--surface:#121926;--surface-2:#172031;--surface-3:#1d2739;--border:#222d40;--border-strong:#2f3c55;
+        --text:#e7ecf4;--muted:#a3adbf;--faint:#7a879d;--accent:#7096ff;--accent-hover:#8aa9ff;--accent-soft:#1a2747;
+        --ok:#45d19a;--ok-soft:#11291f;--warn:#f0b259;--warn-soft:#2e2310;--danger:#ff7a6e;--danger-soft:#351816;
+        --info:#7096ff;--info-soft:#1a2747;--neutral-soft:#1c2535;
+        --sidebar:#080c14;--sidebar-active:#151d2c;
+        --media:#05080e;--shadow:0 1px 2px rgba(0,0,0,.35);--shadow-lg:0 12px 32px rgba(0,0,0,.45)
+      }
     }
     *{box-sizing:border-box}
-    body{margin:0;background:radial-gradient(ellipse at 10% 0%,#e8eef9 0,transparent 38%),var(--bg)}
+    body{margin:0;background:var(--bg);color:var(--text);font-size:14px;line-height:1.45}
     [hidden]{display:none!important}
-    button,input{font:inherit;color:inherit}
-    button{border:1px solid var(--border-strong);background:var(--surface-2);border-radius:var(--radius-sm);padding:9px 13px;font-size:13px;font-weight:650;cursor:pointer}
-    button:hover{background:var(--surface-3)}
-    button:disabled{opacity:.72;cursor:wait}
-    button.primary{border-color:var(--accent);background:var(--accent);color:#fff}
-    button.primary:hover{background:var(--accent-hover)}
-    button.danger{border-color:#7a2a3b;background:var(--danger-bg);color:var(--danger)}
-    button:focus-visible,input:focus-visible,.shop-item:focus-visible,.tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+    button,input,select{font:inherit;color:inherit}
+    a{color:var(--accent)}
+    svg{flex:none}
+    :is(button,input,select,a):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
-    .shell{max-width:1320px;margin:auto;padding:36px 24px 56px}
-    .app-header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
-    h1{font-size:28px;letter-spacing:-.035em;margin:0 0 5px}
-    .sub{color:var(--muted);font-size:13px}
-    .summary{color:var(--muted);font-size:13px;margin-top:8px}
+    /* ---- app shell ---- */
+    .app{min-height:100vh}
+    .sidebar{display:none}
+    .main{min-width:0;display:flex;flex-direction:column}
+    .brand{display:flex;align-items:center;gap:10px;min-width:0}
+    .brand-mark{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#3157d5,#8b5cf6);display:grid;place-items:center;color:#fff;flex:none}
+    .brand-name{font-weight:700;font-size:15px;letter-spacing:-.01em}
+    .brand-sub{font-size:11px;color:var(--faint)}
 
-    .tabs{display:flex;gap:6px;border-bottom:1px solid var(--border);margin-bottom:var(--gap)}
-    .tab{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:10px 14px;color:var(--muted)}
-    .tab:hover{background:none;color:var(--text)}
-    .tab--active{color:var(--text);border-bottom-color:var(--accent)}
-    .tab-count{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;background:var(--surface-2);font-size:11px}
+    .sidebar .brand-name{color:#fff}
+    .nav{display:flex;flex-direction:column;gap:2px;margin-top:24px}
+    .nav-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--sidebar-muted);padding:0 10px;margin:4px 0 6px}
+    .nav a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--radius-sm);color:var(--sidebar-text);text-decoration:none;font-weight:500;font-size:13px}
+    .nav a:hover{background:var(--sidebar-active);color:#fff}
+    .nav a.is-active{background:var(--sidebar-active);color:#fff}
+    .nav-count{margin-left:auto;font-size:11px;color:var(--sidebar-muted);font-variant-numeric:tabular-nums}
+    .side-conn{margin-top:auto;padding:12px;border-radius:var(--radius);background:var(--sidebar-active);color:var(--sidebar-text);font-size:12px;display:flex;flex-direction:column;gap:10px}
+    .side-conn-head{display:flex;align-items:center;gap:10px;min-width:0}
+    .avatar{width:30px;height:30px;border-radius:50%;background:#334155;color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px;flex:none}
+    .side-conn-name{color:#fff;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .side-conn-sub{color:var(--sidebar-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:6px}
+    .side-conn-actions{display:flex;gap:6px}
+    .side-conn .btn{flex:1;background:transparent;border-color:#334155;color:var(--sidebar-text)}
+    .side-conn .btn:hover{background:#1e293b;color:#fff}
+    .side-conn .btn--primary{background:var(--accent);border-color:var(--accent);color:#fff}
 
-    .layout{display:grid;grid-template-columns:1fr;gap:var(--gap)}
-    .sidebar,.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);min-width:0}
-    .sidebar{display:flex;flex-direction:column}
-    .sidebar-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px;border-bottom:1px solid var(--border)}
-    .sidebar-head h2{font-size:14px;margin:0}
-    .shop-list{list-style:none;margin:0;padding:10px;display:flex;flex-direction:column;gap:5px;max-height:40vh;overflow:auto}
-    .shop-item{width:100%;display:flex;align-items:center;gap:10px;text-align:left;border:1px solid transparent;background:none;padding:10px;border-radius:var(--radius-sm)}
-    .shop-item:hover{background:var(--surface-2)}
-    .shop-item--active{background:#edf2fb;border-color:#9fb4d8}
-    .shop-item-main{flex:1;min-width:0}
-    .shop-item-name{display:block;font-weight:650;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .shop-item-meta{display:block;color:var(--muted);font-size:12px;margin-top:3px}
-    .dot{width:9px;height:9px;border-radius:50%;background:#aeb8c7;flex:none;box-shadow:0 0 0 3px #eef1f5}
-    .dot--ok{background:#2fd08e}.dot--warn{background:#f0b44c}.dot--busy{background:var(--accent)}
-    .list-empty{color:var(--muted);font-size:13px;padding:18px 10px;text-align:center}
-    .list-legend{display:flex;gap:12px;flex-wrap:wrap;padding:11px 14px;border-top:1px solid var(--border);color:var(--muted);font-size:12px}
-    .legend-item{display:inline-flex;align-items:center;gap:6px}.legend-item .dot{width:7px;height:7px}
+    .topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 16px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+    .topbar-title h1{font-size:18px;margin:0;letter-spacing:-.02em}
+    .topbar-title p{margin:2px 0 0;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+    .topbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .mobile-brand{display:flex}
+    .conn-chip{display:flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid var(--border);border-radius:99px;background:var(--surface);font-size:12px;color:var(--muted);text-decoration:none;max-width:220px}
+    .conn-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .monitor-state{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border-radius:99px;background:var(--ok-soft);color:var(--ok);font-size:12px;font-weight:600}
 
+    /* ---- buttons ---- */
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--border-strong);background:var(--surface);border-radius:var(--radius-sm);padding:8px 13px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;text-decoration:none;color:var(--text);transition:background .15s,border-color .15s}
+    .btn:hover{background:var(--surface-2)}
+    .btn:disabled{opacity:.6;cursor:wait}
+    .btn--primary{border-color:var(--accent);background:var(--accent);color:#fff}
+    .btn--primary:hover{background:var(--accent-hover)}
+    .btn--danger{border-color:transparent;background:var(--danger-soft);color:var(--danger)}
+    .btn--danger-outline{color:var(--danger)}
+    .btn--sm{padding:5px 10px;font-size:12px}
+    .btn--block{width:100%}
+    .icon-btn{display:inline-grid;place-items:center;width:32px;height:32px;border:0;border-radius:7px;background:none;color:var(--muted);cursor:pointer}
+    .icon-btn:hover{color:var(--text)}
+    .icon-btn[aria-pressed="true"]{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
 
-    .panel{padding:24px;box-shadow:0 10px 32px rgba(28,43,68,.05)}
-    .panel-empty{color:var(--muted);text-align:center;padding:60px 10px}
-    .media{position:relative;background:linear-gradient(145deg,#202c3e,#111a28);aspect-ratio:16/9;max-height:50vh;border-radius:12px;overflow:hidden;display:grid;place-items:center;color:#c0cada;font-size:13px}
-    .media img,.media video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
-    .overlay{position:absolute;left:12px;top:12px;display:flex;gap:7px;z-index:1}
-    .badge{font-size:11px;font-weight:750;letter-spacing:.03em;padding:6px 9px;border-radius:99px;background:#36445d;color:#d8e1f1}
-    .badge--ok{background:var(--ok-bg);color:var(--ok)}.badge--warn{background:var(--warn-bg);color:var(--warn)}.badge--live{background:#a32c42;color:#fff}
+    /* ---- status ---- */
+    .dot{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none;display:inline-block}
+    .dot--ok{background:var(--ok)}.dot--warn{background:var(--warn)}.dot--danger{background:var(--danger)}.dot--info{background:var(--info)}
+    .dot--live{background:currentColor;animation:blink 1.6s infinite}
+    @keyframes blink{50%{opacity:.3}}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap;background:var(--neutral-soft);color:var(--muted);justify-self:start}
+    .pill--ok{background:var(--ok-soft);color:var(--ok)}.pill--warn{background:var(--warn-soft);color:var(--warn)}
+    .pill--danger{background:var(--danger-soft);color:var(--danger)}.pill--info{background:var(--info-soft);color:var(--info)}
+    .pill .dot{background:currentColor}
+    .pill--ok .dot{animation:blink 1.6s infinite}
+    .tag{display:inline-block;padding:1px 6px;border-radius:5px;background:var(--accent-soft);color:var(--accent);font-size:10px;font-weight:700;letter-spacing:.04em;flex:none}
+    .pmark{width:20px;height:20px;border-radius:6px;display:inline-grid;place-items:center;font-size:9px;font-weight:800;color:#fff;flex:none;letter-spacing:-.02em}
+    .pmark--tiktok{background:#111;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+    .pmark--shopee{background:#ee4d2d}
+    .pmark--lg{width:34px;height:34px;border-radius:9px;font-size:13px}
 
-    .panel-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin:20px 0 8px}
-    .panel-title{font-size:22px;font-weight:730;letter-spacing:-.025em;margin:0;overflow-wrap:anywhere}
-    .panel-platform{color:var(--muted);font-size:12px;margin-top:3px}
-    .panel-time{font-size:11px;color:var(--faint);white-space:nowrap}
-    .detail{font-size:14px;color:var(--text);line-height:1.55;margin:0 0 4px;min-height:20px;overflow-wrap:anywhere}
-    .actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:18px}
-    .actions button{flex:0 1 auto;min-width:150px}
+    /* ---- page ---- */
+    .page{width:100%;max-width:1480px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:var(--gap)}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);min-width:0}
+    .card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--border)}
+    .card-title{display:flex;align-items:center;gap:8px;min-width:0}
+    .card-title h2{font-size:15px;margin:0}
+    .card-note{color:var(--muted);font-size:12px}
 
-    .config{margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
-    .config h3{font-size:14px;margin:0 0 12px}
+    .kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .kpi{padding:16px;display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:start}
+    .kpi-label{color:var(--muted);font-size:12px;font-weight:500}
+    .kpi-icon{grid-row:span 2;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--neutral-soft);color:var(--muted)}
+    .kpi-icon--ok{background:var(--ok-soft);color:var(--ok)}.kpi-icon--info{background:var(--info-soft);color:var(--info)}
+    .kpi-icon--warn{background:var(--warn-soft);color:var(--warn)}
+    .kpi-value{font-size:26px;font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1.2}
+    .kpi-sub{grid-column:1/-1;color:var(--faint);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:4px}
+
+    .alert{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--radius-sm);background:var(--warn-soft);color:var(--warn);font-size:13px;overflow-wrap:anywhere}
+    .alert a{color:inherit;font-weight:700}
+
+    .workspace{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--gap);align-items:start}
+
+    /* ---- channels ---- */
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)}
+    .segmented{display:inline-flex;padding:3px;background:var(--surface-3);border-radius:var(--radius-sm)}
+    .segmented button{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:5px 10px;border-radius:6px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer}
+    .segmented button[aria-selected="true"]{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+    .count{color:var(--faint);font-variant-numeric:tabular-nums}
+    .search{position:relative;flex:1 1 180px;min-width:0}
+    .search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--faint);pointer-events:none}
+    .input{padding:7px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);font-size:13px;min-width:0}
+    .search .input{width:100%;padding-left:32px}
+    .view-toggle{display:inline-flex;padding:3px;background:var(--surface-3);border-radius:var(--radius-sm)}
+
+    .table-head-cols,.row{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:12px;align-items:center}
+    .table-head{display:grid;grid-template-columns:28px minmax(0,1fr);gap:4px;align-items:center;padding:9px 6px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);border-bottom:1px solid var(--border);background:var(--surface-2)}
+    .table-head-cols{padding:0 11px}
+    .row-wrap{display:grid;grid-template-columns:28px minmax(0,1fr);gap:4px;align-items:center}
+    .check{display:grid;place-items:center;align-self:stretch;cursor:pointer}
+    .check input{width:16px;height:16px;margin:0;accent-color:var(--accent);cursor:pointer}
+    .tile-wrap{position:relative}
+    .tile-check{position:absolute;top:8px;right:8px;z-index:2;width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,.95);box-shadow:0 1px 4px rgba(0,0,0,.3)}
+    .selection{display:flex;align-items:center;gap:4px 10px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+    .selection b{color:var(--text)}
+    .link-btn{border:0;background:none;padding:2px 0;color:var(--accent);font-size:12px;font-weight:600;cursor:pointer}
+    .link-btn:hover{text-decoration:underline}
+    .col-info,.col-time{display:none}
+    .rows{list-style:none;margin:0;padding:6px;display:flex;flex-direction:column;gap:2px}
+    .row{width:100%;text-align:left;border:1px solid transparent;background:none;padding:8px 10px;border-radius:var(--radius-sm);cursor:pointer}
+    .row:hover{background:var(--surface-2)}
+    .row--active,.row--active:hover{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent)}
+    .thumb{position:relative;width:64px;aspect-ratio:16/9;border-radius:6px;overflow:hidden;background:var(--media);display:grid;place-items:center}
+    .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+    .row-main{min-width:0}
+    .row-name{display:flex;align-items:center;gap:6px;font-weight:600;min-width:0}
+    .row-name > span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .row-sub{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;margin-top:3px;overflow:hidden;white-space:nowrap}
+    .row-sub span{overflow:hidden;text-overflow:ellipsis}
+    .row-info,.row-time{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+    .tiles{list-style:none;margin:0;padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+    .tile{width:100%;text-align:left;border:1px solid var(--border);background:var(--surface);border-radius:var(--radius);overflow:hidden;cursor:pointer;padding:0;display:flex;flex-direction:column;transition:box-shadow .15s,border-color .15s}
+    .tile:hover{box-shadow:var(--shadow-lg)}
+    .tile--active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+    .tile--live{border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
+    .tile-media{position:relative;aspect-ratio:16/9;background:var(--media);display:grid;place-items:center}
+    .tile-media img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+    .tile-badge{position:absolute;left:8px;top:8px}
+    .tile-badge .pill{box-shadow:0 1px 3px rgba(0,0,0,.25)}
+    .tile-time{position:absolute;right:8px;bottom:8px;padding:2px 7px;border-radius:5px;background:rgba(0,0,0,.65);color:#fff;font-size:11px;font-variant-numeric:tabular-nums}
+    .tile-body{padding:10px 12px;min-width:0}
+
+    .empty{color:var(--muted);text-align:center;padding:40px 16px;font-size:13px;margin:0;list-style:none;grid-column:1/-1}
+    .empty svg{display:block;margin:0 auto 10px;color:var(--faint)}
+
+    .skeleton{display:block;border-radius:6px;background:linear-gradient(90deg,var(--surface-3) 25%,var(--surface-2) 50%,var(--surface-3) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite}
+    @keyframes shimmer{to{background-position:-200% 0}}
+
+    /* ---- detail ---- */
+    .detail{overflow:hidden}
+    .media{position:relative;aspect-ratio:16/9;background:var(--media);display:grid;place-items:center;color:#8994a8;font-size:13px}
+    .media img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+    .media-empty{display:flex;flex-direction:column;align-items:center;gap:8px}
+    .media-overlay{position:absolute;left:12px;top:12px;right:12px;display:flex;justify-content:space-between;gap:8px;z-index:1}
+    .live-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:6px;background:#e11d48;color:#fff;font-size:11px;font-weight:800;letter-spacing:.06em}
+    .media-time{margin-left:auto;padding:4px 8px;border-radius:6px;background:rgba(0,0,0,.65);color:#fff;font-size:11px;font-variant-numeric:tabular-nums}
+    .detail-head{padding:16px 16px 0;display:flex;flex-direction:column;gap:12px}
+    .detail-title{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+    .detail-title h2{font-size:18px;margin:0;letter-spacing:-.02em;overflow-wrap:anywhere}
+    .detail-title p{margin:4px 0 0;color:var(--muted);font-size:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    .message{display:flex;gap:9px;padding:10px 12px;border-radius:var(--radius-sm);background:var(--surface-2);border:1px solid var(--border);font-size:13px;overflow-wrap:anywhere;color:var(--muted)}
+    .message svg{margin-top:1px}
+    .tabs{display:flex;gap:4px;padding:0 16px;margin-top:14px;border-bottom:1px solid var(--border)}
+    .tab{border:0;border-bottom:2px solid transparent;background:none;padding:9px 8px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;margin-bottom:-1px}
+    .tab:hover{color:var(--text)}
+    .tab[aria-selected="true"]{color:var(--text);border-bottom-color:var(--accent)}
+    .tab-panel{padding:16px;display:flex;flex-direction:column;gap:16px}
+    .section-title{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin:0 0 8px}
+    .kv{display:grid;grid-template-columns:auto 1fr;margin:0;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
+    .kv dt,.kv dd{padding:8px 12px;border-bottom:1px solid var(--border)}
+    .kv dt{color:var(--muted);background:var(--surface-2)}
+    .kv dd{margin:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+    .kv dt:nth-last-of-type(1),.kv dd:last-of-type{border-bottom:0}
+    .mini-schedules{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+    .mini-schedule{display:flex;gap:4px 10px;align-items:center;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px}
+    .mini-schedule--now{border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:var(--accent-soft)}
+    .mono{font-variant-numeric:tabular-nums;font-weight:600}
+    .muted{color:var(--muted)}
+    .detail-empty{padding:56px 24px;text-align:center;color:var(--muted)}
+    .detail-empty svg{color:var(--faint);margin-bottom:12px}
+    .detail-empty strong{display:block;color:var(--text);font-size:15px;margin-bottom:4px}
+
+    /* ---- form ---- */
+    .form{padding:16px;display:flex;flex-direction:column;gap:14px}
+    .form-head h2{font-size:16px;margin:0}
+    .form-head p{margin:3px 0 0;color:var(--muted);font-size:12px}
     .form-grid{display:grid;grid-template-columns:1fr;gap:12px}
     .field label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px}
-    .field input{width:100%;padding:9px 11px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--bg);font-size:14px}
-    .field input:invalid:not(:placeholder-shown){border-color:#a0465a}
-    .field--wide{grid-column:1/-1}
-    .field-hint{font-size:12px;color:var(--muted);margin-top:5px}
+    .field .input{width:100%;padding:8px 10px}
+    .field .input:invalid:not(:placeholder-shown){border-color:var(--danger)}
+    .field-hint{font-size:12px;color:var(--faint);margin-top:4px}
     .req{color:var(--danger)}
-    .form-actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+    .form-actions{display:flex;gap:8px;flex-wrap:wrap;padding-top:4px}
     .form-actions .spacer{flex:1}
 
-    .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);max-width:calc(100% - 32px);padding:11px 16px;border-radius:var(--radius-sm);font-size:13px;background:var(--surface-3);border:1px solid var(--border-strong);box-shadow:0 8px 30px rgba(0,0,0,.4);z-index:10}
-    .toast--error{background:var(--danger-bg);border-color:#7a2a3b;color:var(--danger)}
-    .toast--ok{background:var(--ok-bg);border-color:#1f7a59;color:var(--ok)}
+    /* ---- schedule table ---- */
+    .table-wrap{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{text-align:left;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:9px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);white-space:nowrap}
+    td{padding:11px 16px;border-bottom:1px solid var(--border);white-space:nowrap}
+    tbody tr:last-child td{border-bottom:0}
+    tbody tr[data-key]{cursor:pointer}
+    tbody tr[data-key]:hover{background:var(--surface-2)}
+    tr.is-now,tr.is-now:hover{background:var(--accent-soft)}
+    tr.is-past td{color:var(--faint)}
+    .cell-shop{display:flex;align-items:center;gap:8px}
 
+    .toast{position:fixed;right:16px;bottom:16px;max-width:min(420px,calc(100% - 32px));display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:var(--radius-sm);font-size:13px;background:var(--surface);color:var(--text);border:1px solid var(--border-strong);box-shadow:var(--shadow-lg);z-index:20}
+    .toast--error{border-left:4px solid var(--danger)}
+    .toast--ok{border-left:4px solid var(--ok)}
+
+    @media (prefers-reduced-motion:reduce){.dot--live,.pill--ok .dot,.skeleton{animation:none}}
     @media (min-width:640px){
-      .shell{padding:28px 24px 48px}
+      .page{padding:24px}
+      .topbar{padding:14px 24px}
+      .kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
       .form-grid{grid-template-columns:1fr 1fr}
+      .field--wide{grid-column:1/-1}
+      .table-head-cols,.row{grid-template-columns:72px minmax(0,1fr) 130px 120px}
+      .thumb{width:72px}
+      .col-info{display:block}
+      .tiles{padding:16px;gap:14px;grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
     }
     @media (min-width:1024px){
-      .layout{grid-template-columns:300px minmax(0,1fr);align-items:start}
-      .sidebar{position:sticky;top:16px;max-height:calc(100vh - 32px)}
-      .shop-list{max-height:none;flex:1}
+      .app{display:grid;grid-template-columns:232px minmax(0,1fr)}
+      .sidebar{display:flex;flex-direction:column;position:sticky;top:0;height:100vh;padding:18px 14px;background:var(--sidebar);color:var(--sidebar-text)}
+      .mobile-brand,.conn-chip{display:none}
+      .kpis{grid-template-columns:repeat(6,minmax(0,1fr))}
+      .workspace{grid-template-columns:minmax(0,1fr) 400px}
+      .detail{position:sticky;top:84px;max-height:calc(100vh - 104px);overflow:auto}
+      .table-head-cols,.row{grid-template-columns:72px minmax(0,1fr) 130px 130px 70px}
+      .col-time{display:block;text-align:right}
     }
-    @media (max-width:639px){
-      .app-header{flex-direction:column;align-items:stretch}
-      .panel-head{flex-direction:column}
-    }
+    @media (min-width:1360px){.workspace{grid-template-columns:minmax(0,1fr) 440px}}
   </style>
 </head>
 <body>
-<div class="shell">
-  <header class="app-header">
-    <div>
-      <h1>Livestream QC</h1>
-      <div class="sub">Quản lý và theo dõi trạng thái phát trực tiếp trên các nền tảng</div>
-      <div id="summary" class="summary">Đang tải dữ liệu…</div>
+<div class="app">
+  <aside class="sidebar" aria-label="Điều hướng">
+    <div class="brand">
+      <span class="brand-mark" data-icon="radio" aria-hidden="true"></span>
+      <div><div class="brand-name">Livestream QC</div><div class="brand-sub">TikTok · Shopee</div></div>
     </div>
-    <button id="monitor" class="primary" type="button">Bắt đầu theo dõi tất cả các kênh liên tục</button>
-  </header>
+    <nav class="nav">
+      <div class="nav-label">Giám sát</div>
+      <a href="#overview" class="is-active"><span data-icon="gauge"></span>Tổng quan</a>
+      <a href="#channels"><span data-icon="tv"></span>Kênh theo dõi<span class="nav-count" id="nav-channels">0</span></a>
+      <a href="#schedule"><span data-icon="calendar"></span>Lịch live hôm nay<span class="nav-count" id="nav-schedules">–</span></a>
+      <div class="nav-label" style="margin-top:14px">Hệ thống</div>
+      <a href="/login"><span data-icon="server"></span>Kết nối backend</a>
+    </nav>
+    <div class="side-conn" id="side-conn"></div>
+  </aside>
 
-  <nav class="tabs" role="tablist" aria-label="Nền tảng">
-    <button class="tab" role="tab" type="button" data-tab="tiktok" id="tab-tiktok" aria-controls="layout">TikTok<span class="tab-count" id="count-tiktok">0</span></button>
-    <button class="tab" role="tab" type="button" data-tab="shopee" hidden id="tab-shopee" aria-controls="layout">Shopee<span class="tab-count" id="count-shopee">0</span></button>
-  </nav>
-
-  <main class="layout" id="layout" role="tabpanel">
-    <aside class="sidebar" aria-labelledby="list-title">
-      <div class="sidebar-head">
-        <h2 id="list-title">Danh sách kênh</h2>
-        <button id="add-shop" type="button">+ Thêm kênh</button>
+  <div class="main">
+    <header class="topbar">
+      <div class="mobile-brand brand">
+        <span class="brand-mark" data-icon="radio" aria-hidden="true"></span>
       </div>
-      <ul id="shop-list" class="shop-list"></ul>
-      <div class="list-legend" aria-label="Chú giải trạng thái">
-        <span class="legend-item"><i class="dot dot--ok"></i> Đang live</span>
-        <span class="legend-item"><i class="dot dot--busy"></i> Đang kiểm tra</span>
-        <span class="legend-item"><i class="dot dot--warn"></i> Cần kiểm tra</span>
+      <div class="topbar-title" style="flex:1;min-width:0">
+        <h1>Tổng quan giám sát</h1>
+        <p id="updated"><span class="dot"></span>Đang tải dữ liệu…</p>
       </div>
-    </aside>
+      <div class="topbar-actions">
+        <a id="conn-chip" class="conn-chip" href="/login"></a>
+        <span id="monitor-state" class="monitor-state" hidden><i class="dot dot--live"></i><span id="monitor-state-text">Đang theo dõi</span></span>
+        <button id="monitor-apply" class="btn" type="button" hidden></button>
+        <button id="monitor" class="btn btn--primary" type="button">Bắt đầu theo dõi tất cả</button>
+      </div>
+    </header>
 
-    <section class="panel" aria-live="polite">
-      <div id="panel-empty" class="panel-empty">Chọn một kênh để xem trạng thái và thông tin cấu hình.</div>
+    <main class="page">
+      <section class="kpis" id="overview" aria-label="Tổng quan">
+        <div class="card kpi"><span class="kpi-label">Tổng kênh</span><span class="kpi-icon" data-icon="layers"></span><span class="kpi-value" id="kpi-total"><i class="skeleton" style="width:40px;height:28px"></i></span><span class="kpi-sub" id="kpi-total-sub">&nbsp;</span></div>
+        <div class="card kpi"><span class="kpi-label">Đang live</span><span class="kpi-icon kpi-icon--ok" data-icon="radio"></span><span class="kpi-value" id="kpi-live"><i class="skeleton" style="width:40px;height:28px"></i></span><span class="kpi-sub" id="kpi-live-sub">&nbsp;</span></div>
+        <div class="card kpi"><span class="kpi-label">Đang kết nối</span><span class="kpi-icon kpi-icon--info" data-icon="refresh"></span><span class="kpi-value" id="kpi-checking"><i class="skeleton" style="width:40px;height:28px"></i></span><span class="kpi-sub" id="kpi-checking-sub">&nbsp;</span></div>
+        <div class="card kpi"><span class="kpi-label">Cần kiểm tra</span><span class="kpi-icon kpi-icon--warn" data-icon="alert"></span><span class="kpi-value" id="kpi-attention"><i class="skeleton" style="width:40px;height:28px"></i></span><span class="kpi-sub" id="kpi-attention-sub">&nbsp;</span></div>
+        <div class="card kpi"><span class="kpi-label">Lịch hôm nay</span><span class="kpi-icon" data-icon="calendar"></span><span class="kpi-value" id="kpi-schedules"><i class="skeleton" style="width:40px;height:28px"></i></span><span class="kpi-sub" id="kpi-schedules-sub">&nbsp;</span></div>
+        <div class="card kpi"><span class="kpi-label">Lệnh API / 5 phút</span><span class="kpi-icon" data-icon="activity"></span><span class="kpi-value" id="kpi-api"><i class="skeleton" style="width:40px;height:28px"></i></span><span class="kpi-sub" id="kpi-api-sub">&nbsp;</span></div>
+      </section>
 
-      <div id="panel-view" hidden>
-        <div class="media">
-          <span id="media-empty">Chưa có hình ảnh gần nhất</span>
-          <div class="overlay"><span id="status-badge" class="badge"></span></div>
-        </div>
-        <div class="panel-head">
-          <div><h2 id="panel-title" class="panel-title"></h2><div id="panel-platform" class="panel-platform"></div></div>
-          <div id="panel-time" class="panel-time"></div>
-        </div>
-        <p id="detail" class="detail"></p>
-                <div id="actions" class="actions">
-          <button type="button" class="primary" data-action="mpv" id="mpv-button">Bắt đầu theo dõi liên tục</button>
-        </div>
+      <div id="alert" class="alert" role="status" hidden></div>
+
+      <div class="workspace">
+        <section class="card" id="channels" aria-labelledby="list-title">
+          <div class="card-head">
+            <div class="card-title"><span data-icon="tv"></span><h2 id="list-title">Kênh theo dõi</h2></div>
+            <div class="selection" id="selection"></div>
+            <button id="add-shop" class="btn btn--sm" type="button"><span data-icon="plus"></span>Thêm kênh</button>
+          </div>
+          <div class="toolbar">
+            <div class="segmented" role="tablist" aria-label="Nền tảng" id="platform-filter">
+              <button type="button" role="tab" data-filter="all">Tất cả <span class="count" id="count-all">0</span></button>
+              <button type="button" role="tab" data-filter="tiktok"><i class="pmark pmark--tiktok" style="width:14px;height:14px;font-size:7px;border-radius:4px">TT</i>TikTok <span class="count" id="count-tiktok">0</span></button>
+              <button type="button" role="tab" data-filter="shopee"><i class="pmark pmark--shopee" style="width:14px;height:14px;font-size:7px;border-radius:4px">S</i>Shopee <span class="count" id="count-shopee">0</span></button>
+            </div>
+            <div class="search"><span data-icon="search"></span><input id="search" class="input" type="search" placeholder="Tìm kênh…" aria-label="Tìm kênh"></div>
+            <select id="status-filter" class="input" aria-label="Lọc trạng thái">
+              <option value="all">Mọi trạng thái</option>
+              <option value="live">Đang live</option>
+              <option value="checking">Đang kết nối</option>
+              <option value="attention">Cần kiểm tra</option>
+              <option value="idle">Không live / chưa theo dõi</option>
+            </select>
+            <div class="view-toggle" role="group" aria-label="Kiểu hiển thị" id="view-toggle">
+              <button type="button" class="icon-btn" data-view="list" aria-label="Danh sách" title="Danh sách"><span data-icon="list"></span></button>
+              <button type="button" class="icon-btn" data-view="grid" aria-label="Lưới hình" title="Lưới hình"><span data-icon="grid"></span></button>
+            </div>
+          </div>
+          <div class="table-head" id="table-head">
+            <label class="check" title="Chọn tất cả kênh đang hiển thị"><input type="checkbox" id="check-all" aria-label="Chọn tất cả kênh đang hiển thị"></label>
+            <div class="table-head-cols" aria-hidden="true"><span>Hình</span><span>Kênh</span><span>Trạng thái</span><span class="col-info">Chi tiết</span><span class="col-time">Kiểm tra</span></div>
+          </div>
+          <ul id="shop-list" class="rows"></ul>
+        </section>
+
+        <aside class="card detail" id="detail" aria-live="polite">
+          <div id="detail-empty" class="detail-empty"><span data-icon="tv-lg"></span><strong>Chưa chọn kênh</strong>Chọn một kênh để xem hình ảnh, trạng thái và cấu hình.</div>
+
+          <div id="detail-view" hidden>
+            <div class="media">
+              <span id="media-empty" class="media-empty"><span data-icon="image"></span>Chưa có hình ảnh gần nhất</span>
+              <div class="media-overlay"><span id="media-badge"></span><span id="media-time" class="media-time" hidden></span></div>
+            </div>
+            <div class="detail-head">
+              <div class="detail-title">
+                <div><h2 id="detail-name"></h2><p id="detail-meta"></p></div>
+                <span id="detail-pill" class="pill"></span>
+              </div>
+              <div id="detail-message" class="message"></div>
+              <div id="actions">
+                <button type="button" class="btn btn--primary btn--block" data-action="mpv" id="mpv-button">Bắt đầu theo dõi liên tục</button>
+              </div>
+            </div>
+            <div class="tabs" role="tablist" id="detail-tabs">
+              <button type="button" class="tab" role="tab" data-tab="overview">Tổng quan</button>
+              <button type="button" class="tab" role="tab" data-tab="session">Phiên &amp; lịch</button>
+              <button type="button" class="tab" role="tab" data-tab="config">Cấu hình</button>
+            </div>
+            <div class="tab-panel" id="panel-overview">
+              <dl id="watch-info" class="kv"></dl>
+            </div>
+            <div class="tab-panel" id="panel-session" hidden>
+              <div>
+                <h3 class="section-title">Phiên Shopee (qua backend)</h3>
+                <dl id="session-info" class="kv"></dl>
+              </div>
+              <div>
+                <h3 class="section-title">Lịch hôm nay của kênh</h3>
+                <ul id="mini-schedules" class="mini-schedules"></ul>
+              </div>
+            </div>
+          </div>
+
+          <form id="shop-form" class="form" novalidate hidden>
+            <div class="form-head"><h2 id="form-title">Cấu hình kênh</h2><p id="form-sub"></p></div>
+            <div id="form-fields" class="form-grid"></div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn--primary" id="form-save">Lưu thay đổi</button>
+              <button type="button" class="btn" id="form-cancel">Huỷ</button>
+              <span class="spacer"></span>
+              <button type="button" class="btn btn--danger" id="form-delete">Xoá kênh</button>
+            </div>
+          </form>
+        </aside>
       </div>
 
-      <form id="shop-form" class="config" novalidate hidden>
-        <h3 id="form-title">Thông tin kênh</h3>
-        <div id="form-fields" class="form-grid"></div>
-        <div class="form-actions">
-          <button type="submit" class="primary" id="form-save">Lưu</button>
-          <button type="button" id="form-cancel">Huỷ</button>
-          <span class="spacer"></span>
-          <button type="button" class="danger" id="form-delete">Xoá kênh</button>
+      <section class="card" id="schedule" aria-labelledby="schedule-title">
+        <div class="card-head">
+          <div class="card-title"><span data-icon="calendar"></span><h2 id="schedule-title">Lịch live hôm nay</h2></div>
+          <span id="schedule-note" class="card-note"></span>
         </div>
-      </form>
-    </section>
-  </main>
-
+        <div id="schedule-table" class="table-wrap"></div>
+      </section>
+    </main>
+  </div>
 </div>
 <div id="toast" class="toast" role="status" hidden></div>
 
 <script>
-// Shopee tab is hidden for now; add `shopee: 'Shopee'` back (and unhide #tab-shopee) to re-enable it.
-const PLATFORMS = {tiktok: 'TikTok'};
+// ---- Icons (inline, stroke = currentColor) ---------------------------------
+const ICON_PATHS = {
+  radio: '<path d="M4.9 19.1a10 10 0 0 1 0-14.2M19.1 4.9a10 10 0 0 1 0 14.2M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4"/><circle cx="12" cy="12" r="2"/>',
+  gauge: '<path d="M12 14l4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0"/>',
+  tv: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M17 2l-5 5-5-5"/>',
+  calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  server: '<rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/>',
+  layers: '<path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/>',
+  refresh: '<path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 21v-5h5M21 3v5h-5"/>',
+  alert: '<path d="m10.3 3.9-8.1 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3.1l-8.1-14a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+  activity: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+  play: '<path d="m6 3 14 9-14 9V3z"/>',
+  stop: '<rect x="5" y="5" width="14" height="14" rx="2"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  filter: '<path d="M22 3H2l8 9.5V19l4 2v-8.5L22 3z"/>',
+};
+function icon(name, size = 16) {
+  const big = name.endsWith('-lg');
+  const path = ICON_PATHS[big ? name.slice(0, -3) : name];
+  const px = big ? 36 : size;
+  return `<svg width="${px}" height="${px}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${big ? 1.6 : 2}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+}
+for (const el of document.querySelectorAll('[data-icon]')) el.innerHTML = icon(el.dataset.icon, el.classList.contains('kpi-icon') ? 18 : 16);
+
+// ---- Config ---------------------------------------------------------------
+const PLATFORMS = {tiktok: 'TikTok', shopee: 'Shopee'};
+const PMARK = {tiktok: 'TT', shopee: 'S'};
 const FIELDS = {
   tiktok: [
     {name: 'username', label: 'Username TikTok', required: true, placeholder: 'vd: frisovietnam', hint: 'Không cần dấu @.'},
@@ -176,7 +452,7 @@ const FIELDS = {
   shopee: [
     {name: 'cookie', label: 'Cookie Seller Center', required: true, secret: true, wide: true, type: 'password',
      placeholder: 'SPC_SC_SESSION=…; SC_SSO=…',
-     hint: 'Header “cookie” của một request tới banhang.shopee.vn. Chỉ SPC_SC_SESSION được lưu; tên và ID bên dưới tự điền.'},
+     hint: 'Header “cookie” của một request tới banhang.shopee.vn. Chỉ SPC_SC_SESSION được lưu; tên và ID bên dưới tự điền. Shop đã kết nối Shopee API không cần thêm ở đây — chỉ cần đăng nhập backend.'},
     {name: 'name', label: 'Tên hiển thị (tuỳ chọn)', placeholder: 'Tự lấy từ Seller Center'},
     {name: 'user_id', label: 'User ID (tuỳ chọn)', numeric: true, placeholder: 'Tự lấy từ cookie'},
     {name: 'shop_id', label: 'Shop ID (tuỳ chọn)', numeric: true, placeholder: 'Tự lấy từ cookie'},
@@ -187,44 +463,120 @@ const FIELDS = {
 const MPV_ACTIVE = ['retrying', 'checking_image', 'playing', 'stopping'];
 // Verdicts come from each shop's mpv job: `live` means mpv is playing a stream with real frames,
 // `offline` means the platform says the shop is not live.
-const STATUS_TEXT = {live: 'ĐANG LIVE', offline: 'KHÔNG LIVE', no_signal: 'MẤT TÍN HIỆU', unknown: 'CHƯA XÁC ĐỊNH',
-                     checking: 'ĐANG KẾT NỐI', not_checked: 'CHƯA THEO DÕI'};
-const STATUS_BADGE = {live: 'badge--live', no_signal: 'badge--warn', unknown: 'badge--warn'};
+const STATUS = {
+  live: {text: 'Đang live', tone: 'ok'},
+  checking: {text: 'Đang kết nối', tone: 'info'},
+  offline: {text: 'Không live', tone: ''},
+  not_checked: {text: 'Chưa theo dõi', tone: ''},
+  no_signal: {text: 'Mất tín hiệu', tone: 'warn'},
+  unknown: {text: 'Chưa xác định', tone: 'warn'},
+  error: {text: 'Lỗi mpv', tone: 'danger'},
+  no_cookie: {text: 'Thiếu cookie', tone: 'warn'},
+};
+const ATTENTION = ['no_signal', 'unknown', 'error', 'no_cookie'];
+const STATUS_FILTERS = {
+  all: () => true,
+  live: k => k === 'live',
+  checking: k => k === 'checking',
+  attention: k => ATTENTION.includes(k),
+  idle: k => k === 'offline' || k === 'not_checked',
+};
+const MPV_STATE_TEXT = {stopped: 'Đã dừng', retrying: 'Đang dò luồng', checking_image: 'Đang kiểm tra hình', playing: 'Đang phát',
+                        stopping: 'Đang dừng', error: 'Lỗi'};
+const SHOPEE_STATUS = {0: 'Chưa bắt đầu', 1: 'Đang live', 2: 'Đã kết thúc'};
 
-const state = {tab: 'tiktok', selected: {tiktok: null, shopee: null}, creating: false,
-               shops: [], monitoring: false, messages: {}, loaded: false};
+const state = {filter: 'all', search: '', statusFilter: 'all', view: 'list', detailTab: 'overview',
+               selected: null, creating: false, createPlatform: 'tiktok',
+               shops: [], monitoring: false, monitorKeys: null, picked: new Set(),
+               backend: null, messages: {}, loaded: false, loadError: null, updatedAt: null};
 let toastTimer = null;
 const $ = id => document.getElementById(id);
 
 try {
-  const saved = JSON.parse(localStorage.getItem('qc-ui') || '{}');
-  if (PLATFORMS[saved.tab]) state.tab = saved.tab;
-  if (saved.selected) Object.assign(state.selected, saved.selected);
+  const saved = JSON.parse(localStorage.getItem('qc-ui-v3') || '{}');
+  if (saved.filter === 'all' || PLATFORMS[saved.filter]) state.filter = saved.filter;
+  if (saved.view === 'grid' || saved.view === 'list') state.view = saved.view;
+  if (saved.selected) state.selected = saved.selected;
 } catch (e) { /* storage unavailable: use defaults */ }
 
-function persist() {
-  try { localStorage.setItem('qc-ui', JSON.stringify({tab: state.tab, selected: state.selected})); } catch (e) { /* ignore */ }
+try {
+  const picked = JSON.parse(localStorage.getItem('qc-picked-v1') || '[]');
+  if (Array.isArray(picked)) state.picked = new Set(picked.map(String));
+} catch (e) { /* storage unavailable: nothing picked */ }
+
+function persistPicked() {
+  try { localStorage.setItem('qc-picked-v1', JSON.stringify([...state.picked])); } catch (e) { /* ignore */ }
 }
+
+// Ticked shops that still exist (a shop removed or not synced yet is ignored, not forgotten).
+function pickedKeys() { return state.shops.filter(s => state.picked.has(s.key)).map(s => s.key).sort(); }
+// What "start" would monitor now: the ticked shops, or null for every shop.
+function desiredKeys() { const keys = pickedKeys(); return keys.length ? keys : null; }
+function monitorScopeText(keys) { return keys ? `Đang theo dõi ${keys.length} kênh` : 'Đang theo dõi tất cả'; }
+
+function persist() {
+  try {
+    localStorage.setItem('qc-ui-v3', JSON.stringify({filter: state.filter, view: state.view, selected: state.selected}));
+  } catch (e) { /* ignore */ }
+}
+
+// ---- Helpers --------------------------------------------------------------
+
 function esc(x) { return String(x ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c])); }
-function clock(s) { return new Date(s).toLocaleTimeString('vi-VN', {hour: '2-digit', minute: '2-digit', second: '2-digit'}); }
-function showTime(s) { return s ? 'Kiểm tra ' + clock(s) : 'Chưa kiểm tra'; }
-function tabShops() { return state.shops.filter(s => s.platform === state.tab); }
-function currentShop() { return state.shops.find(s => s.key === state.selected[state.tab] && s.platform === state.tab) || null; }
+function clock(s) { return s ? new Date(s).toLocaleTimeString('vi-VN', {hour: '2-digit', minute: '2-digit', second: '2-digit'}) : '—'; }
+function hm(s) { return s ? new Date(s).toLocaleTimeString('vi-VN', {hour: '2-digit', minute: '2-digit'}) : '—'; }
+function since(s) {
+  const sec = Math.max(0, Math.floor((Date.now() - new Date(s)) / 1000));
+  const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60);
+  return h ? `${h}g ${String(m).padStart(2, '0')}p` : `${m}p ${String(sec % 60).padStart(2, '0')}s`;
+}
+function ago(s) {
+  if (!s) return '—';
+  const sec = Math.max(0, Math.round((Date.now() - new Date(s)) / 1000));
+  if (sec < 60) return `${sec}s trước`;
+  if (sec < 3600) return `${Math.floor(sec / 60)} phút trước`;
+  return hm(s);
+}
+// Skips identical markup so the 5 s refresh does not reload thumbnails or reset hover.
+function setHTML(el, html) { if (el._html !== html) { el.innerHTML = html; el._html = html; } }
+function isBackend(s) { return s?.source === 'backend'; }
+function missingCookie(s) { return s.platform === 'shopee' && !isBackend(s) && !s.cookie_set; }
+function statusKey(s) {
+  if (missingCookie(s)) return 'no_cookie';
+  if (s.mpv_state === 'error') return 'error';
+  return STATUS[s.status] ? s.status : 'unknown';
+}
+function pillClass(key) { return 'pill' + (STATUS[key].tone ? ' pill--' + STATUS[key].tone : ''); }
+function pill(key) { return `<span class="${pillClass(key)}"><i class="dot"></i>${esc(STATUS[key].text)}</span>`; }
+function pmark(platform, lg = false) { return `<i class="pmark pmark--${platform}${lg ? ' pmark--lg' : ''}" aria-hidden="true">${PMARK[platform]}</i>`; }
+function currentShop() { return state.shops.find(s => s.key === state.selected) || null; }
+function nextSchedule(s) {
+  const rows = s.schedules || [];
+  return rows.find(r => r.schedule_id === s.on_air_schedule) || rows.find(r => new Date(r.scheduled_at) > Date.now()) || null;
+}
+function visibleShops() {
+  const q = state.search.trim().toLowerCase();
+  return state.shops.filter(s =>
+    (state.filter === 'all' || s.platform === state.filter)
+    && STATUS_FILTERS[state.statusFilter](statusKey(s))
+    && (!q || String(s.label ?? '').toLowerCase().includes(q)));
+}
+function initials(text) { return String(text || '?').trim().split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase(); }
 
 function toast(message, kind = '') {
   const el = $('toast');
-  el.textContent = message;
+  el.innerHTML = icon(kind === 'error' ? 'alert' : 'info') + `<span>${esc(message)}</span>`;
   el.className = 'toast' + (kind ? ' toast--' + kind : '');
   el.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.hidden = true; }, 4000);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 4500);
 }
 
 async function withBusy(button, busyText, task) {
-  const original = button.textContent;
+  const original = button.innerHTML;
   button.disabled = true;
   button.textContent = busyText;
-  try { return await task(); } finally { button.disabled = false; button.textContent = original; }
+  try { return await task(); } finally { button.disabled = false; button.innerHTML = original; }
 }
 
 async function api(path, body) {
@@ -240,118 +592,326 @@ async function api(path, body) {
   return data;
 }
 
-// ---- Data ---------------------------------------------------------------
+// ---- Data -----------------------------------------------------------------
 
 async function load() {
   try {
     const data = await api('/api/shops');
     state.shops = data.shops.filter(s => PLATFORMS[s.platform]);
     state.monitoring = data.monitoring;
+    state.monitorKeys = data.monitor_keys ?? null;
+    // Opening the page while a subset is monitored shows that subset ticked.
+    if (!state.loaded && state.monitoring && state.monitorKeys && !state.picked.size) state.picked = new Set(state.monitorKeys);
+    state.backend = data.backend;
+    state.loadError = null;
+    state.updatedAt = new Date().toISOString();
     const firstLoad = !state.loaded;
     state.loaded = true;
-    for (const platform of Object.keys(PLATFORMS)) {
-      const list = state.shops.filter(s => s.platform === platform);
-      if (!list.some(s => s.key === state.selected[platform])) state.selected[platform] = list[0]?.key || null;
-    }
+    if (!state.creating && !currentShop()) state.selected = visibleShops()[0]?.key || null;
     render({form: firstLoad});
   } catch (e) {
-    $('summary').textContent = 'Không tải được dữ liệu: ' + e.message;
+    state.loadError = 'Không tải được dữ liệu: ' + e.message;
+    renderAlert();
+    renderShell();
   }
 }
 
-// ---- Rendering ----------------------------------------------------------
+// ---- Rendering ------------------------------------------------------------
 
 function render({form = false} = {}) {
-  renderHeader();
+  renderShell();
+  renderKpis();
+  renderAlert();
   renderList();
-  renderPanel();
+  renderDetail();
+  renderSchedules();
   if (form) renderForm();
 }
 
-function renderHeader() {
-  const live = state.shops.filter(s => s.status === 'live').length;
-  $('summary').textContent = `${state.shops.length} kênh · ${live} đang live · ${state.monitoring ? 'Đang theo dõi liên tục' : 'Chưa theo dõi'}`;
-  const button = $('monitor');
-  if (!button.disabled) button.textContent = state.monitoring ? 'Dừng theo dõi' : 'Bắt đầu theo dõi tất cả các kênh liên tục';
-  button.classList.toggle('primary', !state.monitoring);
-  for (const platform of Object.keys(PLATFORMS)) {
-    const tab = $('tab-' + platform);
-    const active = platform === state.tab;
-    tab.classList.toggle('tab--active', active);
-    tab.setAttribute('aria-selected', String(active));
-    $('count-' + platform).textContent = state.shops.filter(s => s.platform === platform).length;
+function renderShell() {
+  const b = state.backend;
+  $('updated').innerHTML = state.loadError
+    ? '<span class="dot dot--danger"></span>Mất kết nối tới server cục bộ'
+    : `<span class="dot dot--ok"></span>Cập nhật ${esc(clock(state.updatedAt))} · tự làm mới mỗi 5 giây`;
+
+  if (!b?.connected) {
+    setHTML($('side-conn'), `<div class="side-conn-head"><span class="avatar">${icon('server', 14)}</span>
+        <div style="min-width:0"><div class="side-conn-name">Chưa kết nối backend</div><div class="side-conn-sub">Shop Shopee API chưa được theo dõi</div></div></div>
+      <div class="side-conn-actions"><a class="btn btn--sm btn--primary" href="/login">Đăng nhập admin</a></div>`);
+    setHTML($('conn-chip'), '<i class="dot"></i><span>Chưa kết nối backend</span>');
+  } else {
+    const sub = b.error ? '<i class="dot dot--warn"></i>Đồng bộ lỗi' : `<i class="dot dot--ok"></i>${esc(b.synced_at ? 'Đồng bộ ' + hm(b.synced_at) : 'Đang đồng bộ…')}`;
+    setHTML($('side-conn'), `<div class="side-conn-head"><span class="avatar">${esc(initials(b.name || b.email))}</span>
+        <div style="min-width:0"><div class="side-conn-name">${esc(b.name || b.email)}</div><div class="side-conn-sub">${sub}</div></div></div>
+      <div class="side-conn-actions"><button type="button" class="btn btn--sm" data-backend="sync">Đồng bộ</button><a class="btn btn--sm" href="/login">Tài khoản</a></div>`);
+    setHTML($('conn-chip'), `<i class="dot ${b.error ? 'dot--warn' : 'dot--ok'}"></i><span>${esc(b.email)}</span>`);
   }
+
+  $('monitor-state').hidden = !state.monitoring;
+  $('monitor-state-text').textContent = monitorScopeText(state.monitorKeys);
+  const desired = desiredKeys();
+  const button = $('monitor');
+  if (!button.disabled) {
+    button.innerHTML = state.monitoring ? `${icon('stop', 14)}Dừng theo dõi`
+      : `${icon('play', 14)}${desired ? `Theo dõi ${desired.length} kênh đã chọn` : 'Bắt đầu theo dõi tất cả'}`;
+  }
+  // While monitoring, a different tick selection is applied only on request.
+  const apply = $('monitor-apply');
+  apply.hidden = !state.monitoring || JSON.stringify(desired) === JSON.stringify(state.monitorKeys);
+  if (!apply.disabled) apply.innerHTML = `${icon('refresh', 14)}${desired ? `Áp dụng: ${desired.length} kênh đã chọn` : 'Áp dụng: theo dõi tất cả'}`;
+  button.classList.toggle('btn--primary', !state.monitoring);
+  button.classList.toggle('btn--danger-outline', state.monitoring);
+  $('nav-channels').textContent = state.shops.length;
+  $('nav-schedules').textContent = b?.connected ? allSchedules().length : '–';
 }
 
-function missingCookie(s) { return s.platform === 'shopee' && !s.cookie_set; }
-
-function dotClass(s) {
-  if (missingCookie(s)) return 'dot--warn';
-  if (s.status === 'live') return 'dot--ok';
-  if (s.status === 'checking') return 'dot--busy';
-  if (s.status === 'no_signal' || s.status === 'unknown' || s.mpv_state === 'error') return 'dot--warn';
-  return '';
+function renderKpis() {
+  const keys = state.shops.map(statusKey);
+  const count = pred => keys.filter(pred).length;
+  const total = state.shops.length;
+  const live = count(k => k === 'live');
+  const attention = count(k => ATTENTION.includes(k));
+  $('kpi-total').textContent = total;
+  $('kpi-total-sub').textContent = Object.entries(PLATFORMS)
+    .map(([p, name]) => `${state.shops.filter(s => s.platform === p).length} ${name}`).join(' · ');
+  $('kpi-live').textContent = live;
+  $('kpi-live-sub').textContent = total ? `${Math.round(live / total * 100)}% số kênh` : 'Chưa có kênh';
+  $('kpi-checking').textContent = count(k => k === 'checking');
+  $('kpi-checking-sub').textContent = state.monitoring ? monitorScopeText(state.monitorKeys) : 'Chưa bật theo dõi';
+  $('kpi-attention').textContent = attention;
+  $('kpi-attention-sub').textContent = attention ? 'Mất tín hiệu, lỗi, thiếu cookie' : 'Không có cảnh báo';
+  const b = state.backend;
+  const schedules = allSchedules();
+  $('kpi-schedules').textContent = b?.connected ? schedules.length : '–';
+  $('kpi-schedules-sub').textContent = b?.connected ? `${schedules.filter(r => r.now).length} đang trong khung giờ` : 'Cần kết nối backend';
+  $('kpi-api').textContent = b?.connected ? (b.api_calls_5m ?? 0) : '–';
+  $('kpi-api-sub').textContent = b?.connected ? `${b.brands ?? 0} shop Shopee API` : 'Chưa kết nối';
 }
 
-function itemMeta(s) {
-  if (missingCookie(s)) return 'thiếu cookie Seller Center';
-  const text = STATUS_TEXT[s.status] ? STATUS_TEXT[s.status].toLowerCase() : s.status;
-  if (s.status === 'live' && s.live_since) return `${text} từ ${clock(s.live_since)}`;
-  return MPV_ACTIVE.includes(s.mpv_state) && s.status !== 'live' ? `${text} · lần thử ${s.mpv_attempts || 0}` : text;
+function renderAlert() {
+  const b = state.backend;
+  let html = '';
+  if (state.loadError) html = esc(state.loadError);
+  else if (b?.connected && b.error) html = `Đồng bộ backend lỗi: ${esc(b.error)}`;
+  else if (b && !b.connected && b.error) html = `${esc(b.error)} <a href="/login">Đăng nhập lại</a>`;
+  $('alert').hidden = !html;
+  if (html) setHTML($('alert'), icon('alert') + `<span>${html}</span>`);
+}
+
+function rowInfo(s) {
+  if (s.status === 'live' && s.live_since) return `Live ${since(s.live_since)}`;
+  if (MPV_ACTIVE.includes(s.mpv_state) && s.status !== 'live') return `Lần thử ${s.mpv_attempts || 0}`;
+  const next = isBackend(s) ? nextSchedule(s) : null;
+  return next ? `Lịch ${hm(next.scheduled_at)}–${hm(next.expected_end_at)}` : '—';
+}
+
+function nameHTML(s) {
+  return `<span class="row-name"><span>${esc(s.label)}</span>${isBackend(s) ? '<span class="tag">API</span>' : ''}</span>`;
+}
+function subHTML(s, extra = '') {
+  return `<span class="row-sub">${pmark(s.platform)}<span>${esc(PLATFORMS[s.platform])}${isBackend(s) ? ' · Shopee API' : ''}${extra ? ' · ' + esc(extra) : ''}</span></span>`;
+}
+function mediaHTML(s) {
+  return s.frame ? `<img src="${esc(s.frame)}" alt="" loading="lazy">` : pmark(s.platform, true);
 }
 
 function renderList() {
-  $('list-title').textContent = `Kênh ${PLATFORMS[state.tab]}`;
-  const list = tabShops();
-  const selected = state.creating ? null : state.selected[state.tab];
-  $('shop-list').innerHTML = list.length ? list.map(s => `
-    <li><button type="button" class="shop-item ${s.key === selected ? 'shop-item--active' : ''}" data-key="${esc(s.key)}" aria-current="${s.key === selected}">
-      <span class="dot ${dotClass(s)}" aria-hidden="true"></span>
-      <span class="shop-item-main"><span class="shop-item-name">${esc(s.label)}</span><span class="shop-item-meta">${esc(itemMeta(s))}</span></span>
-    </button></li>`).join('')
-    : `<li class="list-empty">Chưa có kênh ${PLATFORMS[state.tab]}. Bấm “+ Thêm kênh”.</li>`;
+  for (const p of ['all', ...Object.keys(PLATFORMS)]) {
+    $('count-' + p).textContent = p === 'all' ? state.shops.length : state.shops.filter(s => s.platform === p).length;
+  }
+  for (const tab of document.querySelectorAll('#platform-filter [data-filter]')) {
+    tab.setAttribute('aria-selected', String(tab.dataset.filter === state.filter));
+  }
+  for (const btn of document.querySelectorAll('#view-toggle [data-view]')) {
+    btn.setAttribute('aria-pressed', String(btn.dataset.view === state.view));
+  }
+  const grid = state.view === 'grid';
+  $('table-head').hidden = grid;
+  $('shop-list').className = grid ? 'tiles' : 'rows';
+
+  if (!state.loaded) {
+    setHTML($('shop-list'), Array.from({length: 4}, () =>
+      '<li style="padding:10px"><i class="skeleton" style="height:36px"></i></li>').join(''));
+    return;
+  }
+  const list = visibleShops();
+  renderSelection(list);
+  const selected = state.creating ? null : state.selected;
+  const empty = `<li class="empty">${icon('tv-lg')}${state.shops.length ? 'Không có kênh khớp bộ lọc.'
+    : 'Chưa có kênh nào. Bấm “Thêm kênh” hoặc đăng nhập backend để lấy shop Shopee API.'}</li>`;
+  if (!list.length) return setHTML($('shop-list'), empty);
+
+  setHTML($('shop-list'), list.map(s => {
+    const key = statusKey(s), active = s.key === selected;
+    const box = cls => `<label class="check${cls}" title="Chọn để theo dõi"><input type="checkbox" data-pick="${esc(s.key)}"${state.picked.has(s.key) ? ' checked' : ''} aria-label="Chọn ${esc(s.label)} để theo dõi"></label>`;
+    if (grid) {
+      return `<li class="tile-wrap">${box(' tile-check')}<button type="button" class="tile${active ? ' tile--active' : ''}${key === 'live' ? ' tile--live' : ''}" data-key="${esc(s.key)}" aria-current="${active}">
+        <span class="tile-media">${mediaHTML(s)}<span class="tile-badge">${pill(key)}</span>
+          ${key === 'live' && s.live_since ? `<span class="tile-time">${esc(since(s.live_since))}</span>` : ''}</span>
+        <span class="tile-body">${nameHTML(s)}${subHTML(s)}</span>
+      </button></li>`;
+    }
+    return `<li class="row-wrap">${box('')}<button type="button" class="row${active ? ' row--active' : ''}" data-key="${esc(s.key)}" aria-current="${active}">
+      <span class="thumb">${mediaHTML(s)}</span>
+      <span class="row-main">${nameHTML(s)}${subHTML(s)}</span>
+      ${pill(key)}
+      <span class="row-info col-info">${esc(rowInfo(s))}</span>
+      <span class="row-time col-time">${s.checked_at ? hm(s.checked_at) : '—'}</span>
+    </button></li>`;
+  }).join(''));
 }
 
-function detailText(s) {
+function renderSelection(list) {
+  const picked = pickedKeys().length;
+  const visiblePicked = list.filter(s => state.picked.has(s.key)).length;
+  const all = $('check-all');
+  all.checked = list.length > 0 && visiblePicked === list.length;
+  all.indeterminate = visiblePicked > 0 && visiblePicked < list.length;
+  all.disabled = !list.length;
+  setHTML($('selection'), (picked ? `<span>Đã chọn <b>${picked}</b> kênh</span><button type="button" class="link-btn" data-sel="none">Bỏ chọn</button>`
+    : '<span>Tick để chỉ theo dõi một số kênh</span>')
+    + (list.length && visiblePicked < list.length ? '<button type="button" class="link-btn" data-sel="all">Chọn tất cả đang hiển thị</button>' : ''));
+}
+
+function setPicked(keys, on) {
+  for (const key of keys) on ? state.picked.add(key) : state.picked.delete(key);
+  persistPicked();
+  renderList();
+  renderShell();
+}
+
+function detailMessage(s) {
+  if (missingCookie(s)) return 'Shop chưa có cookie Seller Center — dán cookie ở tab Cấu hình.';
   if (MPV_ACTIVE.includes(s.mpv_state) || s.mpv_state === 'error') return s.mpv_message || '';
   return state.messages[s.key] || 'Chưa theo dõi. Bấm nút bên dưới để mở mpv cho kênh này.';
 }
 
-function renderPanel() {
+function kvHTML(rows) {
+  return rows.map(([k, v, raw]) => `<dt>${esc(k)}</dt><dd>${raw ? v : esc(v)}</dd>`).join('');
+}
+
+function detailTabs(shop) {
+  return isBackend(shop) ? ['overview', 'session'] : ['overview', 'config'];
+}
+
+function renderDetail() {
   const shop = state.creating ? null : currentShop();
-  $('panel-empty').hidden = !!shop || state.creating;
-  $('panel-empty').textContent = tabShops().length ? 'Chọn một kênh bên trái để xem trạng thái và cấu hình.' : 'Chưa có kênh nào trên nền tảng này.';
-  $('panel-view').hidden = !shop;
-  $('shop-form').hidden = !shop && !state.creating;
-  if (!shop) return;
+  $('detail-empty').hidden = !!shop || state.creating;
+  $('detail-view').hidden = !shop;
+  if (!shop) {
+    $('shop-form').hidden = !state.creating;
+    return;
+  }
+  const tabs = detailTabs(shop);
+  if (!tabs.includes(state.detailTab)) state.detailTab = 'overview';
+  for (const tab of document.querySelectorAll('#detail-tabs [data-tab]')) {
+    tab.hidden = !tabs.includes(tab.dataset.tab);
+    tab.setAttribute('aria-selected', String(tab.dataset.tab === state.detailTab));
+  }
+  $('panel-overview').hidden = state.detailTab !== 'overview';
+  $('panel-session').hidden = state.detailTab !== 'session';
+  // Backend shops are managed in the backend; only local shops have a config tab.
+  $('shop-form').hidden = state.detailTab !== 'config';
 
-  const badge = $('status-badge');
-  badge.textContent = STATUS_TEXT[shop.status] || shop.status;
-  badge.className = 'badge' + (STATUS_BADGE[shop.status] ? ' ' + STATUS_BADGE[shop.status] : '');
-  $('panel-title').textContent = shop.label;
-  $('panel-platform').textContent = PLATFORMS[shop.platform] || shop.platform;
-  $('panel-time').textContent = (shop.live_since ? `Live từ ${clock(shop.live_since)} · ` : '') + showTime(shop.checked_at);
-  $('detail').textContent = detailText(shop);
+  const key = statusKey(shop);
+  $('detail-name').textContent = shop.label;
+  setHTML($('detail-meta'), `${pmark(shop.platform)}${esc(PLATFORMS[shop.platform])} · ${isBackend(shop) ? 'Shopee API (qua backend)' : 'cấu hình cục bộ'}`);
+  $('detail-pill').className = pillClass(key);
+  setHTML($('detail-pill'), `<i class="dot"></i>${esc(STATUS[key].text)}`);
+  const message = detailMessage(shop);
+  $('detail-message').hidden = !message;
+  setHTML($('detail-message'), icon('info') + `<span>${esc(message)}</span>`);
 
-  const busy = MPV_ACTIVE.includes(shop.mpv_state);
-  const mpvButton = $('mpv-button');
-  if (!mpvButton.disabled) mpvButton.textContent = busy ? 'Dừng theo dõi liên tục' : 'Bắt đầu theo dõi liên tục';
-  mpvButton.dataset.running = String(busy);
-
+  const live = key === 'live';
+  setHTML($('media-badge'), live ? '<span class="live-badge"><i class="dot dot--live"></i>LIVE</span>' : '');
+  $('media-time').hidden = !(live && shop.live_since);
+  if (live && shop.live_since) $('media-time').textContent = since(shop.live_since);
   const img = shop.frame ? snapshotImage() : $('snapshot');
   if (shop.frame && img.dataset.src !== shop.frame) { img.src = shop.frame; img.dataset.src = shop.frame; }
   if (img) img.hidden = !shop.frame;
   $('media-empty').hidden = !!shop.frame;
+
+  const busy = MPV_ACTIVE.includes(shop.mpv_state);
+  const mpvButton = $('mpv-button');
+  if (!mpvButton.disabled) mpvButton.innerHTML = busy ? `${icon('stop', 14)}Dừng theo dõi kênh này` : `${icon('play', 14)}Bắt đầu theo dõi liên tục`;
+  mpvButton.classList.toggle('btn--primary', !busy);
+  mpvButton.dataset.running = String(busy);
+
+  setHTML($('watch-info'), kvHTML([
+    ['Trạng thái mpv', MPV_STATE_TEXT[shop.mpv_state] || shop.mpv_state || 'Đã dừng'],
+    ['Số lần thử', String(shop.mpv_attempts || 0)],
+    ['Live từ', shop.live_since ? clock(shop.live_since) : '—'],
+    ['Kiểm tra', shop.checked_at ? `${clock(shop.checked_at)} (${ago(shop.checked_at)})` : '—'],
+    ['Lịch kế tiếp', (() => { const n = isBackend(shop) && nextSchedule(shop); return n ? `${hm(n.scheduled_at)}–${hm(n.expected_end_at)}` : '—'; })()],
+  ]));
+  if (isBackend(shop)) renderBackendInfo(shop);
+}
+
+function renderBackendInfo(shop) {
+  const session = shop.session;
+  const rows = session ? [
+    ['Session', session.session_id],
+    ['Trạng thái Shopee', SHOPEE_STATUS[session.shopee_status] ?? String(session.shopee_status ?? '—')],
+    ['Tiêu đề', session.title || '—'],
+    ['Nguồn session', session.source],
+    ['Link xem hết hạn', session.expires_at ? new Date(session.expires_at).toLocaleString('vi-VN') : '—'],
+    ['Hỏi backend', `${clock(session.checked_at)} (${ago(session.checked_at)})`],
+  ] : [['Session', 'Chưa lấy — bắt đầu theo dõi để hỏi backend.']];
+  if (session?.share_url) rows.push(['Link share', `<a href="${esc(session.share_url)}" target="_blank" rel="noopener">Mở trang live ↗</a>`, true]);
+  setHTML($('session-info'), kvHTML(rows));
+  const schedules = shop.schedules || [];
+  setHTML($('mini-schedules'), schedules.length ? schedules.map(r => `
+    <li class="mini-schedule${r.schedule_id === shop.on_air_schedule ? ' mini-schedule--now' : ''}">
+      <span class="mono">${hm(r.scheduled_at)}–${hm(r.expected_end_at)}</span>
+      <span class="muted">${esc(r.status_label || r.status)} · lịch ${esc(r.schedule_status)}${r.session_id ? ' · session ' + esc(r.session_id) : ''}</span>
+    </li>`).join('') : '<li class="muted">Không có lịch live hôm nay.</li>');
+}
+
+function allSchedules() {
+  const now = Date.now();
+  return state.shops.filter(isBackend).flatMap(s => (s.schedules || []).map(r => ({
+    ...r, shopKey: s.key, shopLabel: s.label, now: r.schedule_id === s.on_air_schedule,
+    past: new Date(r.expected_end_at) < now,
+  }))).sort((a, b) => String(a.scheduled_at).localeCompare(String(b.scheduled_at)));
+}
+
+function renderSchedules() {
+  const el = $('schedule-table');
+  if (!state.backend?.connected) {
+    $('schedule-note').textContent = '';
+    setHTML(el, `<p class="empty">${icon('calendar-lg')}Đăng nhập backend để xem lịch live của các shop Shopee API. <a href="/login">Đăng nhập</a></p>`);
+    return;
+  }
+  const rows = allSchedules();
+  $('schedule-note').textContent = rows.length ? `${rows.length} lịch · ${rows.filter(r => r.now).length} đang trong khung giờ` : '';
+  setHTML(el, rows.length ? `<table>
+    <thead><tr><th>Khung giờ</th><th>Shop</th><th>Theo dõi</th><th>Trạng thái lịch</th><th>Session</th></tr></thead>
+    <tbody>${rows.map(r => `<tr data-key="${esc(r.shopKey)}" class="${r.now ? 'is-now' : r.past ? 'is-past' : ''}">
+      <td class="mono">${hm(r.scheduled_at)}–${hm(r.expected_end_at)}${r.now ? ' <span class="pill pill--info">Đang diễn ra</span>' : ''}</td>
+      <td><span class="cell-shop">${pmark('shopee')}${esc(r.shopLabel)}</span></td>
+      <td>${esc(r.status_label || r.status || '—')}</td>
+      <td>${esc(r.schedule_status || '—')}</td>
+      <td class="mono">${esc(r.session_id || '—')}</td>
+    </tr>`).join('')}</tbody></table>`
+    : `<p class="empty">${icon('calendar-lg')}Không có lịch live nào hôm nay.</p>`);
 }
 
 function renderForm() {
   const shop = state.creating ? null : currentShop();
-  const platform = state.tab;
+  if (isBackend(shop)) return;
+  const platform = shop ? shop.platform : state.createPlatform;
   const config = shop ? shop.config : {};
-  $('form-title').textContent = shop ? 'Thông tin kênh' : `Thêm kênh ${PLATFORMS[platform]}`;
+  $('form-title').textContent = shop ? 'Cấu hình kênh' : 'Thêm kênh mới';
+  $('form-sub').textContent = shop ? `Lưu trong shops.json · ${PLATFORMS[platform]}` : 'Kênh được lưu vào shops.json trên máy này.';
   $('form-delete').hidden = !shop;
   $('form-cancel').hidden = !!shop;
-  $('form-fields').innerHTML = FIELDS[platform].map(f => {
+  const platformField = shop ? '' : `
+    <div class="field field--wide">
+      <label for="f-platform">Nền tảng</label>
+      <select id="f-platform" class="input">${Object.entries(PLATFORMS).map(([p, name]) =>
+        `<option value="${p}"${p === platform ? ' selected' : ''}>${name}</option>`).join('')}</select>
+    </div>`;
+  $('form-fields').innerHTML = platformField + FIELDS[platform].map(f => {
     // Secrets are never sent back to the page; once saved, leaving the field empty keeps them.
     const stored = f.secret && shop?.cookie_set;
     const required = f.required && !stored;
@@ -360,7 +920,7 @@ function renderForm() {
     return `
     <div class="field${f.wide ? ' field--wide' : ''}">
       <label for="f-${f.name}">${esc(f.label)}${required ? ' <span class="req">*</span>' : ''}</label>
-      <input id="f-${f.name}" name="${f.name}" type="${f.type || 'text'}" ${f.numeric ? 'inputmode="numeric" pattern="[0-9]+"' : ''}
+      <input id="f-${f.name}" class="input" name="${f.name}" type="${f.type || 'text'}" ${f.numeric ? 'inputmode="numeric" pattern="[0-9]+"' : ''}
         ${f.secret ? 'autocomplete="off"' : ''} ${required ? 'required' : ''} placeholder="${esc(placeholder)}" value="${esc(value)}">
       ${f.hint ? `<div class="field-hint">${esc(f.hint)}</div>` : ''}
     </div>`;
@@ -380,29 +940,81 @@ function snapshotImage() {
   return img;
 }
 
-// ---- Selection ----------------------------------------------------------
-
-function selectTab(platform) {
-  if (platform === state.tab) return;
-  state.tab = platform;
-  state.creating = false;
-  persist();
-  render({form: true});
-}
+// ---- Selection, filters, navigation ----------------------------------------
 
 function selectShop(key) {
-  if (key === state.selected[state.tab] && !state.creating) return;
-  state.selected[state.tab] = key;
+  if (key === state.selected && !state.creating) return;
+  state.selected = key;
   state.creating = false;
   persist();
   render({form: true});
+  if (window.innerWidth < 1024) $('detail').scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 
-// ---- Shop actions -------------------------------------------------------
+$('platform-filter').addEventListener('click', event => {
+  const tab = event.target.closest('[data-filter]');
+  if (!tab || tab.dataset.filter === state.filter) return;
+  state.filter = tab.dataset.filter;
+  persist();
+  renderList();
+});
+
+$('view-toggle').addEventListener('click', event => {
+  const btn = event.target.closest('[data-view]');
+  if (!btn || btn.dataset.view === state.view) return;
+  state.view = btn.dataset.view;
+  persist();
+  renderList();
+});
+
+$('search').addEventListener('input', event => { state.search = event.target.value; renderList(); });
+$('status-filter').addEventListener('change', event => { state.statusFilter = event.target.value; renderList(); });
+
+$('shop-list').addEventListener('change', event => {
+  const box = event.target.closest('input[data-pick]');
+  if (box) setPicked([box.dataset.pick], box.checked);
+});
+
+$('check-all').addEventListener('change', event => setPicked(visibleShops().map(s => s.key), event.target.checked));
+
+$('selection').addEventListener('click', event => {
+  const button = event.target.closest('[data-sel]');
+  if (!button) return;
+  if (button.dataset.sel === 'none') setPicked([...state.picked], false);
+  else setPicked(visibleShops().map(s => s.key), true);
+});
+
+$('shop-list').addEventListener('click', event => {
+  const item = event.target.closest('[data-key]');
+  if (item) selectShop(item.dataset.key);
+});
+
+$('detail-tabs').addEventListener('click', event => {
+  const tab = event.target.closest('[data-tab]');
+  if (!tab || tab.dataset.tab === state.detailTab) return;
+  state.detailTab = tab.dataset.tab;
+  renderDetail();
+  if (state.detailTab === 'config') renderForm();
+});
+
+$('schedule-table').addEventListener('click', event => {
+  const row = event.target.closest('tr[data-key]');
+  if (!row || event.target.closest('a')) return;
+  if (state.filter === 'tiktok') { state.filter = 'all'; persist(); renderList(); }
+  selectShop(row.dataset.key);
+});
+
+for (const link of document.querySelectorAll('.nav a[href^="#"]')) {
+  link.addEventListener('click', () => {
+    document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('is-active', a === link));
+  });
+}
+
+// ---- Shop actions ---------------------------------------------------------
 
 function setMessage(key, text) {
   state.messages[key] = text;
-  if (currentShop()?.key === key) $('detail').textContent = text;
+  if (currentShop()?.key === key) renderDetail();
 }
 
 async function toggleMpv(key, running) {
@@ -425,10 +1037,16 @@ $('actions').addEventListener('click', async event => {
     setMessage(shop.key, e.message);
     toast(e.message, 'error');
   }
-  renderPanel();
+  renderDetail();
 });
 
-// ---- Config forms -------------------------------------------------------
+// ---- Config forms ---------------------------------------------------------
+
+$('form-fields').addEventListener('change', event => {
+  if (event.target.id !== 'f-platform') return;
+  state.createPlatform = event.target.value;
+  renderForm();
+});
 
 $('shop-form').addEventListener('submit', async event => {
   event.preventDefault();
@@ -440,12 +1058,13 @@ $('shop-form').addEventListener('submit', async event => {
     invalid.focus();
     return;
   }
-  const shop = {platform: state.tab};
+  const editing = state.creating ? null : currentShop();
+  const shop = {platform: editing ? editing.platform : state.createPlatform};
   for (const input of form.querySelectorAll('input')) shop[input.name] = input.value.trim();
-  const originalKey = state.creating ? null : state.selected[state.tab];
   try {
-    const result = await withBusy($('form-save'), 'Đang lưu…', () => api('/api/shops/save', {original_key: originalKey, shop}));
-    state.selected[state.tab] = result.data.key;
+    const result = await withBusy($('form-save'), 'Đang lưu…', () =>
+      api('/api/shops/save', {original_key: editing?.key || null, shop}));
+    state.selected = result.data.key;
     state.creating = false;
     persist();
     toast(result.message, 'ok');
@@ -458,10 +1077,11 @@ $('shop-form').addEventListener('submit', async event => {
 
 $('form-delete').addEventListener('click', async () => {
   const shop = currentShop();
-  if (!shop || !confirm(`Xoá shop “${shop.label}” khỏi cấu hình?`)) return;
+  if (!shop || !confirm(`Xoá kênh “${shop.label}” khỏi cấu hình?`)) return;
   try {
     const result = await withBusy($('form-delete'), 'Đang xoá…', () => api('/api/shops/delete/' + encodeURIComponent(shop.key), null));
-      state.selected[state.tab] = null;
+    state.selected = null;
+    state.detailTab = 'overview';
     persist();
     toast(result.message, 'ok');
     await load();
@@ -478,34 +1098,59 @@ $('form-cancel').addEventListener('click', () => {
 
 $('add-shop').addEventListener('click', () => {
   state.creating = true;
+  if (PLATFORMS[state.filter]) state.createPlatform = state.filter;
   render({form: true});
-  $('shop-form').querySelector('input')?.focus();
+  if (window.innerWidth < 1024) $('detail').scrollIntoView({behavior: 'smooth', block: 'start'});
+  $('shop-form').querySelector('input, select')?.focus();
 });
 
-// ---- Navigation & polling ----------------------------------------------
+// ---- Monitoring & backend -------------------------------------------------
 
-document.querySelector('.tabs').addEventListener('click', event => {
-  const tab = event.target.closest('[data-tab]');
-  if (tab) selectTab(tab.dataset.tab);
-});
-
-$('shop-list').addEventListener('click', event => {
-  const item = event.target.closest('[data-key]');
-  if (item) selectShop(item.dataset.key);
-});
-
-$('monitor').addEventListener('click', async () => {
-  const starting = !state.monitoring;
+$('side-conn').addEventListener('click', async event => {
+  const button = event.target.closest('[data-backend="sync"]');
+  if (!button) return;
   try {
-    await withBusy($('monitor'), starting ? 'Đang bắt đầu…' : 'Đang dừng…', () =>
-      api('/api/monitor/' + (starting ? 'start' : 'stop'), starting ? {platforms: Object.keys(PLATFORMS)} : null));
-    toast(starting ? 'Đã bắt đầu theo dõi. Trạng thái cập nhật sau mỗi lượt kiểm tra.' : 'Đã dừng theo dõi.', 'ok');
+    const result = await withBusy(button, 'Đang đồng bộ…', () => api('/api/backend/sync', null));
+    toast(result.message, 'ok');
   } catch (e) {
     toast(e.message, 'error');
   }
   await load();
 });
 
+function startMonitor() {
+  const keys = desiredKeys();
+  return api('/api/monitor/start', {platforms: Object.keys(PLATFORMS), ...(keys ? {keys} : {})})
+    .then(() => keys ? `${keys.length} kênh đã chọn` : 'tất cả các kênh');
+}
+
+$('monitor').addEventListener('click', async () => {
+  const starting = !state.monitoring;
+  try {
+    if (starting) {
+      const scope = await withBusy($('monitor'), 'Đang bắt đầu…', startMonitor);
+      toast(`Đã bắt đầu theo dõi ${scope}. Trạng thái cập nhật sau mỗi lượt kiểm tra.`, 'ok');
+    } else {
+      await withBusy($('monitor'), 'Đang dừng…', () => api('/api/monitor/stop', null));
+      toast('Đã dừng theo dõi.', 'ok');
+    }
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+  await load();
+});
+
+$('monitor-apply').addEventListener('click', async () => {
+  try {
+    const scope = await withBusy($('monitor-apply'), 'Đang áp dụng…', startMonitor);
+    toast(`Đã chuyển sang theo dõi ${scope}; kênh bỏ chọn sẽ được dừng.`, 'ok');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+  await load();
+});
+
+renderList();
 load();
 setInterval(load, 5000);
 </script>

@@ -8,6 +8,8 @@ Requirements: Python 3.10+, FFmpeg on PATH, `python -m pip install -r requiremen
 python server.py
 ```
 
+Settings: copy `.env.example` to `.env` (git-ignored) — `QC_PORT` (dashboard port, default 8765) and `AUTO_LIVES_BACKEND_URL` (the backend `/login` signs in to). Shell environment variables override `.env`.
+
 Batch probe from the CLI: `python qc_probe.py`. Single approach: `python approach_runner.py <browser|direct_stream|desktop_player> <shop_key>`.
 
 Open `http://127.0.0.1:8765`. Each shop card has separate actions for the approaches below. Their reports are isolated under `approach_results/<approach>/<timestamp>/report.json` so results do not overwrite one another.
@@ -29,6 +31,8 @@ The root scripts are thin entry points; the logic lives in `livestream_qc/`:
 | `mpv_retry.py` | Continuous mpv loop per shop: reopens mpv on each live, reports `live` only while mpv plays real frames |
 | `monitor.py` | "Theo dõi tất cả": keeps one mpv job running for every monitored shop |
 | `shop_store.py` | Validated shop add/edit/delete from the dashboard |
+| `backend_client.py` | Admin login/refresh against the auto_lives backend and its brand, board and play_url reads |
+| `backend_sync.py` | Keeps backend Shopee shops and today's schedules in memory; resolves their play_url |
 | `server.py` | Dashboard state and HTTP routes |
 
 ## Approach A: Browser page
@@ -61,3 +65,14 @@ Resolving a stream:
 2. Stream: `https://banhang.shopee.vn/api/supply/lm/sellercenter/realtime/dashboard/sessionInfo?sessionId=<id>` with the cookie returns `sessionStreamingUrl`, a signed FLV on `play-spe.livestream.shopee.vn` with an `expire_ts`. It is fetched fresh on every resolve; FFmpeg/mpv read it without cookies.
 
 A login only sees its own shop's sessions (`seller_center_no_access` otherwise). `seller_center_auth_failed` means the cookie expired: paste a new one. The buyer-side `live.shopee.vn/api/v1/session/<id>` endpoint is not used; Shopee VN blocks it with HTTP 403 / `90309999` even with login cookies.
+
+## Shopee shops through the backend (Open API)
+
+Shops connected to the Shopee Open API in the auto_lives backend need no cookie. Open `http://127.0.0.1:8765/login` and sign in with an **admin** account (email + password only). The backend is always `AUTO_LIVES_BACKEND_URL` from `.env` (default `http://localhost:8000`); after changing it, restart the server and log in again — a saved login for another backend is ignored. The password is only forwarded to `/api/v1/auth/login`; the token pair is kept in `backend_session.json` (git-ignored) and refreshed through `/auth/refresh`. Logging out here only deletes that file — it does not revoke the account's tokens on other devices.
+
+Every 60 s (or on **Đồng bộ**) the tool reads:
+
+1. `GET /api/v1/brands` — brands with `is_connect_shopee` become Shopee shops (key `shopee_api_<hash of brand_id>`, kept in memory, never written to `shops.json`).
+2. `GET /api/v1/live-monitor/board?date=<today>` — today's schedules, shown on each shop's panel.
+
+Resolving a stream calls `GET /api/v1/brands/{brand_id}/livestream/play_url?session_id=<id>`: the session of the schedule on air now (15 min before start until 30 min after the planned end), else the brand's current session. The backend reads Shopee `get_session_detail` and returns only `play_url` (signed HTTP-FLV, `expires_at`) while the session is ongoing; the push key and access token never leave the backend. A session started from the Shopee phone app may have no `play_url` (`no_play_url`).

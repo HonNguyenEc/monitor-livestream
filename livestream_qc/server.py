@@ -3,19 +3,22 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import os
 import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from .approaches import METHODS, run_approach
-from .config import HOST, MPV_CHECKS_DIR, PORT, STREAMS_DIR, WEB_DIR, find_shop, load_shops, shop_key, \
-    shop_label, shop_platform, shopee_cookie_for
+from .backend_client import BackendError
+from .backend_sync import get_sync
+from .config import HOST, MPV_CHECKS_DIR, PORT, STREAMS_DIR, WEB_DIR, all_shops, find_shop, is_backend_shop, \
+    shop_key, shop_label, shop_platform, shopee_cookie_for
 from .monitor import LiveMonitor
 from .mpv_retry import MpvRetryManager
 from .shop_store import ShopError, delete_shop, save_shop
 from .streams import HlsStreams
-from .utils import safe_error
+from .utils import mask_id, safe_error
 
 KEY = r'([a-zA-Z0-9_-]+)'
 
@@ -27,16 +30,34 @@ class Dashboard:
         self.streams = HlsStreams()
         self.mpv = MpvRetryManager()
         self.monitor = LiveMonitor(self.mpv)
+        self.backend = get_sync()
 
     def snapshot(self) -> dict:
         shops = []
-        for shop in load_shops():
+        for shop in all_shops():
             platform, key = shop_platform(shop), shop_key(shop)
-            shops.append({'key': key, 'platform': platform, 'label': shop_label(shop),
-                          'stream_available': self.streams.is_available(key), 'streaming': self.streams.is_running(key),
-                          'config': shop, 'cookie_set': platform == 'shopee' and bool(shopee_cookie_for(shop)),
-                          **self.mpv.status(key)})
-        return {'shops': shops, 'monitoring': self.monitor.running}
+            row = {'key': key, 'platform': platform, 'label': shop_label(shop),
+                   'source': 'backend' if is_backend_shop(shop) else 'local',
+                   'stream_available': self.streams.is_available(key), 'streaming': self.streams.is_running(key),
+                   'config': shop, 'cookie_set': platform == 'shopee' and bool(shopee_cookie_for(shop)),
+                   **self.mpv.status(key)}
+            if is_backend_shop(shop):
+                brand_id = shop['brand_id']
+                row.update(config={'name': shop.get('name')}, session=self.backend.session(brand_id),
+                           schedules=[_public_schedule(r) for r in self.backend.schedules(brand_id)],
+                           on_air_schedule=(self.backend.on_air_schedule(brand_id) or {}).get('schedule_id'))
+            shops.append(row)
+        return {'shops': shops, 'monitoring': self.monitor.running, 'monitor_keys': self.monitor.keys,
+                'backend': self.backend.status()}
+
+
+SCHEDULE_PUBLIC_FIELDS = ('schedule_id', 'platform', 'scheduled_at', 'expected_end_at', 'status', 'status_label',
+                          'schedule_status')
+
+
+def _public_schedule(row: dict) -> dict:
+    """A schedule as the page may show it: no account id, session id masked."""
+    return {**{k: row.get(k) for k in SCHEDULE_PUBLIC_FIELDS}, 'session_id': mask_id(row.get('session_id'))}
 
 
 def _safe_file(base: Path, parts: list[str], suffixes: set[str]) -> Path | None:
@@ -84,8 +105,12 @@ class Handler(BaseHTTPRequestHandler):
         path = self._path()
         if path in ('/', '/index.html'):
             return self.send_file(WEB_DIR / 'index.html')
+        if path in ('/login', '/login.html'):
+            return self.send_file(WEB_DIR / 'login.html')
         if path == '/api/shops':
             return self.send_json(self.app.snapshot())
+        if path == '/api/backend':
+            return self.send_json(self.app.backend.status())
         parts = path.strip('/').split('/')
         if path.startswith('/api/mpv/frame/'):
             target = len(parts) == 4 and _safe_file(MPV_CHECKS_DIR, [parts[3], 'latest.jpg'], {'.jpg'})
@@ -132,9 +157,39 @@ class Handler(BaseHTTPRequestHandler):
                           'Đã cập nhật shop.' if original else 'Đã thêm shop.')
 
     def post_shop_delete(self, key: str):
+        shop = find_shop(key)
+        if shop and is_backend_shop(shop):
+            return self.send_json({'success': False, 'message': 'Shop đồng bộ từ backend, không xoá ở đây được.'}, 400)
         self.app.streams.stop(key)
         self.app.mpv.stop(key)
         self._form_result(lambda: delete_shop(key), 'Đã xoá shop.')
+
+    # ---- backend connection ------------------------------------------------
+
+    def post_backend_login(self):
+        body = self._read_json()
+        try:
+            self.app.backend.client.login(body.get('email'), body.get('password') or '')
+        except BackendError as exc:
+            return self.send_json({'success': False, 'message': str(exc)}, 400)
+        status = self.app.backend.sync_now()
+        message = 'Đã kết nối backend.' + (f" Đồng bộ lỗi: {status['error']}" if status.get('error') else
+                                           f" {status['brands']} shop Shopee API, {status['schedules']} lịch hôm nay.")
+        self.send_json({'success': True, 'message': message, 'data': status})
+
+    def post_backend_logout(self):
+        self.app.backend.client.logout()
+        self.app.backend.clear()
+        self.send_json({'success': True, 'message': 'Đã ngắt kết nối backend.'})
+
+    def post_backend_sync(self):
+        if not self.app.backend.client.connected:
+            return self.send_json({'success': False, 'message': 'Chưa đăng nhập backend.'}, 400)
+        status = self.app.backend.sync_now()
+        if status.get('error'):
+            return self.send_json({'success': False, 'message': f"Đồng bộ lỗi: {status['error']}", 'data': status}, 502)
+        self.send_json({'success': True, 'message': f"Đã đồng bộ {status['brands']} shop, {status['schedules']} lịch.",
+                        'data': status})
 
     def _shop_or_404(self, key: str) -> dict | None:
         shop = find_shop(key)
@@ -143,11 +198,19 @@ class Handler(BaseHTTPRequestHandler):
         return shop
 
     def post_monitor_start(self):
-        platforms = {str(p).lower() for p in self._read_json().get('platforms') or []}
+        """Body: {platforms: [...], keys?: [...]}. With `keys`, only those shops are monitored;
+        sent again while monitoring, it replaces the monitored set."""
+        body = self._read_json()
+        platforms = {str(p).lower() for p in body.get('platforms') or []}
         if not platforms:
             return self.send_json({'error': 'Chưa chọn nền tảng để theo dõi.'}, 400)
-        self.app.monitor.start(platforms)
-        self.send_json({'monitoring': True})
+        keys = None
+        if body.get('keys') is not None:
+            keys = {str(k) for k in body['keys'] if re.fullmatch(KEY, str(k))}
+            if not keys:
+                return self.send_json({'error': 'Chưa chọn kênh nào để theo dõi.'}, 400)
+        self.app.monitor.start(platforms, keys)
+        self.send_json({'monitoring': True, 'monitor_keys': self.app.monitor.keys})
 
     def post_monitor_stop(self):
         self.app.monitor.stop()
@@ -183,6 +246,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 POST_ROUTES = [
+    (r'/api/backend/login', Handler.post_backend_login),
+    (r'/api/backend/logout', Handler.post_backend_logout),
+    (r'/api/backend/sync', Handler.post_backend_sync),
     (r'/api/monitor/start', Handler.post_monitor_start),
     (r'/api/monitor/stop', Handler.post_monitor_stop),
     (r'/api/shops/save', Handler.post_shop_save),
@@ -195,8 +261,19 @@ POST_ROUTES = [
 ]
 
 
+class DashboardHTTPServer(ThreadingHTTPServer):
+    # On Windows SO_REUSEADDR lets a second process bind a port already in use, so the
+    # browser silently reaches whichever app answers first; fail loudly instead.
+    allow_reuse_address = os.name != 'nt'
+
+
 def main() -> None:
     STREAMS_DIR.mkdir(exist_ok=True)
     Handler.app = Dashboard()
+    try:
+        httpd = DashboardHTTPServer((HOST, PORT), Handler)
+    except OSError as exc:
+        raise SystemExit(f'Cổng {PORT} đang bị chiếm ({exc}). Tắt chương trình đang dùng cổng này '
+                         f'hoặc chạy với cổng khác: $env:QC_PORT=8766; python server.py') from exc
     print(f'Livestream QC demo: http://{HOST}:{PORT}')
-    ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
+    httpd.serve_forever()

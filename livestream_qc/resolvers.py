@@ -7,7 +7,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, urlparse
 from urllib.request import Request, urlopen
 
-from .config import shop_key, shop_platform, shopee_cookie_for
+from .config import is_backend_shop, shop_key, shop_platform, shopee_cookie_for
 from .utils import console_log, run, safe_error
 
 Resolved = tuple[list[str] | None, str]
@@ -176,4 +176,9 @@ def resolve_shopee(shop: dict, timeout: int) -> Resolved:
 
 def resolve(shop: dict, timeout: int) -> Resolved:
     """Return (urls, detail); urls is None when the stream could not be resolved."""
-    return resolve_tiktok(shop, timeout) if shop_platform(shop) == 'tiktok' else resolve_shopee(shop, timeout)
+    if shop_platform(shop) == 'tiktok':
+        return resolve_tiktok(shop, timeout)
+    if is_backend_shop(shop):  # Shopee Open API shop: play_url through the backend, no cookie needed
+        from .backend_sync import get_sync
+        return get_sync().resolve(shop, timeout)
+    return resolve_shopee(shop, timeout)

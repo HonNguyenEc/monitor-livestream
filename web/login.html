@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kết nối backend · Livestream QC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#f4f6fa;--surface:#fff;--surface-2:#f7f9fc;--surface-3:#eef1f6;--border:#e4e8ef;--border-strong:#d0d7e2;
+      --text:#111827;--muted:#5b6578;--faint:#8a93a4;--accent:#3157d5;--accent-hover:#2647b8;--accent-soft:#eaf0fe;
+      --ok:#12805c;--ok-soft:#e3f5ee;--danger:#c4372f;--danger-soft:#fdecea;
+      --shadow-lg:0 12px 32px rgba(16,24,40,.10);
+      --radius:12px;--radius-sm:8px;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--text);font-synthesis:none;
+      -webkit-font-smoothing:antialiased
+    }
+    @media (prefers-color-scheme:dark){
+      :root{
+        --bg:#0b0f17;--surface:#121926;--surface-2:#172031;--surface-3:#1d2739;--border:#222d40;--border-strong:#2f3c55;
+        --text:#e7ecf4;--muted:#a3adbf;--faint:#7a879d;--accent:#7096ff;--accent-hover:#8aa9ff;--accent-soft:#1a2747;
+        --ok:#45d19a;--ok-soft:#11291f;--danger:#ff7a6e;--danger-soft:#351816;--shadow-lg:0 12px 32px rgba(0,0,0,.45)
+      }
+    }
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+    [hidden]{display:none!important}
+    button,input{font:inherit;color:inherit}
+    a{color:var(--accent)}
+    svg{flex:none}
+    :is(button,input,a):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+    .shell{min-height:100vh;display:grid;grid-template-columns:1fr}
+    .hero{display:none}
+    .content{display:grid;place-items:center;padding:32px 16px}
+    .panel{width:100%;max-width:400px}
+
+    .brand{display:flex;align-items:center;gap:10px;margin-bottom:28px}
+    .brand-mark{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#3157d5,#8b5cf6);display:grid;place-items:center;color:#fff;flex:none}
+    .brand-name{font-weight:700;font-size:15px}
+    .brand-sub{font-size:11px;color:var(--faint)}
+
+    h1{font-size:24px;letter-spacing:-.025em;margin:0 0 6px}
+    .sub{color:var(--muted);margin:0 0 22px}
+
+    .target{display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:18px;border-radius:var(--radius-sm);background:var(--surface-2);border:1px solid var(--border);font-size:13px;min-width:0}
+    .target-icon{width:30px;height:30px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;flex:none}
+    .target-body{min-width:0}
+    .target-url{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .target-hint{display:block;color:var(--faint);font-size:12px}
+
+    .field{margin-bottom:14px}
+    .field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+    .control{position:relative}
+    .control > svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--faint);pointer-events:none}
+    .input{width:100%;padding:10px 12px 10px 38px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);font-size:14px}
+    .input:focus{border-color:var(--accent)}
+    .reveal{position:absolute;right:6px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:30px;height:30px;border:0;border-radius:6px;background:none;color:var(--faint);cursor:pointer}
+    .reveal:hover{color:var(--text)}
+    .field-hint{font-size:12px;color:var(--faint);margin-top:6px;display:flex;gap:6px;align-items:center}
+
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;border:1px solid var(--border-strong);background:var(--surface);border-radius:var(--radius-sm);padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;color:var(--text)}
+    .btn:hover{background:var(--surface-2)}
+    .btn:disabled{opacity:.6;cursor:wait}
+    .btn--primary{border-color:var(--accent);background:var(--accent);color:#fff}
+    .btn--primary:hover{background:var(--accent-hover)}
+    .btn--danger{color:var(--danger)}
+    .actions{display:flex;flex-direction:column;gap:10px;margin-top:20px}
+    .actions-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+    .msg{display:flex;gap:9px;align-items:flex-start;font-size:13px;border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:16px}
+    .msg svg{margin-top:2px}
+    .msg--error{background:var(--danger-soft);color:var(--danger)}
+    .msg--ok{background:var(--ok-soft);color:var(--ok)}
+
+    .account{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);margin-bottom:14px}
+    .avatar{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#3157d5,#8b5cf6);color:#fff;display:grid;place-items:center;font-weight:700;flex:none}
+    .account-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .account-email{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .role{margin-left:auto;padding:2px 8px;border-radius:99px;background:var(--accent-soft);color:var(--accent);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+    .stat{padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface)}
+    .stat b{display:block;font-size:20px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+    .stat span{color:var(--muted);font-size:12px}
+    .sync-line{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+    .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
+    .dot--warn{background:var(--danger)}
+
+    .back{display:inline-flex;align-items:center;gap:6px;margin-top:22px;font-size:13px;text-decoration:none;color:var(--muted)}
+    .back:hover{color:var(--text)}
+
+    /* hero */
+    .hero{position:relative;overflow:hidden;flex-direction:column;justify-content:space-between;padding:40px;background:#0f172a;color:#cbd5e1}
+    .hero::before{content:"";position:absolute;inset:-30% -20% auto auto;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,rgba(99,102,241,.45),transparent 65%)}
+    .hero::after{content:"";position:absolute;inset:auto auto -25% -15%;width:460px;height:460px;border-radius:50%;background:radial-gradient(circle,rgba(49,87,213,.4),transparent 65%)}
+    .hero > *{position:relative}
+    .hero .brand-name{color:#fff}
+    .hero .brand-sub{color:#7c8aa3}
+    .hero h2{color:#fff;font-size:30px;line-height:1.2;letter-spacing:-.03em;margin:0 0 14px;max-width:440px}
+    .hero p{margin:0 0 28px;max-width:440px;color:#94a3b8}
+    .features{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px;max-width:440px}
+    .features li{display:flex;gap:12px;align-items:flex-start}
+    .feature-icon{width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.08);color:#c7d2fe;display:grid;place-items:center;flex:none}
+    .features b{display:block;color:#fff;font-weight:600}
+    .features span{font-size:13px;color:#94a3b8}
+    .hero-foot{font-size:12px;color:#64748b}
+
+    @media (min-width:1024px){
+      .shell{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr)}
+      .hero{display:flex}
+      .content .brand{display:none}
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <aside class="hero" aria-hidden="true">
+    <div class="brand">
+      <span class="brand-mark" data-icon="radio"></span>
+      <div><div class="brand-name">Livestream QC</div><div class="brand-sub">TikTok · Shopee</div></div>
+    </div>
+    <div>
+      <h2>Giám sát mọi phiên livestream từ một màn hình.</h2>
+      <p>Kết nối với hệ thống auto_lives để tự động lấy shop Shopee API, lịch live và luồng xem trực tiếp.</p>
+      <ul class="features">
+        <li><span class="feature-icon" data-icon="calendar"></span><div><b>Đồng bộ shop &amp; lịch live</b><span>Danh sách shop kết nối Shopee API và lịch chạy trong ngày.</span></div></li>
+        <li><span class="feature-icon" data-icon="tv"></span><div><b>Mở luồng qua mpv</b><span>Tự kiểm tra hình ảnh, phát hiện mất tín hiệu và mở lại khi lên live.</span></div></li>
+        <li><span class="feature-icon" data-icon="shield"></span><div><b>An toàn thông tin</b><span>Mật khẩu không lưu trên máy; push key không bao giờ rời backend.</span></div></li>
+      </ul>
+    </div>
+    <div class="hero-foot">Chỉ tài khoản admin được phép kết nối.</div>
+  </aside>
+
+  <main class="content">
+    <div class="panel">
+      <div class="brand">
+        <span class="brand-mark" data-icon="radio" aria-hidden="true"></span>
+        <div><div class="brand-name">Livestream QC</div><div class="brand-sub">TikTok · Shopee</div></div>
+      </div>
+
+      <div id="msg" class="msg" role="status" hidden></div>
+
+      <section id="login-view" hidden>
+        <h1>Đăng nhập backend</h1>
+        <p class="sub">Dùng tài khoản admin của hệ thống auto_lives.</p>
+        <div class="target">
+          <span class="target-icon" data-icon="server" aria-hidden="true"></span>
+          <div class="target-body"><span class="target-url" id="target-url">…</span><span class="target-hint">Đổi trong .env (AUTO_LIVES_BACKEND_URL) rồi chạy lại server.</span></div>
+        </div>
+        <form id="login-form" novalidate>
+          <div class="field">
+            <label for="email">Email</label>
+            <div class="control"><span data-icon="mail"></span><input id="email" class="input" name="email" type="email" required autocomplete="username" placeholder="Nhập email admin"></div>
+          </div>
+          <div class="field">
+            <label for="password">Mật khẩu</label>
+            <div class="control">
+              <span data-icon="lock"></span>
+              <input id="password" class="input" name="password" type="password" required autocomplete="current-password" placeholder="Nhập mật khẩu">
+              <button type="button" class="reveal" id="reveal" aria-label="Hiện mật khẩu" aria-pressed="false"></button>
+            </div>
+            <div class="field-hint">Mật khẩu chỉ được gửi tới backend, không lưu trên máy này.</div>
+          </div>
+          <div class="actions"><button type="submit" class="btn btn--primary" id="submit">Đăng nhập</button></div>
+        </form>
+      </section>
+
+      <section id="connected-view" hidden>
+        <h1>Đã kết nối backend</h1>
+        <p class="sub" id="c-url"></p>
+        <div class="account">
+          <span class="avatar" id="c-avatar"></span>
+          <div style="min-width:0"><div class="account-name" id="c-name"></div><div class="account-email" id="c-email"></div></div>
+          <span class="role" id="c-role"></span>
+        </div>
+        <div class="stats">
+          <div class="stat"><b id="c-brands">–</b><span>Shop API</span></div>
+          <div class="stat"><b id="c-schedules">–</b><span>Lịch hôm nay</span></div>
+          <div class="stat"><b id="c-calls">–</b><span>Lệnh / 5 phút</span></div>
+        </div>
+        <div class="sync-line" id="c-sync"></div>
+        <div class="actions">
+          <a class="btn btn--primary" href="/"><span data-icon="gauge"></span>Mở dashboard</a>
+          <div class="actions-row">
+            <button type="button" class="btn" id="sync"><span data-icon="refresh"></span>Đồng bộ lại</button>
+            <button type="button" class="btn btn--danger" id="logout"><span data-icon="logout"></span>Đăng xuất</button>
+          </div>
+        </div>
+      </section>
+
+      <a class="back" href="/"><span data-icon="arrow-left"></span>Quay lại dashboard</a>
+    </div>
+  </main>
+</div>
+
+<script>
+const ICON_PATHS = {
+  radio: '<path d="M4.9 19.1a10 10 0 0 1 0-14.2M19.1 4.9a10 10 0 0 1 0 14.2M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4"/><circle cx="12" cy="12" r="2"/>',
+  calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  tv: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M17 2l-5 5-5-5"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  server: '<rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/>',
+  mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>',
+  lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  'eye-off': '<path d="M17.9 17.9A10.4 10.4 0 0 1 12 19c-6.5 0-10-7-10-7a18.5 18.5 0 0 1 5.1-5.9M9.9 4.2A9.5 9.5 0 0 1 12 4c6.5 0 10 7 10 7a18.6 18.6 0 0 1-2.2 3.2M14.1 14.1a3 3 0 1 1-4.2-4.2M2 2l20 20"/>',
+  gauge: '<path d="M12 14l4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0"/>',
+  refresh: '<path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 21v-5h5M21 3v5h-5"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+  'arrow-left': '<path d="M19 12H5M12 19l-7-7 7-7"/>',
+  alert: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>',
+  check: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+};
+function icon(name, size = 16) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
+}
+for (const el of document.querySelectorAll('[data-icon]')) {
+  el.outerHTML = el.classList.length ? `<span class="${el.className}" aria-hidden="true">${icon(el.dataset.icon, 18)}</span>` : icon(el.dataset.icon);
+}
+
+const $ = id => document.getElementById(id);
+
+function showMessage(text, kind) {
+  $('msg').innerHTML = text ? icon(kind === 'error' ? 'alert' : 'check') + `<span>${esc(text)}</span>` : '';
+  $('msg').className = 'msg msg--' + kind;
+  $('msg').hidden = !text;
+}
+
+function esc(x) { return String(x ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c])); }
+function initials(text) { return String(text || '?').trim().split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase(); }
+
+async function api(path, body) {
+  const options = {method: body === undefined ? 'GET' : 'POST', cache: 'no-store'};
+  if (body !== undefined && body !== null) {
+    options.headers = {'Content-Type': 'application/json'};
+    options.body = JSON.stringify(body);
+  }
+  const response = await fetch(path, options);
+  let data = {};
+  try { data = await response.json(); } catch (e) { /* non-JSON body */ }
+  if (!response.ok) throw new Error(data.message || data.error || `Lỗi máy chủ (${response.status})`);
+  return data;
+}
+
+function render(s) {
+  $('login-view').hidden = s.connected;
+  $('connected-view').hidden = !s.connected;
+  if (s.connected) {
+    $('c-url').textContent = s.backend;
+    $('c-avatar').textContent = initials(s.name || s.email);
+    $('c-name').textContent = s.name || s.email;
+    $('c-email').textContent = s.email;
+    $('c-role').textContent = s.role;
+    $('c-brands').textContent = s.brands ?? '–';
+    $('c-schedules').textContent = s.schedules ?? '–';
+    $('c-calls').textContent = s.api_calls_5m ?? '–';
+    const at = s.synced_at ? new Date(s.synced_at).toLocaleTimeString('vi-VN', {hour: '2-digit', minute: '2-digit'}) : null;
+    $('c-sync').innerHTML = s.error ? `<i class="dot dot--warn"></i>Đồng bộ lỗi: ${esc(s.error)}`
+      : `<i class="dot"></i>${at ? 'Đồng bộ lần cuối lúc ' + at : 'Đang đồng bộ…'}`;
+  } else {
+    $('target-url').textContent = s.backend || 'chưa cấu hình';
+    if (s.error) showMessage(s.error, 'error');
+    $('email').focus();
+  }
+}
+
+async function busy(button, text, task) {
+  const original = button.innerHTML;
+  button.disabled = true;
+  button.textContent = text;
+  try { return await task(); } finally { button.disabled = false; button.innerHTML = original; }
+}
+
+function setReveal(shown) {
+  $('password').type = shown ? 'text' : 'password';
+  $('reveal').innerHTML = icon(shown ? 'eye-off' : 'eye');
+  $('reveal').setAttribute('aria-pressed', String(shown));
+  $('reveal').setAttribute('aria-label', shown ? 'Ẩn mật khẩu' : 'Hiện mật khẩu');
+}
+setReveal(false);
+$('reveal').addEventListener('click', () => setReveal($('password').type === 'password'));
+
+$('login-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const invalid = [...form.querySelectorAll('input')].find(input => !input.checkValidity());
+  if (invalid) {
+    const label = form.querySelector(`label[for="${invalid.id}"]`).textContent;
+    showMessage(invalid.validity.valueMissing ? `Vui lòng nhập ${label.toLowerCase()}.` : `${label} không hợp lệ.`, 'error');
+    invalid.focus();
+    return;
+  }
+  const body = {email: $('email').value.trim(), password: $('password').value};
+  try {
+    const result = await busy($('submit'), 'Đang đăng nhập…', () => api('/api/backend/login', body));
+    $('password').value = '';
+    setReveal(false);
+    showMessage(result.message, 'ok');
+    render(result.data);
+  } catch (e) {
+    showMessage(e.message, 'error');
+  }
+});
+
+$('sync').addEventListener('click', async () => {
+  try {
+    const result = await busy($('sync'), 'Đang đồng bộ…', () => api('/api/backend/sync', null));
+    showMessage(result.message, 'ok');
+    render(result.data);
+  } catch (e) {
+    showMessage(e.message, 'error');
+  }
+});
+
+$('logout').addEventListener('click', async () => {
+  try {
+    const result = await busy($('logout'), 'Đang đăng xuất…', () => api('/api/backend/logout', null));
+    showMessage(result.message, 'ok');
+    render(await api('/api/backend'));
+  } catch (e) {
+    showMessage(e.message, 'error');
+  }
+});
+
+api('/api/backend').then(render).catch(e => {
+  $('login-view').hidden = false;
+  showMessage('Không tải được trạng thái: ' + e.message, 'error');
+});
+</script>
+</body>
+</html>

@@ -10,3 +10,5 @@ mpv_configs/
 shopee_cookie.txt
 browser_profile/
 shopee_cookies.json
+backend_session.json
+.env

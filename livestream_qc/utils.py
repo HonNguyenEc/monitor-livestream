@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+from urllib.parse import urlparse
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -28,6 +29,38 @@ def safe_error(text: str) -> str:
     text = re.sub(r'https?://\S+', '[url]', text)
     text = re.sub(r'(?i)(cookie|token|authorization|signature)([=: ]+)\S+', r'\1\2[redacted]', text)
     return text.strip()[-1200:]
+
+
+# ---- masking: identifiers shown on the dashboard or written to the console ----
+
+def mask_email(email: str) -> str:
+    """'admin@ecentric.vn' -> 'ad•••@ecentric.vn'."""
+    local, at, domain = str(email or '').partition('@')
+    if not local:
+        return ''
+    return f"{local[:2] if len(local) > 3 else local[:1]}•••{at}{domain}"
+
+
+def mask_url(url: str) -> str:
+    """Keep scheme and parent domain, hide the service host: 'https://aut•••.ecentric.vn'."""
+    parsed = urlparse(str(url or ''))
+    host = parsed.hostname or ''
+    if not host:
+        return ''
+    if host in ('localhost', '127.0.0.1', '::1'):
+        return f'{parsed.scheme}://{host}'
+    labels = host.split('.')
+    if all(label.isdigit() for label in labels):  # IP address
+        masked = f'{labels[0]}.•••.•••.{labels[-1]}'
+    else:
+        masked = '.'.join([labels[0][:3] + '•••', *labels[1:]][-3:]) if len(labels) > 1 else labels[0][:3] + '•••'
+    return f'{parsed.scheme}://{masked}'
+
+
+def mask_id(value) -> str:
+    """Long ids (session, brand) keep only their last 4 characters: '•••6215'."""
+    text = str(value or '')
+    return f'•••{text[-4:]}' if len(text) > 4 else text
 
 
 def utc_now() -> str:
