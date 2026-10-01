@@ -4,6 +4,8 @@
 
 Requirements: Python 3.10+, FFmpeg on PATH, `python -m pip install -r requirements.txt`.
 
+mpv (or mpv.net) is needed for monitoring. If it is missing, run `bash scripts/setup_mpv.sh` (Git Bash on Windows uses winget `shinchiro.mpv`, else scoop; macOS uses Homebrew; Linux uses apt/dnf/pacman/zypper). It exits early when a player is already installed; `--force` installs mpv anyway and `--dry-run` only prints the command.
+
 ```powershell
 python server.py
 ```

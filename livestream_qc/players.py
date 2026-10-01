@@ -1,10 +1,19 @@
 """Locate desktop players (mpv, mpv.net, VLC) and build their command lines."""
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 
-MPVNET_FALLBACK = Path.home() / 'AppData' / 'Local' / 'Programs' / 'mpv.net' / 'mpvnet.exe'
+LOCAL_APPDATA = Path(os.environ.get('LOCALAPPDATA') or Path.home() / 'AppData' / 'Local')
+MPVNET_FALLBACK = LOCAL_APPDATA / 'Programs' / 'mpv.net' / 'mpvnet.exe'
+
+
+def _installed_off_path() -> list[Path]:
+    """Windows installs (scripts/setup_mpv.sh) that a server started earlier cannot see on PATH yet."""
+    winget = LOCAL_APPDATA / 'Microsoft' / 'WinGet'
+    return [winget / 'Links' / 'mpv.exe', *sorted(winget.glob('Packages/shinchiro.mpv_*/mpv.exe')),
+            Path.home() / 'scoop' / 'apps' / 'mpv' / 'current' / 'mpv.exe', MPVNET_FALLBACK]
 
 
 def find_player(include_vlc: bool = True) -> str | None:
@@ -13,7 +22,7 @@ def find_player(include_vlc: bool = True) -> str | None:
         found = shutil.which(name)
         if found:
             return found
-    return str(MPVNET_FALLBACK) if MPVNET_FALLBACK.is_file() else None
+    return next((str(p) for p in _installed_off_path() if p.is_file()), None)
 
 
 def _exe(player: str) -> str:
