@@ -6,13 +6,42 @@ import shutil
 from pathlib import Path
 
 LOCAL_APPDATA = Path(os.environ.get('LOCALAPPDATA') or Path.home() / 'AppData' / 'Local')
+PROGRAM_FILES = Path(os.environ.get('ProgramFiles') or r'C:\Program Files')
 MPVNET_FALLBACK = LOCAL_APPDATA / 'Programs' / 'mpv.net' / 'mpvnet.exe'
+UNINSTALL_KEY = r'Software\Microsoft\Windows\CurrentVersion\Uninstall'
+
+
+def _registered_mpv() -> list[Path]:
+    """mpv.exe of installers that register in 'Apps & features' but do not touch PATH
+    (winget's shinchiro.mpv installs to C:\\Program Files\\MPV Player)."""
+    try:
+        import winreg
+    except ImportError:  # not Windows
+        return []
+    found = []
+    for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        try:
+            root = winreg.OpenKey(hive, UNINSTALL_KEY)
+        except OSError:
+            continue
+        with root:
+            for i in range(winreg.QueryInfoKey(root)[0]):
+                try:
+                    with winreg.OpenKey(root, winreg.EnumKey(root, i)) as app:
+                        name = str(winreg.QueryValueEx(app, 'DisplayName')[0])
+                        location = str(winreg.QueryValueEx(app, 'InstallLocation')[0])
+                except OSError:
+                    continue
+                if 'mpv' in name.lower() and location:
+                    found.append(Path(location) / 'mpv.exe')
+    return found
 
 
 def _installed_off_path() -> list[Path]:
-    """Windows installs (scripts/setup_mpv.sh) that a server started earlier cannot see on PATH yet."""
+    """Windows installs (scripts/setup_mpv.*) that are not on PATH, or not yet for a running server."""
     winget = LOCAL_APPDATA / 'Microsoft' / 'WinGet'
     return [winget / 'Links' / 'mpv.exe', *sorted(winget.glob('Packages/shinchiro.mpv_*/mpv.exe')),
+            PROGRAM_FILES / 'MPV Player' / 'mpv.exe', PROGRAM_FILES / 'mpv' / 'mpv.exe', *_registered_mpv(),
             Path.home() / 'scoop' / 'apps' / 'mpv' / 'current' / 'mpv.exe', MPVNET_FALLBACK]
 
 

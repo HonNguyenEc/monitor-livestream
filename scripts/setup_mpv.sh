@@ -49,10 +49,15 @@ find_player() {
     if command -v "$name" >/dev/null 2>&1; then command -v "$name"; return 0; fi
   done
   [ "$OS" = windows ] || return 0
-  local appdata; appdata="$(local_appdata)"
+  local appdata programfiles; appdata="$(local_appdata)"
+  programfiles="/c/Program Files"
+  if [ -n "${PROGRAMFILES:-}" ] && command -v cygpath >/dev/null 2>&1; then programfiles="$(cygpath -u "$PROGRAMFILES")"; fi
+  # winget's shinchiro.mpv runs an installer to Program Files/MPV Player without touching PATH.
   for candidate in \
     "$appdata/Microsoft/WinGet/Links/mpv.exe" \
     "$appdata"/Microsoft/WinGet/Packages/shinchiro.mpv_*/mpv.exe \
+    "$programfiles/MPV Player/mpv.exe" \
+    "$programfiles/mpv/mpv.exe" \
     "$HOME/scoop/apps/mpv/current/mpv.exe" \
     "$appdata/Programs/mpv.net/mpvnet.exe"; do
     if [ -f "$candidate" ]; then echo "$candidate"; return 0; fi
