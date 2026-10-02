@@ -308,6 +308,7 @@
       </div>
       <div class="topbar-actions">
         <a id="conn-chip" class="conn-chip" href="/login"></a>
+        <a class="btn" href="/wall" target="_blank" rel="noopener">Tường live ↗</a>
         <span id="monitor-state" class="monitor-state" hidden><i class="dot dot--live"></i><span id="monitor-state-text">Đang theo dõi</span></span>
         <button id="monitor-apply" class="btn" type="button" hidden></button>
         <button id="monitor" class="btn btn--primary" type="button">Bắt đầu theo dõi tất cả</button>
@@ -420,12 +421,19 @@
 
       <section class="card" id="mpv-layout" aria-labelledby="layout-title">
         <div class="card-head">
-          <div class="card-title"><span data-icon="grid"></span><h2 id="layout-title">Cửa sổ mpv</h2></div>
-          <span class="card-note">Mọi mpv nằm trong một cửa sổ cha; kéo hoặc đổi cỡ cửa sổ đó thì các ô co giãn theo. Kênh đang live xếp trước.</span>
+          <div class="card-title"><span data-icon="grid"></span><h2 id="layout-title">Hiển thị &amp; dò live</h2></div>
+          <span class="card-note">Lưới dòng × cột dùng chung cho cửa sổ mpv và tab <a href="/wall" target="_blank" rel="noopener">Tường live</a>. Kênh đang live xếp trước.</span>
         </div>
         <form id="layout-form" class="layout-body" novalidate>
           <div class="form">
             <div class="form-grid layout-grid">
+              <div class="field field--wide"><label for="l-detector">Cách dò live</label>
+                <select id="l-detector" class="input" name="detector">
+                  <option value="mpv">mpv phát liên tục, đếm khung hình (xem trên cửa sổ mpv và/hoặc tab Tường live)</option>
+                  <option value="ffmpeg">FFmpeg chụp 1 khung hình mỗi 30 giây, không mở mpv (chỉ xem trên tab Tường live)</option>
+                </select>
+                <div class="field-hint">Đổi cách dò hoặc ẩn/hiện mpv sẽ khởi động lại các kênh đang theo dõi.</div></div>
+              <label class="check field--wide" id="l-show-mpv-row"><input type="checkbox" name="show_mpv"> Hiện cửa sổ mpv (bỏ chọn: mpv chạy ẩn, tắt tiếng, chỉ để dò live)</label>
               <div class="field"><label for="l-rows">Số dòng</label><input id="l-rows" class="input" name="rows" type="number" min="0" max="12" step="1"><div class="field-hint">0 = tự tăng</div></div>
               <div class="field"><label for="l-columns">Số cột</label><input id="l-columns" class="input" name="columns" type="number" min="0" max="12" step="1"><div class="field-hint">0 = tự tăng</div></div>
               <div class="field"><label for="l-gap">Khoảng cách (px)</label><input id="l-gap" class="input" name="gap" type="number" min="0" max="100" step="1"></div>
@@ -1220,7 +1228,8 @@ function layoutFormValues() {
   const form = $('layout-form'), value = name => Number(form.elements[name].value) || 0;
   return {x: value('x'), y: value('y'), width: value('width'), height: value('height'), rows: value('rows'),
           columns: value('columns'), gap: value('gap'), aspect: form.elements.aspect.value,
-          enabled: form.elements.enabled.checked, live_only: form.elements.live_only.checked, ontop: form.elements.ontop.checked};
+          enabled: form.elements.enabled.checked, live_only: form.elements.live_only.checked, ontop: form.elements.ontop.checked,
+          detector: form.elements.detector.value, show_mpv: form.elements.show_mpv.checked};
 }
 
 function fillLayoutForm() {
@@ -1228,7 +1237,15 @@ function fillLayoutForm() {
   for (const name of ['x', 'y', 'width', 'height']) form.elements[name].value = layoutInfo.area[name];
   for (const name of ['rows', 'columns', 'gap']) form.elements[name].value = settings[name];
   form.elements.aspect.innerHTML = layoutInfo.aspects.map(a => `<option${a === settings.aspect ? ' selected' : ''}>${a}</option>`).join('');
-  for (const name of ['enabled', 'live_only', 'ontop']) form.elements[name].checked = settings[name];
+  for (const name of ['enabled', 'live_only', 'ontop', 'show_mpv']) form.elements[name].checked = settings[name];
+  form.elements.detector.value = settings.detector;
+  syncDetectorFields();
+}
+
+// Window options only matter while mpv does the detecting.
+function syncDetectorFields() {
+  const mpv = $('layout-form').elements.detector.value === 'mpv';
+  $('l-show-mpv-row').hidden = !mpv;
 }
 
 function renderLayoutPreview() {
@@ -1277,7 +1294,7 @@ async function saveLayout(button, values) {
   }
 }
 
-$('layout-form').addEventListener('input', renderLayoutPreview);
+$('layout-form').addEventListener('input', () => { syncDetectorFields(); renderLayoutPreview(); });
 $('layout-form').addEventListener('submit', event => { event.preventDefault(); saveLayout($('layout-save'), layoutFormValues()); });
 $('layout-full').addEventListener('click', () => saveLayout($('layout-full'), {...layoutFormValues(), x: 0, y: 0, width: 0, height: 0}));
 $('layout-half').addEventListener('click', () => {

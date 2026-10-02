@@ -107,6 +107,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_file(WEB_DIR / 'index.html')
         if path in ('/login', '/login.html'):
             return self.send_file(WEB_DIR / 'login.html')
+        if path in ('/wall', '/wall.html'):
+            return self.send_file(WEB_DIR / 'wall.html')
+        if path == '/api/wall':
+            return self.send_json(self.app.mpv.wall())
         if path == '/api/shops':
             return self.send_json(self.app.snapshot())
         if path == '/api/backend':
@@ -246,12 +250,22 @@ class Handler(BaseHTTPRequestHandler):
         self.app.mpv.stop(key)
         self.send_json({'stopped': True})
 
+    def post_wall_refresh(self, key: str):
+        """A fresh stream URL for one wall tile whose URL stopped working."""
+        shop = self._shop_or_404(key)
+        if shop:
+            url = self.app.mpv.refresh_url(key, shop)
+            self.send_json({'url': url}, 200 if url else 502)
+
     def post_mpv_layout(self):
         """Save the mpv parent window (position, size, rows x columns) and re-tile it."""
+        before = dict(self.app.mpv.layout.settings)
         try:
-            self.app.mpv.layout.update(self._read_json())
+            after = self.app.mpv.layout.update(self._read_json())
         except OSError as exc:
             return self.send_json({'success': False, 'message': f'Không lưu được bố cục: {exc}'}, 500)
+        if any(before[k] != after[k] for k in ('detector', 'show_mpv')):
+            self.app.mpv.restart_active()  # running checks switch to the new detector / window mode
         self.send_json({'success': True, 'message': 'Đã áp dụng bố cục mpv.', 'data': self.app.mpv.layout.snapshot()})
 
 
@@ -269,6 +283,7 @@ POST_ROUTES = [
     (rf'/api/mpv/start/{KEY}', Handler.post_mpv_start),
     (rf'/api/mpv/stop/{KEY}', Handler.post_mpv_stop),
     (r'/api/mpv/layout', Handler.post_mpv_layout),
+    (rf'/api/wall/refresh/{KEY}', Handler.post_wall_refresh),
 ]
 
 

@@ -19,7 +19,11 @@ from .config import ROOT
 LAYOUT_PATH = ROOT / 'mpv_layout.json'
 # width/height 0: the parent window is maximized. rows/columns 0: chosen from the shop count.
 DEFAULTS = {'enabled': True, 'x': 0, 'y': 0, 'width': 0, 'height': 0, 'rows': 0, 'columns': 0, 'gap': 4,
-            'aspect': '9:16', 'live_only': False, 'ontop': False}
+            'aspect': '9:16', 'live_only': False, 'ontop': False, 'detector': 'mpv', 'show_mpv': True}
+# How a shop is found live. mpv: an mpv per shop plays the stream and its shown frames are counted
+# (its window can be hidden when the browser wall is used to watch). ffmpeg: no player stays
+# connected; FFmpeg grabs one frame per check, and the browser wall is the only place to watch.
+DETECTORS = ('mpv', 'ffmpeg')
 ASPECTS = {'9:16': 9 / 16, '16:9': 16 / 9, '3:4': 3 / 4, '1:1': 1.0}
 CAPTION_HEIGHT = 22  # px of the shop-name bar above each player
 WINDOW_TITLE = 'Livestream QC - mpv'
@@ -146,19 +150,24 @@ class MpvLayout:
 
     def snapshot(self) -> dict:
         return {'settings': self.settings, 'screen': screen_area(), 'area': self.area(), 'aspects': list(ASPECTS),
+                'detectors': list(DETECTORS),
                 'embedded': self._window is not None and self._window.ok, **self.view()}
 
     # ---- the parent window -----------------------------------------------------
 
     def mpv_args(self, key: str, player: str) -> list[str]:
-        """Options that open this shop's mpv inside its tile; [] leaves it a free-floating window."""
-        if not self.settings['enabled'] or Path(player).name.lower() != 'mpv.exe':
-            return []  # mpv.net cannot be embedded
+        """Options that open this shop's mpv inside its tile; [] leaves it a free-floating window.
+        A hidden mpv is still embedded, in the hidden parent window: with no video output at all
+        (--vo=null) mpv would stop counting frames, which is how a live is detected."""
+        hidden = not self.settings['show_mpv']
+        mute = ['--mute=yes'] if hidden else []
+        if not (self.settings['enabled'] or hidden) or Path(player).name.lower() != 'mpv.exe':
+            return mute  # mpv.net cannot be embedded
         with self._lock:
             if self._window is None or not self._window.ok:
                 self._window = ContainerWindow(self)
         wid = self._window.video_wid(key)
-        return [f'--wid={wid}'] if wid else []
+        return [f'--wid={wid}', *mute] if wid else mute
 
     def _redraw(self, geometry: bool = False) -> None:
         if self._window is not None:
@@ -297,8 +306,9 @@ class ContainerWindow:
                                 x=gap // 2, y=gap // 2, width=-gap, height=-gap)
             tile['caption'].configure(text=('●  LIVE   ' if t['live'] else '○  chờ live   ') + t['label'],
                                       fg='#45d19a' if t['live'] else '#8a93a4')
-        visible = any(t['visible'] for t in view['tiles'])
-        if visible != self._shown:  # no shop to show: get the empty window out of the way
+        s = self.layout.settings
+        visible = s['detector'] == 'mpv' and s['show_mpv'] and any(t['visible'] for t in view['tiles'])
+        if visible != self._shown:  # nothing to show, or watched on the browser wall: hide the window
             self._shown = visible
             if visible:
                 self.root.deiconify()
@@ -320,4 +330,6 @@ def clean_settings(data: dict) -> dict:
     return {'enabled': bool(data.get('enabled', True)), 'x': number('x', -20000, 20000), 'y': number('y', -20000, 20000),
             'width': width, 'height': height, 'rows': number('rows', 0, 12), 'columns': number('columns', 0, 12),
             'gap': number('gap', 0, 100), 'aspect': data.get('aspect') if data.get('aspect') in ASPECTS else DEFAULTS['aspect'],
-            'live_only': bool(data.get('live_only', False)), 'ontop': bool(data.get('ontop', False))}
+            'live_only': bool(data.get('live_only', False)), 'ontop': bool(data.get('ontop', False)),
+            'detector': data.get('detector') if data.get('detector') in DETECTORS else DEFAULTS['detector'],
+            'show_mpv': bool(data.get('show_mpv', True))}

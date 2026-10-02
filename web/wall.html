@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Shopee's play-ws CDN answers 403 to a foreign Referer (hotlink protection) and 200 to none. -->
+  <meta name="referrer" content="no-referrer">
+  <title>Tường live</title>
+  <style>
+    :root{--bg:#05080e;--tile:#000;--bar:#0f172a;--text:#e7ecf4;--muted:#8a93a4;--ok:#45d19a;--warn:#f0b259;--accent:#7096ff;--cap:24px}
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.4 Inter,ui-sans-serif,system-ui,"Segoe UI",sans-serif;overflow:hidden}
+    .bar{height:36px;display:flex;align-items:center;gap:12px;padding:0 12px;background:var(--bar);border-bottom:1px solid #1e293b}
+    .bar h1{font-size:13px;margin:0;font-weight:700}
+    .bar .muted{color:var(--muted)}
+    .bar .spacer{flex:1}
+    .bar a,.bar button{color:var(--text);background:#1e293b;border:1px solid #334155;border-radius:6px;padding:4px 10px;font:inherit;font-size:12px;cursor:pointer;text-decoration:none}
+    .bar button:hover,.bar a:hover{background:#273449}
+    body.bare .bar{display:none}
+    .wall{position:absolute;inset:36px 0 0 0;display:grid;padding:calc(var(--gap) / 2)}
+    body.bare .wall{inset:0}
+    .tile{position:relative;margin:calc(var(--gap) / 2);background:var(--tile);border-radius:3px;overflow:hidden;min-width:0;min-height:0;cursor:pointer}
+    .tile.is-hidden{display:none}
+    .cap{position:absolute;inset:0 0 auto 0;height:var(--cap);display:flex;align-items:center;gap:6px;padding:0 8px;background:#172031;font-size:12px;white-space:nowrap;overflow:hidden;color:var(--muted);z-index:1}
+    .cap b{color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis}
+    .cap .state{margin-left:auto;font-size:11px}
+    .tile.is-live .cap .dot{color:var(--ok)}
+    .tile.is-unmuted{outline:2px solid var(--accent);outline-offset:-2px}
+    .tile.is-unmuted .cap .snd{display:inline}
+    .snd{display:none;color:var(--accent);font-size:11px}
+    video{position:absolute;inset:var(--cap) 0 0 0;width:100%;height:calc(100% - var(--cap));object-fit:contain;background:#000}
+    .note{position:absolute;inset:var(--cap) 0 0 0;display:grid;place-items:center;text-align:center;padding:12px;color:var(--muted);font-size:12px}
+    .tile.is-playing .note{display:none}
+    .wall.is-focus .tile:not(.is-focus){display:none}
+    .wall.is-focus .tile.is-focus{grid-area:1/1/-1/-1}
+    .empty{position:absolute;inset:36px 0 0 0;display:grid;place-items:center;color:var(--muted);text-align:center;padding:24px}
+    .empty[hidden]{display:none}
+  </style>
+</head>
+<body>
+<div class="bar">
+  <h1>Tường live</h1>
+  <span id="summary" class="muted">Đang tải…</span>
+  <span class="spacer"></span>
+  <span class="muted">Bấm ô: bật tiếng · Bấm đúp: phóng to · F: toàn màn hình · H: ẩn thanh này</span>
+  <button id="mute-all" type="button">Tắt tiếng tất cả</button>
+  <button id="fullscreen" type="button">Toàn màn hình</button>
+  <a href="/">Dashboard</a>
+</div>
+<div id="wall" class="wall"></div>
+<div id="empty" class="empty" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.8.2/dist/mpegts.min.js"></script>
+<script>
+const ASPECT_RATIO = {'9:16': 9 / 16, '16:9': 16 / 9, '3:4': 3 / 4, '1:1': 1};
+const CAPTION_HEIGHT = 24;
+const STALL_SECONDS = 15;  // no new video for this long: reconnect
+const $ = id => document.getElementById(id);
+const tiles = new Map();  // key -> {el, video, note, state, player, url, retries, lastTime, lastMove, timer}
+let data = null, unmuted = null, focused = null;
+
+function esc(x) { return String(x ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c])); }
+
+// Same rule as dimensions() in livestream_qc/mpv_layout.py.
+function dims(count, s, width, height) {
+  count = Math.max(count, 1);
+  if (s.rows && s.columns) return [s.rows, s.columns];
+  if (s.columns) return [Math.ceil(count / s.columns), s.columns];
+  if (s.rows) return [s.rows, Math.ceil(count / s.rows)];
+  let best = -Infinity, cols = 1;
+  for (let c = 1; c <= count; c++) {
+    const r = Math.ceil(count / c);
+    const size = Math.min((width - s.gap * c) / c, ((height - s.gap * r) / r - CAPTION_HEIGHT) * (ASPECT_RATIO[s.aspect] || 9 / 16));
+    if (size > best) { best = size; cols = c; }
+  }
+  return [Math.ceil(count / cols), cols];
+}
+
+// ---- players --------------------------------------------------------------------
+
+function stopPlayer(t) {
+  clearTimeout(t.timer);
+  t.timer = null;
+  if (t.player) {
+    try { t.player.pause(); t.player.unload(); t.player.detachMediaElement(); t.player.destroy(); } catch (e) { /* already gone */ }
+    t.player = null;
+  }
+  t.el.classList.remove('is-playing');
+}
+
+function startPlayer(t, url) {
+  stopPlayer(t);
+  t.url = url;
+  t.lastTime = -1;
+  t.lastMove = Date.now();
+  const player = mpegts.createPlayer({type: 'flv', isLive: true, url}, {
+    enableStashBuffer: false, liveBufferLatencyChasing: true, liveBufferLatencyMaxLatency: 6,
+    liveBufferLatencyMinRemain: 1.5, lazyLoad: false, autoCleanupSourceBuffer: true, referrerPolicy: 'no-referrer',
+  });
+  player.on(mpegts.Events.ERROR, () => reconnect(t, 'Mất kết nối'));
+  player.attachMediaElement(t.video);
+  player.load();
+  t.video.muted = t.key !== unmuted;
+  Promise.resolve(player.play()).catch(() => {});
+  t.player = player;
+  t.note.textContent = 'Đang kết nối…';
+}
+
+// Signed stream URLs expire and lives drop: ask the server for a fresh URL, backing off on failures.
+function reconnect(t, reason) {
+  if (t.timer || !t.live) return;
+  stopPlayer(t);
+  const delay = Math.min(30, 3 * 2 ** Math.min(t.retries++, 4));
+  t.note.textContent = `${reason}, thử lại sau ${delay}s…`;
+  t.timer = setTimeout(async () => {
+    t.timer = null;
+    if (!t.live) return;
+    try {
+      const response = await fetch(`/api/wall/refresh/${encodeURIComponent(t.key)}`, {method: 'POST'});
+      const body = await response.json();
+      if (body.url) return startPlayer(t, body.url);
+    } catch (e) { /* server unreachable */ }
+    reconnect(t, 'Không lấy được luồng');
+  }, delay * 1000);
+}
+
+function watchdog() {
+  for (const t of tiles.values()) {
+    if (!t.player) continue;
+    const time = t.video.currentTime;
+    if (time !== t.lastTime) {
+      if (t.lastTime >= 0 && time > t.lastTime) { t.retries = 0; t.el.classList.add('is-playing'); }
+      t.lastTime = time;
+      t.lastMove = Date.now();
+    } else if (Date.now() - t.lastMove > STALL_SECONDS * 1000) {
+      reconnect(t, 'Hình bị đứng');
+    }
+  }
+}
+
+// ---- tiles -------------------------------------------------------------------------
+
+function makeTile(tile) {
+  const el = document.createElement('div');
+  el.className = 'tile';
+  el.innerHTML = `<div class="cap"><span class="dot">●</span><b></b><span class="snd">🔊</span><span class="state"></span></div>
+    <video playsinline muted></video><div class="note"></div>`;
+  const t = {key: tile.key, el, video: el.querySelector('video'), note: el.querySelector('.note'), player: null,
+             url: null, retries: 0, timer: null, live: false};
+  // A double click (zoom) must not also toggle the sound, so a single click waits briefly.
+  let click = null;
+  el.addEventListener('click', () => {
+    clearTimeout(click);
+    click = setTimeout(() => setUnmuted(unmuted === t.key ? null : t.key), 250);
+  });
+  el.addEventListener('dblclick', () => { clearTimeout(click); setFocus(focused === t.key ? null : t.key); });
+  $('wall').appendChild(el);
+  tiles.set(tile.key, t);
+  return t;
+}
+
+function setUnmuted(key) {
+  unmuted = key;
+  for (const t of tiles.values()) {
+    t.video.muted = t.key !== key;
+    t.el.classList.toggle('is-unmuted', t.key === key);
+  }
+}
+
+function setFocus(key) {
+  focused = key;
+  $('wall').classList.toggle('is-focus', !!key);
+  for (const t of tiles.values()) t.el.classList.toggle('is-focus', t.key === key);
+}
+
+function render() {
+  if (!data) return;
+  const s = data.settings;
+  const list = data.tiles.filter(t => !s.live_only || t.live);
+  const wall = $('wall'), box = wall.getBoundingClientRect();
+  const [rows, cols] = dims(list.length, s, box.width, box.height);
+  wall.style.setProperty('--gap', `${s.gap}px`);
+  wall.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
+  wall.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+
+  const wanted = new Set(list.map(t => t.key));
+  for (const [key, t] of tiles) {
+    if (!wanted.has(key)) { stopPlayer(t); t.el.remove(); tiles.delete(key); }
+  }
+  list.forEach((tile, i) => {
+    const t = tiles.get(tile.key) || makeTile(tile);
+    const shown = i < rows * cols;
+    t.live = tile.live;
+    t.el.classList.toggle('is-hidden', !shown);
+    t.el.classList.toggle('is-live', tile.live);
+    t.el.style.gridRow = shown ? String(Math.floor(i / cols) + 1) : '';
+    t.el.style.gridColumn = shown ? String(i % cols + 1) : '';
+    t.el.querySelector('b').textContent = tile.label;
+    t.el.querySelector('.state').textContent = tile.live ? 'LIVE' : 'chờ live';
+    if (shown && tile.live && tile.url) {
+      if (!t.player && !t.timer) startPlayer(t, tile.url);
+    } else {
+      stopPlayer(t);
+      t.retries = 0;
+      t.note.textContent = !tile.live ? 'Chưa live' : shown ? 'Đang chờ luồng…' : '';
+    }
+  });
+  if (focused && !tiles.has(focused)) setFocus(null);
+  if (unmuted && !tiles.has(unmuted)) setUnmuted(null);
+
+  const live = list.filter(t => t.live).length, hidden = Math.max(0, list.length - rows * cols);
+  $('summary').textContent = `${live} kênh live / ${list.length} kênh · ${rows}×${cols}` +
+    (hidden ? ` · ${hidden} kênh không đủ ô` : '') + (data.detector === 'ffmpeg' ? ' · dò bằng FFmpeg' : ' · dò bằng mpv');
+  $('empty').hidden = list.length > 0;
+  $('empty').textContent = 'Chưa có kênh nào đang được theo dõi. Bấm "Bắt đầu theo dõi" trên dashboard.';
+}
+
+async function load() {
+  try {
+    const response = await fetch('/api/wall', {cache: 'no-store'});
+    data = await response.json();
+    render();
+  } catch (e) {
+    $('summary').textContent = 'Không kết nối được server, đang thử lại…';
+  }
+}
+
+$('mute-all').addEventListener('click', () => setUnmuted(null));
+$('fullscreen').addEventListener('click', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
+document.addEventListener('keydown', event => {
+  if (event.key === 'f' || event.key === 'F') $('fullscreen').click();
+  if (event.key === 'h' || event.key === 'H') { document.body.classList.toggle('bare'); render(); }
+  if (event.key === 'Escape') setFocus(null);
+});
+window.addEventListener('resize', render);
+
+if (!window.mpegts || !mpegts.isSupported()) {
+  $('empty').hidden = false;
+  $('empty').textContent = 'Trình duyệt này không phát được luồng FLV (cần Chrome/Edge, hoặc không tải được mpegts.js).';
+} else {
+  load();
+  setInterval(load, 5000);
+  setInterval(watchdog, 5000);
+}
+</script>
+</body>
+</html>

@@ -1,7 +1,9 @@
-"""Keep an mpv window open on a shop's live, retrying until real frames arrive and reopening after it ends.
+"""Keep checking a shop's live, retrying until real frames arrive and checking again after it ends.
 
-The mpv job is also the source of truth for whether a shop is live: `live` means mpv is
-playing a stream in which real frames were detected.
+The job is the source of truth for whether a shop is live: `live` means real frames were seen
+in its stream, counted by an mpv that keeps playing it (detector "mpv"), or grabbed by FFmpeg
+once per check (detector "ffmpeg", no player stays connected). The live stream URL is kept for
+the browser wall.
 """
 from __future__ import annotations
 
@@ -11,6 +13,7 @@ import time
 from urllib.parse import urlparse
 
 from .config import MPV_CHECKS_DIR, MPV_CONFIGS_DIR, TIMEOUT, shop_label, shop_platform
+from .media import grab_frame
 from .mpv_ipc import frames_shown, ipc_path, screenshot
 from .mpv_layout import MpvLayout
 from .players import find_player, mpv_instance_args
@@ -55,6 +58,38 @@ class MpvRetryManager:
                     'live_since': job.get('live_since') if status == 'live' else None,
                     'frame': f'/api/mpv/frame/{key}?t={int(frame.stat().st_mtime)}' if frame.is_file() else None}
 
+    def detector(self) -> str:
+        return self.layout.settings['detector']
+
+    def wall(self) -> dict:
+        """The browser wall: grid settings and tiles in display order, with the stream URL of live ones."""
+        view = self.layout.view()
+        with self._lock:
+            urls = {k: j.get('play_url') for k, j in self._jobs.items() if j.get('state') in ACTIVE_STATES}
+        tiles = [{**t, 'url': urls.get(t['key']) if t['live'] else None} for t in view['tiles']]
+        settings = {k: self.layout.settings[k] for k in ('rows', 'columns', 'gap', 'aspect', 'live_only')}
+        return {'settings': settings, 'detector': self.detector(), 'tiles': tiles}
+
+    def refresh_url(self, key: str, shop: dict) -> str | None:
+        """A fresh stream URL for the wall (signed URLs expire); kept for the next viewers too."""
+        try:
+            urls, _ = resolve(shop, TIMEOUT)
+        except Exception:
+            return None
+        if urls:
+            with self._lock:
+                if key in self._jobs:
+                    self._jobs[key]['play_url'] = urls[0]
+        return urls[0] if urls else None
+
+    def restart_active(self) -> None:
+        """Restart every running job, e.g. so a new detector takes over from the old one."""
+        with self._lock:
+            running = [(k, j['shop']) for k, j in self._jobs.items() if j.get('state') in ACTIVE_STATES]
+        for key, shop in running:
+            self.stop(key)
+            self.start(key, shop)
+
     def active(self, key: str) -> bool:
         with self._lock:
             return self._jobs.get(key, {}).get('state') in ACTIVE_STATES
@@ -66,7 +101,7 @@ class MpvRetryManager:
                 return {'started': False, 'state': job['state'], 'message': job.get('message')}
             stop_event = threading.Event()
             self._jobs[key] = {'state': 'retrying', 'attempts': 0, 'message': 'Đang thử kết nối…',
-                               'stop': stop_event, 'proc': None}
+                               'stop': stop_event, 'proc': None, 'shop': shop}
         self.layout.join(key, shop_label(shop))
         console_log('mpv_retry_started', key, shop_label(shop))
         threading.Thread(target=self._worker, args=(key, shop, stop_event), daemon=True).start()
@@ -154,14 +189,37 @@ class MpvRetryManager:
             last = frames
             screenshot(ipc_path(key), MPV_CHECKS_DIR / key / 'latest.jpg')
 
+    def _probe(self, key: str, url: str, attempt: int, stop_event: threading.Event) -> None:
+        """FFmpeg detector: one frame per check (also the dashboard thumbnail); returns once no image arrives."""
+        self._update(key, stop_event, state='checking_image', message=f'Lần {attempt}: FFmpeg đang lấy hình…')
+        frame, seen = MPV_CHECKS_DIR / key / 'latest.jpg', False
+        while not stop_event.is_set() and self.detector() == 'ffmpeg':
+            if not grab_frame(url, frame, rw_timeout=10, timeout=IMAGE_CHECK_SECONDS):
+                break
+            if not seen:
+                console_log('image_detected', key, 'ffmpeg')
+                seen = True
+            self._verdict(key, stop_event, 'live')
+            self._update(key, stop_event, state='playing', message='Đang live, FFmpeg nhận được hình.')
+            stop_event.wait(PLAYING_CHECK_SECONDS)
+        if stop_event.is_set():
+            return
+        if seen:  # the stream ended or its URL expired: resolve again so the next live is caught
+            console_log('image_stalled', key, 'ffmpeg')
+            self._update(key, stop_event, message='Mất hình, đang kiểm tra lại…')
+        else:
+            self._verdict(key, stop_event, 'no_signal')
+            console_log('image_not_detected', key, f'lần={attempt}; ffmpeg')
+            stop_event.wait(3)
+
     def _worker(self, key: str, shop: dict, stop_event: threading.Event) -> None:
         player = find_player(include_vlc=False)
-        if not player:
+        if not player and self.detector() == 'mpv':
             self._update(key, stop_event, state='error', message='Không tìm thấy mpv/mpv.net.')
             console_log('mpv_error', key, 'Không tìm thấy mpv/mpv.net')
             self._release(key, stop_event)
             return
-        instance_args = mpv_instance_args(player, MPV_CONFIGS_DIR / key)
+        instance_args = mpv_instance_args(player, MPV_CONFIGS_DIR / key) if player else []
 
         while not stop_event.is_set():
             attempt = self._next_attempt(key, stop_event)
@@ -186,6 +244,14 @@ class MpvRetryManager:
 
             url = urls[0]
             console_log('resolve_ok', key, f'lần={attempt} host={urlparse(url).hostname or "unknown"}')
+            self._update(key, stop_event, play_url=url)
+            if self.detector() == 'ffmpeg':
+                self._probe(key, url, attempt, stop_event)
+                continue
+            if not player:  # switched to the mpv detector without mpv installed
+                self._update(key, stop_event, state='error', message='Không tìm thấy mpv/mpv.net.')
+                self._release(key, stop_event)
+                return
             command = [player, *instance_args, *self.layout.mpv_args(key, player), '--input-ipc-server=' + ipc_path(key),
                        '--force-window=yes', '--keep-open=no', '--title=Livestream ' + shop_label(shop), url]
             try:
