@@ -225,6 +225,16 @@
     .req{color:var(--danger)}
     .form-actions{display:flex;gap:8px;flex-wrap:wrap;padding-top:4px}
     .form-actions .spacer{flex:1}
+    /* ---- mpv cluster layout ---- */
+    .layout-body{padding:16px;display:grid;grid-template-columns:1fr;gap:16px}
+    .layout-body .form{padding:0}
+    .layout-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .check{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}
+    .screen{position:relative;width:100%;background:var(--surface-3);border:1px solid var(--border-strong);border-radius:var(--radius-sm);overflow:hidden}
+    .screen-cluster{position:absolute;outline:2px dashed var(--accent);outline-offset:1px}
+    .screen-cell{position:absolute;background:var(--media);border-radius:2px;color:#8a93a4;font-size:10px;display:grid;place-items:center;overflow:hidden;text-align:center;padding:2px}
+    .screen-cell--live{color:#45d19a;box-shadow:inset 0 0 0 1px #45d19a}
+    .screen-note{font-size:12px;color:var(--muted);margin-top:6px}
 
     /* ---- schedule table ---- */
     .table-wrap{overflow-x:auto}
@@ -249,6 +259,8 @@
       .kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
       .form-grid{grid-template-columns:1fr 1fr}
       .field--wide{grid-column:1/-1}
+      .layout-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+      .layout-body{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}
       .table-head-cols,.row{grid-template-columns:72px minmax(0,1fr) 130px 120px}
       .thumb{width:72px}
       .col-info{display:block}
@@ -404,6 +416,39 @@
           <span id="schedule-note" class="card-note"></span>
         </div>
         <div id="schedule-table" class="table-wrap"></div>
+      </section>
+
+      <section class="card" id="mpv-layout" aria-labelledby="layout-title">
+        <div class="card-head">
+          <div class="card-title"><span data-icon="grid"></span><h2 id="layout-title">Cửa sổ mpv</h2></div>
+          <span class="card-note">Mọi mpv nằm trong một cửa sổ cha; kéo hoặc đổi cỡ cửa sổ đó thì các ô co giãn theo. Kênh đang live xếp trước.</span>
+        </div>
+        <form id="layout-form" class="layout-body" novalidate>
+          <div class="form">
+            <div class="form-grid layout-grid">
+              <div class="field"><label for="l-rows">Số dòng</label><input id="l-rows" class="input" name="rows" type="number" min="0" max="12" step="1"><div class="field-hint">0 = tự tăng</div></div>
+              <div class="field"><label for="l-columns">Số cột</label><input id="l-columns" class="input" name="columns" type="number" min="0" max="12" step="1"><div class="field-hint">0 = tự tăng</div></div>
+              <div class="field"><label for="l-gap">Khoảng cách (px)</label><input id="l-gap" class="input" name="gap" type="number" min="0" max="100" step="1"></div>
+              <div class="field"><label for="l-aspect">Tỉ lệ video</label><select id="l-aspect" class="input" name="aspect"></select><div class="field-hint">Khi cả dòng và cột = 0</div></div>
+              <div class="field"><label for="l-x">X (px)</label><input id="l-x" class="input" name="x" type="number" step="1"></div>
+              <div class="field"><label for="l-y">Y (px)</label><input id="l-y" class="input" name="y" type="number" step="1"></div>
+              <div class="field"><label for="l-width">Rộng (px)</label><input id="l-width" class="input" name="width" type="number" min="0" step="1"></div>
+              <div class="field"><label for="l-height">Cao (px)</label><input id="l-height" class="input" name="height" type="number" min="0" step="1"></div>
+              <label class="check field--wide"><input type="checkbox" name="live_only"> Chỉ hiện kênh đang live</label>
+              <label class="check field--wide"><input type="checkbox" name="ontop"> Cửa sổ luôn nổi trên cùng</label>
+              <label class="check field--wide"><input type="checkbox" name="enabled"> Gom mpv vào cửa sổ cha (tắt: mỗi mpv một cửa sổ riêng, áp dụng cho lần mở sau)</label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn--primary" id="layout-save">Áp dụng</button>
+              <button type="button" class="btn" id="layout-full">Toàn màn hình</button>
+              <button type="button" class="btn" id="layout-half">Nửa phải màn hình</button>
+            </div>
+          </div>
+          <div>
+            <div id="layout-screen" class="screen"></div>
+            <div id="layout-screen-note" class="screen-note"></div>
+          </div>
+        </form>
       </section>
     </main>
   </div>
@@ -1150,8 +1195,111 @@ $('monitor-apply').addEventListener('click', async () => {
   await load();
 });
 
+// ---- mpv parent window ----------------------------------------------------------
+
+const ASPECT_RATIO = {'9:16': 9 / 16, '16:9': 16 / 9, '3:4': 3 / 4, '1:1': 1};
+const CAPTION_HEIGHT = 22;
+let layoutInfo = null;
+
+// Same rule as dimensions() in livestream_qc/mpv_layout.py, so the preview matches the real window.
+function layoutDims(count, v, width, height) {
+  count = Math.max(count, 1);
+  if (v.rows && v.columns) return [v.rows, v.columns];
+  if (v.columns) return [Math.ceil(count / v.columns), v.columns];
+  if (v.rows) return [v.rows, Math.ceil(count / v.rows)];
+  let best = -Infinity, cols = 1;
+  for (let c = 1; c <= count; c++) {
+    const r = Math.ceil(count / c);
+    const size = Math.min((width - v.gap * c) / c, ((height - v.gap * r) / r - CAPTION_HEIGHT) * (ASPECT_RATIO[v.aspect] || 9 / 16));
+    if (size > best) { best = size; cols = c; }
+  }
+  return [Math.ceil(count / cols), cols];
+}
+
+function layoutFormValues() {
+  const form = $('layout-form'), value = name => Number(form.elements[name].value) || 0;
+  return {x: value('x'), y: value('y'), width: value('width'), height: value('height'), rows: value('rows'),
+          columns: value('columns'), gap: value('gap'), aspect: form.elements.aspect.value,
+          enabled: form.elements.enabled.checked, live_only: form.elements.live_only.checked, ontop: form.elements.ontop.checked};
+}
+
+function fillLayoutForm() {
+  const form = $('layout-form'), settings = layoutInfo.settings;
+  for (const name of ['x', 'y', 'width', 'height']) form.elements[name].value = layoutInfo.area[name];
+  for (const name of ['rows', 'columns', 'gap']) form.elements[name].value = settings[name];
+  form.elements.aspect.innerHTML = layoutInfo.aspects.map(a => `<option${a === settings.aspect ? ' selected' : ''}>${a}</option>`).join('');
+  for (const name of ['enabled', 'live_only', 'ontop']) form.elements[name].checked = settings[name];
+}
+
+function renderLayoutPreview() {
+  if (!layoutInfo) return;
+  const v = layoutFormValues(), screen = layoutInfo.screen;
+  const area = v.width && v.height ? v : screen;
+  // Tiles in the server's order (live first); with no shop yet, four placeholders.
+  let tiles = layoutInfo.tiles.length ? layoutInfo.tiles : [1, 2, 3, 4].map(i => ({label: `Kênh ${i}`, live: false}));
+  if (v.live_only && layoutInfo.tiles.length) tiles = tiles.filter(t => t.live);
+  const [rows, cols] = layoutDims(tiles.length, v, area.width, area.height);
+  const shown = tiles.slice(0, rows * cols);
+  const left = Math.min(screen.x, area.x), top = Math.min(screen.y, area.y);
+  const width = Math.max(screen.x + screen.width, area.x + area.width) - left;
+  const height = Math.max(screen.y + screen.height, area.y + area.height) - top;
+  const pct = (n, of) => `${n / of * 100}%`;
+  const box = r => `left:${pct(r.x - left, width)};top:${pct(r.y - top, height)};width:${pct(r.width, width)};height:${pct(r.height, height)}`;
+  const cw = area.width / cols, ch = area.height / rows;
+  $('layout-screen').style.aspectRatio = `${width} / ${height}`;
+  $('layout-screen').innerHTML = `<div class="screen-cluster" style="${box(area)}"></div>` + shown.map((t, i) => {
+    const cell = {x: area.x + (i % cols) * cw + v.gap / 2, y: area.y + Math.floor(i / cols) * ch + v.gap / 2, width: cw - v.gap, height: ch - v.gap};
+    return `<div class="screen-cell${t.live ? ' screen-cell--live' : ''}" style="${box(cell)}">${t.live ? '● ' : ''}${esc(t.label)}</div>`;
+  }).join('');
+  const hidden = tiles.length - shown.length;
+  $('layout-screen-note').textContent = `${rows} dòng × ${cols} cột · mỗi ô ≈ ${Math.round(cw - v.gap)}×${Math.round(ch - v.gap)} px` +
+    (layoutInfo.tiles.length ? ` · ${layoutInfo.tiles.filter(t => t.live).length} kênh live` : ' · xem trước với 4 kênh') +
+    (hidden > 0 ? ` · ${hidden} kênh không đủ ô, đang ẩn` : '');
+}
+
+async function loadLayout() {
+  try {
+    layoutInfo = await api('/api/mpv/layout');
+    fillLayoutForm();
+    renderLayoutPreview();
+  } catch (e) { /* server without the layout API */ }
+}
+
+async function saveLayout(button, values) {
+  try {
+    const result = await withBusy(button, 'Đang áp dụng…', () => api('/api/mpv/layout', values));
+    layoutInfo = result.data;
+    fillLayoutForm();
+    renderLayoutPreview();
+    toast(result.message, 'ok');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+$('layout-form').addEventListener('input', renderLayoutPreview);
+$('layout-form').addEventListener('submit', event => { event.preventDefault(); saveLayout($('layout-save'), layoutFormValues()); });
+$('layout-full').addEventListener('click', () => saveLayout($('layout-full'), {...layoutFormValues(), x: 0, y: 0, width: 0, height: 0}));
+$('layout-half').addEventListener('click', () => {
+  const s = layoutInfo.screen, half = Math.round(s.width / 2);
+  saveLayout($('layout-half'), {...layoutFormValues(), x: s.x + half, y: s.y, width: s.width - half, height: s.height});
+});
+// Shops go live and the parent window may be dragged or resized by hand: follow both,
+// but never overwrite a form the user is editing.
+setInterval(async () => {
+  if (!layoutInfo) return;
+  try {
+    const fresh = await api('/api/mpv/layout');
+    const editing = $('layout-form').contains(document.activeElement);
+    layoutInfo = editing ? {...layoutInfo, tiles: fresh.tiles} : fresh;
+    if (!editing) fillLayoutForm();
+    renderLayoutPreview();
+  } catch (e) { /* ignore */ }
+}, 5000);
+
 renderList();
 load();
+loadLayout();
 setInterval(load, 5000);
 </script>
 </body>

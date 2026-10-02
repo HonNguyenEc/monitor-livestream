@@ -111,6 +111,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(self.app.snapshot())
         if path == '/api/backend':
             return self.send_json(self.app.backend.status())
+        if path == '/api/mpv/layout':
+            return self.send_json(self.app.mpv.layout.snapshot())
         parts = path.strip('/').split('/')
         if path.startswith('/api/mpv/frame/'):
             target = len(parts) == 4 and _safe_file(MPV_CHECKS_DIR, [parts[3], 'latest.jpg'], {'.jpg'})
@@ -244,6 +246,14 @@ class Handler(BaseHTTPRequestHandler):
         self.app.mpv.stop(key)
         self.send_json({'stopped': True})
 
+    def post_mpv_layout(self):
+        """Save the mpv parent window (position, size, rows x columns) and re-tile it."""
+        try:
+            self.app.mpv.layout.update(self._read_json())
+        except OSError as exc:
+            return self.send_json({'success': False, 'message': f'Không lưu được bố cục: {exc}'}, 500)
+        self.send_json({'success': True, 'message': 'Đã áp dụng bố cục mpv.', 'data': self.app.mpv.layout.snapshot()})
+
 
 POST_ROUTES = [
     (r'/api/backend/login', Handler.post_backend_login),
@@ -258,6 +268,7 @@ POST_ROUTES = [
     (rf'/api/stop/{KEY}', Handler.post_stop),
     (rf'/api/mpv/start/{KEY}', Handler.post_mpv_start),
     (rf'/api/mpv/stop/{KEY}', Handler.post_mpv_stop),
+    (r'/api/mpv/layout', Handler.post_mpv_layout),
 ]
 
 

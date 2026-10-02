@@ -2,7 +2,8 @@
 
 Every brand connected to the Shopee Open API becomes a monitored Shopee shop. Its
 stream comes from the backend's `play_url` endpoint (get_session_detail, push key
-stripped), for the session of the schedule on air now, else the brand's current one.
+stripped). Every schedule on air now is tried, most likely first, then the brand's
+current session, so a brand with overlapping schedules is not missed.
 
 Every play_url call costs the backend one Shopee API call, so answers are cached per
 brand and session: briefly while a schedule is on air, for minutes outside any
@@ -36,6 +37,9 @@ ERROR_BACKOFF = (30, 60, 120, 300)  # seconds after the 1st, 2nd, 3rd, 4th+ cons
 SCHEDULE_LEAD = timedelta(minutes=15)
 SCHEDULE_GRACE = timedelta(minutes=30)
 SKIPPED_SCHEDULE_STATUSES = {'cancelled', 'failed'}
+# Order in which on-air schedules are tried: one the backend sees live first, finished ones last
+# (the backend's status lags, so they are still tried).
+SCHEDULE_STATUS_RANK = {'live': 0, 'completed': 2, 'ended': 2}
 SCHEDULE_FIELDS = ('schedule_id', 'platform', 'shop', 'account_id', 'session_id', 'scheduled_at', 'expected_end_at',
                    'duration_minutes', 'status', 'status_label', 'schedule_status', 'observed_status')
 
@@ -68,7 +72,7 @@ class BackendSync:
         self._sync_retry_at = 0.0
         self._sync_lock = threading.Lock()
         # play_url: brand_id -> {'key': session asked for, 'until': monotonic, 'result': Resolved, 'failures': n}
-        self._play_cache: dict[str, dict] = {}
+        self._play_cache: dict[tuple[str, str], dict] = {}  # (brand_id, session_id) -> answer
         self._brand_locks: dict[str, threading.Lock] = {}
         threading.Thread(target=self._loop, daemon=True).start()
 
@@ -157,46 +161,71 @@ class BackendSync:
         with self._lock:
             return self._sessions.get(brand_id)
 
-    def on_air_schedule(self, brand_id: str, now: datetime | None = None) -> dict | None:
-        """The Shopee schedule of this brand that should be live now (latest start wins)."""
+    def on_air_schedules(self, brand_id: str, now: datetime | None = None) -> list[dict]:
+        """The Shopee schedules of this brand that may be live now, most likely first: by status
+        (see SCHEDULE_STATUS_RANK), then latest start. Several can overlap, e.g. a re-created live."""
         now = now or datetime.now().astimezone()
-        current = None
+        rows = []
         for row in self.schedules(brand_id):
             start, end = _parse_time(row.get('scheduled_at')), _parse_time(row.get('expected_end_at'))
             if (row.get('platform') or 'shopee') != 'shopee' or row.get('schedule_status') in SKIPPED_SCHEDULE_STATUSES:
                 continue
             if start and end and start - SCHEDULE_LEAD <= now <= end + SCHEDULE_GRACE:
-                current = row
-        return current
+                rows.append(row)
+        rows.sort(key=lambda r: r.get('scheduled_at') or '', reverse=True)
+        rows.sort(key=lambda r: SCHEDULE_STATUS_RANK.get(r.get('schedule_status'), 1))
+        return rows
+
+    def on_air_schedule(self, brand_id: str) -> dict | None:
+        """The on-air schedule whose session was last found live, else the most likely one."""
+        rows = self.on_air_schedules(brand_id)
+        with self._lock:
+            live_id = (self._sessions.get(brand_id) or {}).get('schedule_id')
+        return next((r for r in rows if r.get('schedule_id') == live_id), rows[0] if rows else None)
 
     # ---- stream -------------------------------------------------------------
 
     def resolve(self, shop: dict, timeout: int) -> Resolved:
         """Play URL of the brand's live, in the resolver contract: (urls or None, detail).
 
-        One request per brand at a time; callers arriving meanwhile (monitor + a manual start)
-        wait and take the cached answer. A new on-air schedule changes the session asked for,
-        so it is never served from an older cached answer.
+        Tries the session of every on-air schedule, most likely first, then the brand's current
+        session (empty session id), and stops at the first that is live. One request per brand at
+        a time; callers arriving meanwhile (monitor + a manual start) wait and take cached answers.
+        Answers are cached per session, so a new on-air schedule is always asked about.
         """
         if not self.client.connected:
             return None, 'backend_not_connected: đăng nhập backend tại /login để lấy luồng shop Shopee API'
         brand_id = shop['brand_id']
-        schedule = self.on_air_schedule(brand_id)
-        session_id = str((schedule or {}).get('session_id') or '')
+        candidates: dict[str, dict | None] = {}
+        for schedule in self.on_air_schedules(brand_id):
+            candidates.setdefault(str(schedule.get('session_id') or ''), schedule)
+        candidates.setdefault('', None)
         with self._lock:
             lock = self._brand_locks.setdefault(brand_id, threading.Lock())
+        first = None
         with lock:
-            with self._lock:
-                cached = self._play_cache.get(brand_id)
-            if cached and cached['key'] == session_id and time.monotonic() < cached['until']:
-                urls, detail = cached['result']
-                return urls, f'{detail} [cache, hỏi lại sau {int(cached["until"] - time.monotonic())}s]'
-            failures = cached['failures'] if cached and cached['key'] == session_id else 0
-            result, ttl, failed = self._fetch(shop, schedule, session_id, timeout, failures)
-            with self._lock:
-                self._play_cache[brand_id] = {'key': session_id, 'until': time.monotonic() + ttl, 'result': result,
-                                              'failures': failures + 1 if failed else 0}
-            return result
+            for session_id, schedule in candidates.items():
+                urls, detail = self._resolve_session(shop, schedule, session_id, timeout)
+                if urls:
+                    return urls, detail
+                first = first or (urls, detail)
+                if detail.startswith('backend_'):  # not logged in / backend failing: do not hammer it
+                    break
+        return first
+
+    def _resolve_session(self, shop: dict, schedule: dict | None, session_id: str, timeout: int) -> Resolved:
+        cache_key = (shop['brand_id'], session_id)
+        with self._lock:
+            cached = self._play_cache.get(cache_key)
+        if cached and time.monotonic() < cached['until']:
+            urls, detail = cached['result']
+            return urls, f'{detail} [cache, hỏi lại sau {int(cached["until"] - time.monotonic())}s]'
+        failures = cached['failures'] if cached else 0
+        result, ttl, failed = self._fetch(shop, schedule, session_id, timeout, failures)
+        with self._lock:
+            self._play_cache[cache_key] = {'until': time.monotonic() + ttl, 'result': result,
+                                           'failures': failures + 1 if failed else 0}
+        return result
 
     def _fetch(self, shop: dict, schedule: dict | None, session_id: str, timeout: int,
                failures: int) -> tuple[Resolved, float, bool]:

@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 from .config import MPV_CHECKS_DIR, MPV_CONFIGS_DIR, TIMEOUT, shop_label, shop_platform
 from .mpv_ipc import frames_shown, ipc_path, screenshot
+from .mpv_layout import MpvLayout
 from .players import find_player, mpv_instance_args
 from .resolvers import resolve
 from .utils import console_log, safe_error, spawn, terminate, utc_now
@@ -39,6 +40,7 @@ class MpvRetryManager:
     def __init__(self):
         self._lock = threading.RLock()
         self._jobs: dict[str, dict] = {}
+        self.layout = MpvLayout()  # the parent window every shop's mpv is embedded in
 
     def status(self, key: str) -> dict:
         with self._lock:
@@ -65,6 +67,7 @@ class MpvRetryManager:
             stop_event = threading.Event()
             self._jobs[key] = {'state': 'retrying', 'attempts': 0, 'message': 'Đang thử kết nối…',
                                'stop': stop_event, 'proc': None}
+        self.layout.join(key, shop_label(shop))
         console_log('mpv_retry_started', key, shop_label(shop))
         threading.Thread(target=self._worker, args=(key, shop, stop_event), daemon=True).start()
         return {'started': True, 'state': 'retrying'}
@@ -78,6 +81,7 @@ class MpvRetryManager:
                 proc = job.get('proc')
                 job.update(state='stopping', message='Đang dừng…')
         terminate(proc)
+        self.layout.leave(key)
         console_log('mpv_stop_requested', key)
 
     def _update(self, key: str, stop_event: threading.Event, **fields) -> bool:
@@ -106,8 +110,17 @@ class MpvRetryManager:
                 if previous == 'live' and job['misses'] < LIVE_GRACE_ATTEMPTS:
                     verdict = 'live'
             job['verdict'] = verdict
+        self.layout.set_live(key, verdict == 'live')  # live shops are tiled first
         if previous != verdict:
             console_log('live_state', key, f'{previous or "-"} -> {verdict}')
+
+    def _release(self, key: str, stop_event: threading.Event) -> None:
+        """Give up the tile of a job that ended on its own, unless a newer job owns the key."""
+        with self._lock:
+            job = self._jobs.get(key)
+            if not job or job['stop'] is not stop_event:
+                return
+        self.layout.leave(key)
 
     def _next_attempt(self, key: str, stop_event: threading.Event) -> int | None:
         with self._lock:
@@ -146,6 +159,7 @@ class MpvRetryManager:
         if not player:
             self._update(key, stop_event, state='error', message='Không tìm thấy mpv/mpv.net.')
             console_log('mpv_error', key, 'Không tìm thấy mpv/mpv.net')
+            self._release(key, stop_event)
             return
         instance_args = mpv_instance_args(player, MPV_CONFIGS_DIR / key)
 
@@ -172,13 +186,14 @@ class MpvRetryManager:
 
             url = urls[0]
             console_log('resolve_ok', key, f'lần={attempt} host={urlparse(url).hostname or "unknown"}')
-            command = [player, *instance_args, '--input-ipc-server=' + ipc_path(key), '--force-window=yes',
-                       '--keep-open=no', '--title=Livestream ' + shop_label(shop), url]
+            command = [player, *instance_args, *self.layout.mpv_args(key, player), '--input-ipc-server=' + ipc_path(key),
+                       '--force-window=yes', '--keep-open=no', '--title=Livestream ' + shop_label(shop), url]
             try:
                 proc = spawn(command)
             except OSError as exc:
                 self._update(key, stop_event, state='error', message=f'Không chạy được mpv: {exc}')
                 console_log('mpv_launch_failed', key, str(exc))
+                self._release(key, stop_event)
                 return
             console_log('mpv_launched', key, f'pid={proc.pid}')
             if not self._update(key, stop_event, state='checking_image', proc=proc,
