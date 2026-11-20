@@ -3,9 +3,9 @@ import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { LightMyRequestResponse as Response } from 'fastify';
 
 import { Platform } from '../src/common/enums/platform.enum';
-import { SAMPLE_BACKEND_ROW } from '../src/modules/shops/fixtures/shop.fixtures';
 import { shopKey } from '../src/modules/shops/utils/shop-identity';
 import { createTestApp } from './helpers/create-test-app';
+import { BRAND_KEY, fakeBackend, loginToFakeBackend } from './helpers/fake-backend';
 import {
   createDataDir,
   missingDataDir,
@@ -41,6 +41,12 @@ describe('Shops written to shops.json (e2e)', () => {
     callApi(app, method, path, payload);
   const shopsFile = async (): Promise<{ shops: object[] }> =>
     JSON.parse(await readDataFile(dataDir, 'shops.json'));
+
+  const syncBackend = async (): Promise<void> => {
+    await app.close();
+    app = await createTestApp({ dataDir, backendHttp: fakeBackend() });
+    await loginToFakeBackend(app);
+  };
 
   beforeEach(async () => {
     dataDir = await createDataDir({ 'shops.json': SHOPS_JSON });
@@ -182,8 +188,10 @@ describe('Shops written to shops.json (e2e)', () => {
     });
 
     it('refuses a backend channel', async () => {
+      await syncBackend();
+
       expectError(
-        await call('PUT', `/shops/${SAMPLE_BACKEND_ROW.key}`, { name: 'x' }),
+        await call('PUT', `/shops/${BRAND_KEY}`, { name: 'x' }),
         409,
         'BACKEND_SHOP_READ_ONLY',
       );
@@ -199,11 +207,9 @@ describe('Shops written to shops.json (e2e)', () => {
     });
 
     it('refuses a backend channel', async () => {
-      expectError(
-        await call('DELETE', `/shops/${SAMPLE_BACKEND_ROW.key}`),
-        409,
-        'BACKEND_SHOP_READ_ONLY',
-      );
+      await syncBackend();
+
+      expectError(await call('DELETE', `/shops/${BRAND_KEY}`), 409, 'BACKEND_SHOP_READ_ONLY');
     });
   });
 

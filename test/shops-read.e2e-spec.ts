@@ -2,7 +2,6 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 
-import { SAMPLE_BACKEND_ROW } from '../src/modules/shops/fixtures/shop.fixtures';
 import { createTestApp } from './helpers/create-test-app';
 import { createDataDir, missingDataDir, removeDataDir } from './helpers/data-dir';
 import { callApi, expectError } from './helpers/http';
@@ -37,7 +36,7 @@ describe('Shops read from shops.json (e2e)', () => {
     await Promise.all(dirs.map(removeDataDir));
   });
 
-  it('lists the local shops in file order, then the backend channels', async () => {
+  it('lists the local shops in file order, and no backend channel without a backend login', async () => {
     await start({ 'shops.json': SHOPS_JSON, 'shopee_cookies.json': COOKIES_JSON });
 
     const { items } = (await callApi(app, 'GET', '/shops')).json();
@@ -46,7 +45,6 @@ describe('Shops read from shops.json (e2e)', () => {
       expect.objectContaining({ key: 'tiktok_unidry_official', label: 'unidry_official' }),
       expect.objectContaining({ key: 'shopee_nivea', label: 'nivea', cookie_set: true }),
       expect.objectContaining({ key: 'shopee_C_a_h_ng', label: 'Cửa hàng', cookie_set: false }),
-      SAMPLE_BACKEND_ROW,
     ]);
     expect(items[0]).toMatchObject({
       platform: 'tiktok',
@@ -86,10 +84,10 @@ describe('Shops read from shops.json (e2e)', () => {
     expect(response.statusCode).toBe(200);
   });
 
-  it('lists only the backend channels when shops.json does not exist yet', async () => {
+  it('lists nothing when shops.json does not exist yet and there is no backend login', async () => {
     app = await createTestApp({ dataDir: missingDataDir() });
 
-    expect((await callApi(app, 'GET', '/shops')).json().items).toEqual([SAMPLE_BACKEND_ROW]);
+    expect((await callApi(app, 'GET', '/shops')).json().items).toEqual([]);
   });
 
   it('fails without guessing when shops.json is not valid JSON', async () => {
@@ -134,7 +132,7 @@ describe('Shops read from shops.json (e2e)', () => {
   it('treats a file without a shops key as no shops', async () => {
     await start({ 'shops.json': { capture_seconds: 5 } });
 
-    expect((await callApi(app, 'GET', '/shops')).json().items).toEqual([SAMPLE_BACKEND_ROW]);
+    expect((await callApi(app, 'GET', '/shops')).json().items).toEqual([]);
   });
 
   it('returns SHOP_NOT_FOUND for an entry it skips', async () => {

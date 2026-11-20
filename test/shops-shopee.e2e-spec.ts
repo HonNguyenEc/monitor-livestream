@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -7,6 +8,7 @@ import { SellerCenterUnavailableError } from '../src/modules/shops/errors/seller
 import { ShopRepository } from '../src/modules/shops/repositories/shop.repository';
 import { SellerAccount } from '../src/modules/shops/models/seller-account.model';
 import { createTestApp } from './helpers/create-test-app';
+import { BRAND_ID, fakeBackend, loginToFakeBackend } from './helpers/fake-backend';
 import { createDataDir, pythonJsonText, readDataFile, removeDataDir } from './helpers/data-dir';
 import { callApi, expectError, Method } from './helpers/http';
 
@@ -113,8 +115,14 @@ describe('Shopee shops with a Seller Center cookie (e2e)', () => {
 
     it.each([
       ['an existing shop', 'nivea'],
-      ['a backend channel', 'api_0123456789'],
+      [
+        'a backend channel',
+        `api_${createHash('sha1').update(BRAND_ID).digest('hex').slice(0, 10)}`,
+      ],
     ])('rejects the key of %s and stores no cookie', async (_case, name) => {
+      await app.close();
+      app = await createTestApp({ dataDir, sellerCenter: { account }, backendHttp: fakeBackend() });
+      await loginToFakeBackend(app);
       expectError(
         await call('POST', '/shops', { platform: 'shopee', name, cookie: 'SPC_SC_SESSION=good' }),
         409,

@@ -1,8 +1,9 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { LightMyRequestResponse as Response } from 'fastify';
 
-import { SAMPLE_BACKEND_ROW } from '../src/modules/shops/fixtures/shop.fixtures';
+import { BackendRequestError } from '../src/modules/backend/errors/backend-request.error';
 import { createTestApp } from './helpers/create-test-app';
+import { BRAND_KEY, fakeBackend, loginToFakeBackend } from './helpers/fake-backend';
 import { createDataDir, removeDataDir } from './helpers/data-dir';
 import { callApi, expectError, Method } from './helpers/http';
 
@@ -14,9 +15,15 @@ const SHOPS_JSON = {
     { platform: 'tiktok', username: 'to_delete' },
   ],
 };
-const BACKEND_SHOP = SAMPLE_BACKEND_ROW.key;
+const BACKEND_SHOP = BRAND_KEY;
 const UNKNOWN_SHOP = 'nope';
 const LOGIN = { email: 'admin@example.com', password: 'secret' };
+const ADMIN_LOGIN_ANSWER = {
+  access_token: 'access-1',
+  refresh_token: 'refresh-1',
+  token_type: 'bearer',
+  user: { id: 7, role: 'admin', email: LOGIN.email, name: 'Sample Admin', shop_name: '' },
+};
 
 const nullableString = (value: unknown): boolean => value === null || typeof value === 'string';
 
@@ -46,7 +53,8 @@ describe('Live QC contract v1 (e2e)', () => {
 
   beforeAll(async () => {
     dataDir = await createDataDir({ 'shops.json': SHOPS_JSON });
-    app = await createTestApp({ dataDir });
+    app = await createTestApp({ dataDir, backendHttp: fakeBackend() });
+    await loginToFakeBackend(app);
   });
 
   afterAll(async () => {
@@ -250,7 +258,18 @@ describe('Live QC contract v1 (e2e)', () => {
   });
 
   describe('backend', () => {
-    useFreshApp();
+    let backendDir: string;
+    const backendHttp = { request: jest.fn() };
+
+    // Each test gets its own data folder, because a login writes backend_session.json there.
+    beforeEach(async () => {
+      backendDir = await createDataDir({});
+      backendHttp.request.mockReset().mockResolvedValue(ADMIN_LOGIN_ANSWER);
+      await app.close();
+      app = await createTestApp({ dataDir: backendDir, backendHttp });
+    });
+
+    afterEach(() => removeDataDir(backendDir));
 
     it('reports disconnected, then connected after login, then disconnected after logout', async () => {
       const before = await call('GET', '/backend/status');
@@ -266,7 +285,45 @@ describe('Live QC contract v1 (e2e)', () => {
       expect(login.json().connected).toBe(true);
       expect(sync.json().connected).toBe(true);
       expect(logout.json().connected).toBe(false);
+      expect(Object.keys(login.json()).sort()).toEqual(Object.keys(before.json()).sort());
+      expect(login.json()).toMatchObject({
+        backend: 'http://localhost',
+        email: 'ad•••@example.com',
+        name: 'Sample Admin',
+        role: 'admin',
+      });
     });
+
+    it('sync without a login is 400 BACKEND_NOT_CONNECTED', async () => {
+      expectError(await call('POST', '/backend/sync'), 400, 'BACKEND_NOT_CONNECTED');
+    });
+
+    it.each([
+      [
+        'wrong credentials',
+        () => backendHttp.request.mockRejectedValue(new BackendRequestError('x', 401)),
+      ],
+      [
+        'an unreachable backend',
+        () => backendHttp.request.mockRejectedValue(new BackendRequestError('x', 0)),
+      ],
+      [
+        'an account that is not an admin',
+        () =>
+          backendHttp.request.mockResolvedValue({
+            ...ADMIN_LOGIN_ANSWER,
+            user: { ...ADMIN_LOGIN_ANSWER.user, role: 'shop' },
+          }),
+      ],
+    ])(
+      'login with %s is 400 BACKEND_LOGIN_FAILED and stays disconnected',
+      async (_case, arrange) => {
+        arrange();
+
+        expectError(await call('POST', '/backend/login', LOGIN), 400, 'BACKEND_LOGIN_FAILED');
+        expect((await call('GET', '/backend/status')).json().connected).toBe(false);
+      },
+    );
 
     it.each([
       ['a malformed email', { email: 'admin', password: 'x' }],
