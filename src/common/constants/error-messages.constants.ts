@@ -10,6 +10,7 @@ export const ErrorMessage = {
     `live_url của kênh Shopee phải là địa chỉ https thuộc ${domains.join(' hoặc ')}.`,
   noPlatformSelected: 'Chọn ít nhất một nền tảng để theo dõi.',
   frameNotFound: (key: string): string => `Chưa có khung hình nào của kênh ${key}.`,
+  streamUnavailable: (key: string): string => `Không lấy được luồng phát mới của kênh ${key}.`,
   shopNotFound: (key: string): string => `Không tìm thấy kênh ${key}.`,
   shopAlreadyExists: (key: string): string => `Kênh ${key} đã tồn tại.`,
   backendReadOnly: 'Kênh đồng bộ từ backend, không sửa hoặc xoá ở đây được.',

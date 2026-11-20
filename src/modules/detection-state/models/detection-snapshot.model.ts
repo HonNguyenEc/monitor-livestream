@@ -29,3 +29,13 @@ export const IDLE_DETECTION: Readonly<DetectionSnapshot> = Object.freeze({
   framePath: null,
   frameAtMs: null,
 });
+
+/** A job that is running, including its wait between two attempts (`retrying`); the only ones that hold a wall tile. */
+export const RUNNING_JOB_STATES: readonly JobState[] = [
+  JobState.RETRYING,
+  JobState.CHECKING_IMAGE,
+  JobState.PLAYING,
+];
+
+export const isJobRunning = (snapshot: Pick<DetectionSnapshot, 'jobState'>): boolean =>
+  RUNNING_JOB_STATES.includes(snapshot.jobState);

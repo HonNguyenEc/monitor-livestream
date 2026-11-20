@@ -7,7 +7,7 @@ export const LAYOUT_FILE = 'mpv_layout.json';
 export const LAYOUT_FILE_INDENT = 2;
 export const msgNotJsonObject = (file: string): string => `${file} is not a JSON object`;
 
-/** Same values as DEFAULTS in livestream_qc/mpv_layout.py. */
+/** Same values as DEFAULTS in livestream_qc/mpv_layout.py, except `show_mpv`, which is `false` (see below). */
 export const DEFAULT_LAYOUT_SETTINGS: Readonly<LayoutSettings> = Object.freeze({
   enabled: true,
   x: 0,
@@ -21,7 +21,8 @@ export const DEFAULT_LAYOUT_SETTINGS: Readonly<LayoutSettings> = Object.freeze({
   live_only: false,
   ontop: false,
   detector: Detector.MPV,
-  show_mpv: true,
+  // Off until the grid window exists: a shown mpv is a free-floating window per channel.
+  show_mpv: false,
 });
 
 export const COORDINATE_RANGE = { min: -20000, max: 20000 };

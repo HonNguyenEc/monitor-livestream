@@ -1,23 +1,26 @@
+import { readFile } from 'node:fs/promises';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 
 import { ErrorCode } from '../../../common/constants/error-codes.constants';
 import { ErrorMessage } from '../../../common/constants/error-messages.constants';
-import { Detector } from '../../../common/enums/detector.enum';
-import { JobState } from '../../../common/enums/job-state.enum';
+import { FILE_NOT_FOUND } from '../../../common/constants/file.constants';
 import { DomainException } from '../../../common/exceptions/domain.exception';
-import { DetectionControl, DetectionStateStore } from '../../detection-state';
-import { LayoutSettingsStore } from '../../settings';
-import { ChannelDirectory } from '../../shops';
-import { MSG_CONNECTING } from '../constants/detection.constants';
+import { retryWhileBusy } from '../../../common/fs/json-file';
+import { JobState } from '../../../common/enums/job-state.enum';
+import { DetectionControl, DetectionSnapshot, DetectionStateStore } from '../../detection-state';
+import { Channel, ChannelDirectory } from '../../shops';
 import { DetectionStateDto } from '../dtos/detection-state.dto';
-import { SAMPLE_FRAME_JPEG } from '../fixtures/frame.fixtures';
+import { DetectionJobManager } from './detection-job.manager';
+import { StreamRefresher } from './stream-refresher';
 
+/** What other modules and the controller use of detection; the jobs themselves stay inside. */
 @Injectable()
 export class DetectionService implements OnModuleInit {
   constructor(
     private readonly directory: ChannelDirectory,
     private readonly detectionStore: DetectionStateStore,
-    private readonly settings: LayoutSettingsStore,
+    private readonly jobs: DetectionJobManager,
+    private readonly refresher: StreamRefresher,
     private readonly control: DetectionControl,
   ) {}
 
@@ -26,32 +29,66 @@ export class DetectionService implements OnModuleInit {
   }
 
   async start(key: string): Promise<DetectionStateDto> {
-    await this.directory.require(key);
-    return { key, state: JobState.RETRYING, message: MSG_CONNECTING, reason_code: null };
+    return this.startChannel(await this.directory.require(key));
   }
 
-  /** The detector the next attempt uses; read from the store, so a change applies without a restart. */
-  async detector(): Promise<Detector> {
-    return (await this.settings.get()).detector;
-  }
-
-  /** Stub until jobs exist: PUT /settings/layout calls it when the detector or show_mpv changed, and real jobs must then restart. */
-  async restartActive(): Promise<void> {
-    await Promise.resolve();
+  /** For a caller that already holds the channel (the monitor). */
+  async startChannel(channel: Channel): Promise<DetectionStateDto> {
+    return toState(channel.key, await this.jobs.start(channel));
   }
 
   /** Works by key, so a job of a deleted channel can still be stopped. */
   async stop(key: string): Promise<DetectionStateDto> {
-    this.detectionStore.delete(key);
+    await this.jobs.stop(key);
     return { key, state: JobState.STOPPED, message: null, reason_code: null };
   }
 
-  /** Sample JPEG until detection is real; FRAME_NOT_FOUND when the shop has no frame, thrown before the reply starts. */
+  isActive(key: string): boolean {
+    return this.jobs.isActive(key);
+  }
+
+  /** Stops every running job and starts it again; PUT /settings/layout calls it when the detector or show_mpv changed. */
+  restartActive(): Promise<void> {
+    return this.jobs.restartActive();
+  }
+
+  /** The URL the job of this channel last resolved; null without a job. Never resolves. */
+  streamUrl(key: string): string | null {
+    return this.jobs.streamUrl(key);
+  }
+
+  /** A fresh stream URL, or STREAM_UNAVAILABLE. */
+  async refreshStream(channel: Channel): Promise<string> {
+    const url = await this.refresher.refresh(channel);
+    if (!url) {
+      throw new DomainException(
+        ErrorCode.STREAM_UNAVAILABLE,
+        ErrorMessage.streamUnavailable(channel.key),
+      );
+    }
+    return url;
+  }
+
+  /** The latest frame of the channel; FRAME_NOT_FOUND while there is none, thrown before the reply starts. */
   async frame(key: string): Promise<Buffer> {
     await this.directory.require(key);
-    if (this.detectionStore.get(key).framePath === null) {
-      throw new DomainException(ErrorCode.FRAME_NOT_FOUND, ErrorMessage.frameNotFound(key));
+    const { framePath } = this.detectionStore.get(key);
+    if (framePath !== null) {
+      try {
+        return await retryWhileBusy(() => readFile(framePath));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== FILE_NOT_FOUND) throw error;
+      }
     }
-    return SAMPLE_FRAME_JPEG;
+    throw new DomainException(ErrorCode.FRAME_NOT_FOUND, ErrorMessage.frameNotFound(key));
   }
+}
+
+function toState(key: string, snapshot: DetectionSnapshot): DetectionStateDto {
+  return {
+    key,
+    state: snapshot.jobState,
+    message: snapshot.message,
+    reason_code: snapshot.reasonCode,
+  };
 }

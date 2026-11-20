@@ -4,7 +4,7 @@ import { ResolveFailure, ResolveFailureCode, YTDLP_UNAVAILABLE_MESSAGE } from '.
 import { YTDLP_NOT_LIVE_MARKER } from '../constants/detection.constants';
 
 export interface FailureVerdict {
-  status: LiveStatus;
+  status: LiveStatus.OFFLINE | LiveStatus.UNKNOWN;
   reasonCode: ReasonCode;
 }
 

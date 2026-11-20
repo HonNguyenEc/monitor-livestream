@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { errorMessage } from '../../../common/utils/error-message';
 import { safeError } from '../../../common/utils/safe-error';
+import { PROCESS_SUCCESS_EXIT_CODE } from '../../../common/process/process.constants';
 import { ResolveFailureCode } from '../enums/resolve-failure-code.enum';
 import { cancelled, failedRaw, resolved, ResolveResult } from '../models/resolve-result.model';
 import {
@@ -11,7 +12,6 @@ import {
   YTDLP_FAILED_EVENT,
   YTDLP_NO_EXIT_CODE_MESSAGE,
   YTDLP_TIMED_OUT_MESSAGE,
-  YTDLP_SUCCESS_EXIT_CODE,
   YTDLP_SUCCESS_DETAIL,
 } from './ytdlp.constants';
 import { YTDLP_RUNNER, YtDlpRunner } from './ytdlp-runner';
@@ -36,7 +36,7 @@ export class YtDlpFallback {
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter((line) => URL_PREFIXES.some((prefix) => line.startsWith(prefix)));
-    if (run.exitCode === YTDLP_SUCCESS_EXIT_CODE && urls.length > 0) {
+    if (run.exitCode === PROCESS_SUCCESS_EXIT_CODE && urls.length > 0) {
       return resolved(urls, YTDLP_SUCCESS_DETAIL);
     }
     if (run.timedOut) return this.failure(YTDLP_TIMED_OUT_MESSAGE);

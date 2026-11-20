@@ -2,13 +2,13 @@ import { Injectable } from '@nestjs/common';
 
 import { AspectRatio } from '../../../common/enums/aspect-ratio.enum';
 import { Detector } from '../../../common/enums/detector.enum';
-import { LiveStatus } from '../../../common/enums/live-status.enum';
 import { DetectionService } from '../../detection';
 import { LayoutSettings, LayoutSettingsStore } from '../../settings';
 import { DetectionStateStore } from '../../detection-state';
 import { Channel, ChannelDirectory } from '../../shops';
 import { LayoutSnapshotDto } from '../dtos/layout-snapshot.dto';
 import { UpdateLayoutDto } from '../dtos/update-layout.dto';
+import { layoutTiles } from '../utils/layout-tiles';
 import { SAMPLE_GRID, SAMPLE_SCREEN } from '../fixtures/layout.fixtures';
 
 @Injectable()
@@ -36,12 +36,7 @@ export class LayoutService {
       aspects: Object.values(AspectRatio),
       detectors: Object.values(Detector),
       ...SAMPLE_GRID,
-      tiles: channels.map((channel) => ({
-        key: channel.key,
-        label: channel.label,
-        live: this.detectionStore.get(channel.key).status === LiveStatus.LIVE,
-        visible: true,
-      })),
+      tiles: layoutTiles(channels, this.detectionStore, settings.live_only),
     };
   }
 

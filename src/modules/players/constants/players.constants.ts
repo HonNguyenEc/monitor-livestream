@@ -46,3 +46,18 @@ export const LINE_SEPARATOR = '\n';
 export const MPV_CONFIG_DIR_ARG = '--config-dir=';
 export const MPV_NO_TERMINAL_ARG = '--no-terminal';
 export const MPVNET_MULTI_INSTANCE_ARG = '--process-instance=multi';
+
+export const MPV_NO_VIDEO_ARGS = ['--vo=null', '--ao=null'];
+export const MPV_MUTE_ARG = '--mute=yes';
+export const MPV_NO_MEDIA_CONTROLS_ARG = '--media-controls=no';
+export const MPV_IPC_SERVER_ARG = '--input-ipc-server=';
+export const MPV_FORCE_WINDOW_ARG = '--force-window=yes';
+export const MPV_KEEP_OPEN_ARG = '--keep-open=no';
+export const MPV_TITLE_ARG = '--title=';
+export const MPV_VERSION_ARG = '--version';
+export const MPV_VERSION_TIMEOUT_MS = 10_000;
+/** The first mpv that knows --media-controls; an older one refuses to start on the unknown option. */
+export const MPV_MEDIA_CONTROLS_MIN_MINOR = 42;
+export const MPV_VERSION_PATTERN = /mpv[ -]v?(\d+)\.(\d+)/i;
+/** How long a missing player is believed before looking again, so installing mpv needs no restart. */
+export const MPV_MISSING_RECHECK_MS = 30_000;

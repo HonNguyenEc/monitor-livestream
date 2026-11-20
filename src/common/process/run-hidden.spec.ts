@@ -27,6 +27,7 @@ describe('runHidden', () => {
     expect(result.exitCode).toBeNull();
     expect(result.timedOut).toBe(false);
     expect(result.stderr).toContain('ENOENT');
+    expect(result.startError).toContain('ENOENT');
   });
 
   it('kills a process that outlives the timeout', async () => {

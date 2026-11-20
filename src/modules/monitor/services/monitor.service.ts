@@ -1,35 +1,39 @@
 import { Injectable } from '@nestjs/common';
 
+import { AsyncLock } from '../../../common/concurrency/async-lock';
 import { ErrorCode } from '../../../common/constants/error-codes.constants';
 import { ErrorMessage } from '../../../common/constants/error-messages.constants';
 import { DomainException } from '../../../common/exceptions/domain.exception';
 import { MonitorStateDto } from '../dtos/monitor-state.dto';
 import { StartMonitorDto } from '../dtos/start-monitor.dto';
-
-const STOPPED: MonitorStateDto = { running: false, platforms: [], keys: null };
+import { toMonitorState, toSelection } from '../utils/monitor-state';
+import { MonitorSupervisor } from './monitor-supervisor';
 
 @Injectable()
 export class MonitorService {
-  private state: MonitorStateDto = STOPPED;
+  /** A start and a stop never interleave, so a stop always ends what the start before it began. */
+  private readonly lock = new AsyncLock();
+
+  constructor(private readonly supervisor: MonitorSupervisor) {}
 
   current(): MonitorStateDto {
-    return this.state;
+    return toMonitorState(this.supervisor.current);
   }
 
-  start(body: StartMonitorDto): MonitorStateDto {
-    if (body.platforms.length === 0) {
-      throw new DomainException(ErrorCode.NO_PLATFORM_SELECTED, ErrorMessage.noPlatformSelected);
-    }
-    this.state = {
-      running: true,
-      platforms: [...body.platforms],
-      keys: body.keys ? [...body.keys] : null,
-    };
-    return this.state;
+  start(body: StartMonitorDto): Promise<MonitorStateDto> {
+    return this.lock.run(() => {
+      if (body.platforms.length === 0) {
+        throw new DomainException(ErrorCode.NO_PLATFORM_SELECTED, ErrorMessage.noPlatformSelected);
+      }
+      this.supervisor.begin(toSelection(body));
+      return Promise.resolve(this.current());
+    });
   }
 
-  stop(): MonitorStateDto {
-    this.state = STOPPED;
-    return this.state;
+  stop(): Promise<MonitorStateDto> {
+    return this.lock.run(async () => {
+      await this.supervisor.end();
+      return this.current();
+    });
   }
 }

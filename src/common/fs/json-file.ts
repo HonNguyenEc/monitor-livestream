@@ -63,7 +63,7 @@ async function writeDurably(path: string, text: string): Promise<void> {
 
 // Windows refuses to read or replace a file another process (the Python tool, an editor,
 // antivirus) holds for a moment; a short retry rides that out.
-async function retryWhileBusy<T>(operation: () => Promise<T>): Promise<T> {
+export async function retryWhileBusy<T>(operation: () => Promise<T>): Promise<T> {
   for (let attempt = 1; ; attempt += 1) {
     try {
       return await operation();

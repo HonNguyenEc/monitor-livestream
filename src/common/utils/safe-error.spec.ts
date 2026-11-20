@@ -3,6 +3,9 @@ import { safeError } from './safe-error';
 describe('safeError', () => {
   it('masks URLs', () => {
     expect(safeError('failed https://cdn.example.com/a.flv?sign=abc now')).toBe('failed [url] now');
+    expect(safeError('rtmp://host/app/streamkey: Server returned 403')).toBe(
+      '[url] Server returned 403',
+    );
   });
 
   it('redacts secret values after cookie, token, authorization and signature', () => {

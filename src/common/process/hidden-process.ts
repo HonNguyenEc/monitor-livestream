@@ -31,12 +31,14 @@ export interface RunOptions {
 }
 
 export interface RunResult {
-  /** Null when the process was killed (timeout, abort) or could not start. */
+  /** Null when the process was killed (timeout, abort, a signal) or could not start. */
   exitCode: number | null;
   stdout: string;
   stderr: string;
   /** True when the timeout, not the caller, ended it. */
   timedOut: boolean;
+  /** Set only when the program could not start; stderr then carries the same text. */
+  startError?: string;
 }
 
 type OutputStream = 'stdout' | 'stderr';
@@ -126,6 +128,7 @@ export function runHidden(file: string, args: string[], options: RunOptions): Pr
         stdout: text('stdout'),
         stderr: text('stderr') || startError,
         timedOut,
+        ...(startError ? { startError } : {}),
       });
     };
     // Never kill a pid that already exited: Windows may have given it to another process.

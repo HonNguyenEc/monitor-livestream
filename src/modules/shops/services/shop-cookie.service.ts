@@ -1,12 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { ErrorCode } from '../../../common/constants/error-codes.constants';
-import { DomainException } from '../../../common/exceptions/domain.exception';
 import { fsErrorSummary } from '../../../common/fs/fs-error';
 import { isPlainObject } from '../../../common/utils/is-plain-object';
 import { ShopField } from '../constants/shop-fields.constants';
 import { COOKIES_FILE } from '../constants/shops.constants';
 import { RememberedCookie } from '../models/remembered-cookie.model';
+import { isCookieStoreUnreadable } from '../utils/data-file-errors';
 import { CookieStore } from '../models/shop-record.model';
 import { CookieRepository } from '../repositories/cookie.repository';
 import { isPythonTruthy, pythonStr } from '../../../common/utils/python-values';
@@ -23,7 +22,7 @@ export class ShopCookieService {
     try {
       return await this.cookieRepository.load();
     } catch (error) {
-      if (isUnreadable(error)) {
+      if (isCookieStoreUnreadable(error)) {
         return {};
       }
       throw error;
@@ -75,10 +74,6 @@ export class ShopCookieService {
       this.logger.warn(`Could not restore ${COOKIES_FILE}: ${fsErrorSummary(error)}`);
     }
   }
-}
-
-function isUnreadable(error: unknown): boolean {
-  return error instanceof DomainException && error.code === ErrorCode.COOKIES_FILE_UNREADABLE;
 }
 
 function dropIfUnused(cookies: CookieStore, userId: string, shops: unknown[]): boolean {

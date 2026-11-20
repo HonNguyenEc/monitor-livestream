@@ -7,6 +7,7 @@ import {
   PROCESS_QUERY_ERROR_EXCERPT,
   PROCESS_QUERY_LOG_CONTEXT,
   PROCESS_QUERY_TIMEOUT_MS,
+  PROCESS_SUCCESS_EXIT_CODE,
   processQueryArgs,
 } from './process.constants';
 
@@ -53,7 +54,8 @@ export async function inspectProcesses(pids: readonly number[]): Promise<Running
     processQueryArgs(pids),
     { timeoutMs: PROCESS_QUERY_TIMEOUT_MS },
   );
-  const found = exitCode === 0 && !timedOut ? parseProcessList(stdout) : null;
+  const found =
+    exitCode === PROCESS_SUCCESS_EXIT_CODE && !timedOut ? parseProcessList(stdout) : null;
   if (found === null) {
     logger.warn(
       `Process query failed: exit ${exitCode}${timedOut ? ', timed out' : ''}${stderr ? `, ${safeError(stderr).slice(-PROCESS_QUERY_ERROR_EXCERPT)}` : ''}`,

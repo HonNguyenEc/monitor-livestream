@@ -20,13 +20,13 @@ export class MonitorController {
   @Post('start')
   @HttpCode(HttpStatus.OK)
   @ApiDomainErrors(ErrorCode.NO_PLATFORM_SELECTED)
-  start(@Body() body: StartMonitorDto): MonitorStateDto {
+  start(@Body() body: StartMonitorDto): Promise<MonitorStateDto> {
     return this.monitorService.start(body);
   }
 
   @Post('stop')
   @HttpCode(HttpStatus.OK)
-  stop(): MonitorStateDto {
+  stop(): Promise<MonitorStateDto> {
     return this.monitorService.stop();
   }
 }

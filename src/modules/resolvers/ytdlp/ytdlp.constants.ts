@@ -6,7 +6,8 @@ export const YTDLP_SUCCESS_DETAIL = 'resolved';
 export const YTDLP_EXIT_FALLBACK_PREFIX = 'yt-dlp exited';
 export const YTDLP_NO_EXIT_CODE_MESSAGE = 'yt-dlp was killed';
 export const YTDLP_TIMED_OUT_MESSAGE = 'yt-dlp timed out';
-export const YTDLP_SUCCESS_EXIT_CODE = 0;
 export const YTDLP_FAILED_EVENT = 'ytdlp_failed';
 export const YTDLP_UNAVAILABLE_MESSAGE = 'yt-dlp is not installed';
 export const YTDLP_UNAVAILABLE_EXIT_CODE = 1;
+/** Cap on yt-dlp processes running at the same time, so a long channel list cannot start a process per channel. */
+export const YTDLP_MAX_CONCURRENT = 2;

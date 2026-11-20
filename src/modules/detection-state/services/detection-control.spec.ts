@@ -37,4 +37,34 @@ describe('DetectionControl', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('Cannot stop the job of a'));
     warn.mockRestore();
   });
+
+  describe('rename', () => {
+    it('stops the job of the old key, then tells every listener', async () => {
+      const order: string[] = [];
+      control.register(async (key) => {
+        order.push('stop ' + key);
+      });
+      control.onRename((oldKey, newKey) => order.push('moved ' + oldKey + ' ' + newKey));
+      control.onRename(() => order.push('second listener'));
+
+      await control.rename('tiktok_a', 'tiktok_b');
+
+      expect(order).toEqual(['stop tiktok_a', 'moved tiktok_a tiktok_b', 'second listener']);
+    });
+
+    it('never throws, and a failing listener does not keep the next one from running', async () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const next = jest.fn();
+      control.onRename(() => {
+        throw new Error('boom');
+      });
+      control.onRename(next);
+
+      await expect(control.rename('a', 'b')).resolves.toBeUndefined();
+
+      expect(next).toHaveBeenCalledWith('a', 'b');
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('Cannot follow the rename of a'));
+      warn.mockRestore();
+    });
+  });
 });

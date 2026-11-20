@@ -1,4 +1,5 @@
-const URL_PATTERN = /https?:\/\/\S+/g;
+// Any scheme: ffmpeg echoes rtmp:// and rtsp:// inputs, whose path can carry a stream key.
+const URL_PATTERN = /\b[a-z][a-z0-9+.-]*:\/\/\S+/gi;
 // Cookie and Authorization values span spaces and `;` pairs, so they are masked to the end of the line.
 const LINE_SECRET_PATTERN = /(cookie|authorization)(["']?[=: ]+["']?)[^\r\n]*/gi;
 const TOKEN_SECRET_PATTERN = /(token|signature)(["']?[=: ]+["']?)(?:(?:bearer|basic)\s+)?\S+/gi;
@@ -6,7 +7,7 @@ const TOKEN_SECRET_PATTERN = /(token|signature)(["']?[=: ]+["']?)(?:(?:bearer|ba
 const SESSION_COOKIE_PATTERN = /(SPC_SC_SESSION=)(?:[^"]*(?=")|[^\s;]+)/g;
 const MAX_ERROR_LENGTH = 1200;
 
-/** Masks every http(s) URL and secret-looking values, then keeps the last MAX_ERROR_LENGTH characters. */
+/** Masks every URL and secret-looking values, then keeps the last MAX_ERROR_LENGTH characters. */
 export function safeError(text: string): string {
   const masked = text
     .replace(URL_PATTERN, '[url]')

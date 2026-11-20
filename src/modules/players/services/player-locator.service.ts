@@ -5,7 +5,6 @@ import { isSea } from 'node:sea';
 import { Injectable } from '@nestjs/common';
 
 import {
-  BUNDLED_MPV_FOLDER,
   DEFAULT_PROGRAM_FILES,
   LOCAL_APPDATA_FALLBACK,
   MPV_EXE,
@@ -20,6 +19,7 @@ import {
   WINGET_MPV_PACKAGE_PREFIX,
   WINGET_PACKAGES_FOLDER,
 } from '../constants/players.constants';
+import { bundledMpvPath } from '../utils/player-paths';
 import { UninstallRegistry } from './uninstall-registry.service';
 
 /** Finds mpv the way the Python tool does, after a copy bundled beside the installed executable. */
@@ -43,7 +43,7 @@ export class PlayerLocator {
     const programFiles = process.env.ProgramFiles || DEFAULT_PROGRAM_FILES;
     const winget = win32.join(localAppData, ...WINGET_DIR);
     if (isSea()) {
-      yield win32.join(win32.dirname(process.execPath), BUNDLED_MPV_FOLDER, MPV_EXE);
+      yield bundledMpvPath();
     }
     yield* onPath();
     yield win32.join(winget, WINGET_LINKS_FOLDER, MPV_EXE);

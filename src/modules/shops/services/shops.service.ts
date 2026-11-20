@@ -105,7 +105,7 @@ export class ShopsService {
       const saved = this.place(document, shop, current);
       const detail = await this.save(document, saved, verified, current.record[ShopField.USER_ID]);
       // A rename is a new channel: the job of the old key must not keep running or keep its player.
-      if (detail.key !== key) await this.detectionControl.stop(key);
+      if (detail.key !== key) await this.detectionControl.rename(key, detail.key);
       return detail;
     });
   }

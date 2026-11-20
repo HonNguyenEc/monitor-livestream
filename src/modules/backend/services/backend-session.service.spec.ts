@@ -100,6 +100,17 @@ describe('BackendSessionService with its transport', () => {
     return start();
   };
 
+  /** Settles once the next write of the session file is over; reading the file meanwhile would hold it open and make Windows refuse the rename. */
+  const nextStore = (): Promise<void> => {
+    const original = repository.storeQuietly.bind(repository);
+    return new Promise((done) => {
+      jest.spyOn(repository, 'storeQuietly').mockImplementationOnce(async (session) => {
+        await original(session);
+        done();
+      });
+    });
+  };
+
   const loginError = async (): Promise<DomainException> => {
     const error = await service.login(USER.email, 'pw').catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(DomainException);
@@ -280,18 +291,27 @@ describe('BackendSessionService with its transport', () => {
     it('stops waiting for the refresh when the caller aborts, while the refresh goes on for others', async () => {
       await startLoggedIn();
       const refresh = deferred();
-      route({ refresh: () => refresh.promise });
+      let refreshAsked = false;
+      route({
+        refresh: () => {
+          refreshAsked = true;
+          return refresh.promise;
+        },
+      });
       const controller = new AbortController();
 
       const pending = transport
         .get('/brands', {}, 5000, controller.signal)
         .catch((e: unknown) => e);
-      await tick();
+      await waitUntil(async () => expect(refreshAsked).toBe(true));
       controller.abort(new Error('stopped'));
 
       expect(await pending).toMatchObject({ status: NO_HTTP_STATUS, cause: new Error('stopped') });
+      const written = nextStore();
       refresh.settle(RENEWED);
-      await waitUntil(async () => expect(await storedSession()).toMatchObject(RENEWED));
+      await written;
+
+      expect(await storedSession()).toMatchObject(RENEWED);
     });
 
     it('records the epoch a refused refresh ended even when a login lands while the file is cleared', async () => {
