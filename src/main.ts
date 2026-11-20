@@ -17,6 +17,7 @@ import {
 import { logFatalAndExit, logFatalErrors } from './common/logging/fatal-errors';
 import { redirectOutputToLogFile } from './common/logging/log-file';
 import { configureApp, createFastifyAdapter } from './app.setup';
+import { ChildProcessRegistry } from './modules/processes';
 import { resolveDataDir } from './config/runtime-paths';
 import { SWAGGER_PATH, SWAGGER_UI_FOLDER } from './openapi/openapi.constants';
 import { setupSwagger } from './openapi/openapi.document';
@@ -43,6 +44,8 @@ async function bootstrap(): Promise<void> {
   setupSwagger(app, config.version, swaggerUiPath);
   app.enableShutdownHooks();
   await app.listen(config.port, LISTEN_HOST);
+  // Only the instance that owns the port may kill what an earlier run left: a second launch must not touch the first one's players.
+  await app.get(ChildProcessRegistry, { strict: false }).sweepOrphans();
   logFile?.enableRotation();
   const baseUrl = `http://${LISTEN_HOST}:${config.port}`;
   Logger.log(

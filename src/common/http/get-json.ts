@@ -1,3 +1,4 @@
+import { withTimeout } from '../concurrency/with-timeout';
 import { MAX_JSON_RESPONSE_BYTES, MSG_RESPONSE_TOO_LARGE } from '../constants/http.constants';
 import { isPlainObject } from '../utils/is-plain-object';
 
@@ -9,13 +10,14 @@ export interface JsonResponse {
   invalidBody?: true;
 }
 
-/** GET `url` and return the status with the JSON body; a body over MAX_JSON_RESPONSE_BYTES counts as invalid. Network errors and timeouts throw. */
+/** GET `url` and return the status with the JSON body; a body over MAX_JSON_RESPONSE_BYTES counts as invalid. Network errors, timeouts and an aborted `signal` throw. */
 export async function getJson(
   url: string,
   headers: Record<string, string>,
   timeoutMs: number,
+  signal?: AbortSignal,
 ): Promise<JsonResponse> {
-  const response = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
+  const response = await fetch(url, { headers, signal: withTimeout(timeoutMs, signal) });
   const body = await readCapped(response);
   try {
     if (body === null) throw new Error(MSG_RESPONSE_TOO_LARGE);

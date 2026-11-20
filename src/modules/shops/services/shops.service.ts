@@ -14,9 +14,11 @@ import { UpdateShopDto } from '../dtos/update-shop.dto';
 import { VerifiedCookie } from '../models/seller-account.model';
 import { ShopRecord, ShopsDocument } from '../models/shop-record.model';
 import { StoredShop } from '../models/stored-shop.model';
-import { BackendSyncStore } from '../../backend/services/backend-sync-store.service';
+import { BackendSyncStore } from '../../backend';
+import { DetectionControl, DetectionStateStore } from '../../detection-state';
 import { ShopRepository } from '../repositories/shop.repository';
-import { backendDetailParts, backendShops } from '../utils/backend-shops';
+import { backendDetailParts } from '../utils/backend-shops';
+import { allShops } from '../utils/channel';
 import { inputFromCreate, inputFromUpdate, withUnknownFields } from '../utils/shop-input';
 import { shopKey } from '../utils/shop-identity';
 import { toShopDetail, toShopRow } from '../utils/shop-view';
@@ -36,6 +38,8 @@ export class ShopsService {
     private readonly sellerAccounts: SellerAccountService,
     private readonly shopCookies: ShopCookieService,
     private readonly backendStore: BackendSyncStore,
+    private readonly detectionStore: DetectionStateStore,
+    private readonly detectionControl: DetectionControl,
   ) {}
 
   async list(): Promise<ShopListResponseDto> {
@@ -43,9 +47,10 @@ export class ShopsService {
       this.shopRepository.load(),
       this.shopCookies.peek(),
     ]);
-    const local = storedShops(document).map((shop) => toShopRow(shop, cookies));
-    const backend = backendShops(this.backendStore).map((shop) => toShopRow(shop, cookies));
-    return { items: [...local, ...backend] };
+    const shops = this.shopsOf(document);
+    return {
+      items: shops.map((shop) => toShopRow(shop, cookies, this.detectionStore.get(shop.key))),
+    };
   }
 
   async get(key: string): Promise<ShopDetailDto> {
@@ -53,22 +58,13 @@ export class ShopsService {
       this.shopRepository.load(),
       this.shopCookies.peek(),
     ]);
-    const local = findStoredShop(storedShops(document), key);
-    if (local) {
-      return toShopDetail(local, cookies);
-    }
-    const backend = findStoredShop(backendShops(this.backendStore), key);
-    if (!backend) {
+    const shop = findStoredShop(this.shopsOf(document), key);
+    if (!shop) {
       throw notFound(key);
     }
-    return toShopDetail(backend, cookies, backendDetailParts(this.backendStore, backend));
-  }
-
-  async assertExists(key: string): Promise<void> {
-    const document = await this.shopRepository.load();
-    if (!findStoredShop(this.shopsOf(document), key)) {
-      throw notFound(key);
-    }
+    const backend =
+      shop.source === ShopSource.BACKEND ? backendDetailParts(this.backendStore, shop) : undefined;
+    return toShopDetail(shop, cookies, this.detectionStore.get(shop.key), backend);
   }
 
   async create(body: CreateShopDto): Promise<ShopDetailDto> {
@@ -107,7 +103,10 @@ export class ShopsService {
         this.sellerAccounts.keepStoredAccount(shop, current.record, cookies);
       }
       const saved = this.place(document, shop, current);
-      return this.save(document, saved, verified, current.record[ShopField.USER_ID]);
+      const detail = await this.save(document, saved, verified, current.record[ShopField.USER_ID]);
+      // A rename is a new channel: the job of the old key must not keep running or keep its player.
+      if (detail.key !== key) await this.detectionControl.stop(key);
+      return detail;
     });
   }
 
@@ -123,12 +122,12 @@ export class ShopsService {
       document.shops = document.shops.filter((_record, index) => !removed.has(index));
       await this.shopRepository.save(document);
       await this.shopCookies.forgetUnused(shop.record[ShopField.USER_ID], document.shops);
+      await this.detectionControl.stop(key);
     });
   }
 
-  /** Every channel by key: the entries of shops.json, then the synced backend ones. */
   private shopsOf(document: ShopsDocument): StoredShop[] {
-    return [...storedShops(document), ...backendShops(this.backendStore)];
+    return allShops(document, this.backendStore);
   }
 
   /**
@@ -153,16 +152,16 @@ export class ShopsService {
     if (verified && previousUserId !== userId) {
       await this.shopCookies.forgetUnused(previousUserId, document.shops);
     }
-    return toShopDetail(saved, cookies);
+    return toShopDetail(saved, cookies, this.detectionStore.get(saved.key));
   }
 
   /** Puts `shop` in place of `current`, or appends it, once its key is free. */
   private place(document: ShopsDocument, shop: ShopRecord, current: StoredShop | null): StoredShop {
     const platform = shop.platform as Platform;
     const key = shopKey(platform, shop);
-    const taken =
-      storedShops(document).some((other) => other.key === key && other.index !== current?.index) ||
-      backendShops(this.backendStore).some((other) => other.key === key);
+    const taken = this.shopsOf(document).some(
+      (other) => other.key === key && other.index !== current?.index,
+    );
     if (taken) {
       throw new DomainException(ErrorCode.SHOP_ALREADY_EXISTS, ErrorMessage.shopAlreadyExists(key));
     }

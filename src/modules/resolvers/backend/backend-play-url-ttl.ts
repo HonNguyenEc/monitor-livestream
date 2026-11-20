@@ -1,9 +1,9 @@
-import { MS_PER_SECOND } from '../../backend/constants/backend-sync.constants';
+import { MAX_RETRY_DELAY_MS } from '../../../common/constants/time.constants';
+import { retryDelayMs } from '../../../common/utils/retry-delay';
 import {
   ERROR_BACKOFF_MS,
   EXPIRY_MARGIN_MS,
   LIVE_TTL_MS,
-  MAX_BACKOFF_MS,
   OFF_IDLE_TTL_MS,
   OFF_SCHEDULED_TTL_MS,
 } from './backend-play-url.constants';
@@ -19,10 +19,7 @@ export function notLiveTtlMs(scheduled: boolean): number {
   return scheduled ? OFF_SCHEDULED_TTL_MS : OFF_IDLE_TTL_MS;
 }
 
-/** Wait after the `failures`-th consecutive failure (1-based); the backend Retry-After wins when sent, capped at MAX_BACKOFF_MS. */
+/** Wait after the `failures`-th consecutive failure of a session (1-based). */
 export function errorBackoffMs(failures: number, retryAfterSeconds: number | null): number {
-  const retryAfterMs = retryAfterSeconds
-    ? Math.min(retryAfterSeconds * MS_PER_SECOND, MAX_BACKOFF_MS)
-    : 0;
-  return retryAfterMs || ERROR_BACKOFF_MS[Math.min(failures, ERROR_BACKOFF_MS.length) - 1];
+  return retryDelayMs(failures, ERROR_BACKOFF_MS, retryAfterSeconds, MAX_RETRY_DELAY_MS);
 }

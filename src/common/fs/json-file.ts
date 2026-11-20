@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { EOL } from 'node:os';
 import { dirname } from 'node:path';
@@ -35,16 +35,29 @@ export async function writeJsonFileAtomic(
   path: string,
   value: unknown,
   indent: number,
+  finalNewline = true,
 ): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   const temp = `${path}.${process.pid}.${randomUUID()}${TEMP_FILE_SUFFIX}`;
-  const text = `${JSON.stringify(value, null, indent)}\n`.replace(LINE_FEEDS, EOL);
+  const body = JSON.stringify(value, null, indent);
+  const text = (finalNewline ? `${body}\n` : body).replace(LINE_FEEDS, EOL);
   try {
-    await writeFile(temp, text, 'utf8');
+    await writeDurably(temp, text);
     await retryWhileBusy(() => rename(temp, path));
   } catch (error) {
     await rm(temp, { force: true }).catch(() => undefined);
     throw error;
+  }
+}
+
+// The rename is only atomic for the name: without the flush a power cut can leave the new name on an empty file.
+async function writeDurably(path: string, text: string): Promise<void> {
+  const handle = await open(path, 'w');
+  try {
+    await handle.writeFile(text, 'utf8');
+    await handle.sync();
+  } finally {
+    await handle.close();
   }
 }
 

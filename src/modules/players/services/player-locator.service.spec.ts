@@ -47,6 +47,12 @@ describe('PlayerLocator', () => {
     jest.clearAllMocks();
   });
 
+  // With nothing installed, find() stats every location in search order.
+  const checkedPaths = async (): Promise<string[]> => {
+    await locator.find();
+    return statMock.mock.calls.map(([path]) => path as string);
+  };
+
   it('checks every location in the Python search order', async () => {
     readdirMock.mockResolvedValue(['shinchiro.mpv_b', 'other.app', 'shinchiro.mpv_a']);
     registryEntries = [
@@ -54,7 +60,7 @@ describe('PlayerLocator', () => {
       { displayName: 'VLC media player', installLocation: 'D:\\Apps\\VLC' },
     ];
 
-    expect(await locator.candidates()).toEqual([
+    expect(await checkedPaths()).toEqual([
       'C:\\tools\\mpv.exe',
       'C:\\bin\\mpv.exe',
       'C:\\tools\\mpvnet.exe',
@@ -88,7 +94,7 @@ describe('PlayerLocator', () => {
   });
 
   it('ignores a bundled folder when running from source', async () => {
-    const candidates = await locator.candidates();
+    const candidates = await checkedPaths();
 
     expect(candidates[0]).toBe('C:\\tools\\mpv.exe');
   });
@@ -124,7 +130,7 @@ describe('PlayerLocator', () => {
     delete process.env.ProgramFiles;
     delete process.env.LOCALAPPDATA;
 
-    const candidates = await locator.candidates();
+    const candidates = await checkedPaths();
 
     expect(candidates).toContain('C:\\Program Files\\MPV Player\\mpv.exe');
     expect(candidates).toContain(

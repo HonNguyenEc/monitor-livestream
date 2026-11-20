@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { withTimeout } from '../../../common/concurrency/with-timeout';
 import { readCapped } from '../../../common/http/get-json';
 import { DIGITS } from '../../../common/constants/patterns.constants';
 import { isPlainObject } from '../../../common/utils/is-plain-object';
@@ -14,8 +15,10 @@ import {
   MAX_BACKEND_RESPONSE_BYTES,
   MAX_REMOTE_MESSAGE_LENGTH,
   MSG_BACKEND_ANSWER_TOO_LARGE,
+  MSG_NO_ANSWER,
   NO_HTTP_STATUS,
   RETRY_AFTER_HEADER,
+  VALIDATION_SEPARATOR,
 } from '../constants/backend.constants';
 import { BackendAnswerError } from '../errors/backend-answer.error';
 import { BackendRequestError } from '../errors/backend-request.error';
@@ -27,9 +30,14 @@ interface BackendRequestOptions {
   body?: unknown;
   token?: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }
 
-const VALIDATION_SEPARATOR = '; ';
+// A signal alone is the caller's whole budget and is not cut to the default timeout; the default applies when nothing else bounds the request.
+function requestSignal({ timeoutMs, signal }: BackendRequestOptions): AbortSignal {
+  if (signal && timeoutMs === undefined) return signal;
+  return withTimeout(timeoutMs ?? BACKEND_TIMEOUT_MS, signal);
+}
 
 /**
  * JSON over HTTP to livestream-backend: error text and Retry-After are read as in `_http` of
@@ -52,11 +60,11 @@ export class BackendHttpClient {
         headers: requestHeaders(options),
         body: options.body === undefined ? undefined : JSON.stringify(options.body),
         redirect: 'manual',
-        signal: AbortSignal.timeout(options.timeoutMs ?? BACKEND_TIMEOUT_MS),
+        signal: requestSignal(options),
       });
       text = await readCapped(response, MAX_BACKEND_RESPONSE_BYTES);
     } catch (error) {
-      throw new BackendRequestError('Backend did not answer', NO_HTTP_STATUS, '', null, {
+      throw new BackendRequestError(MSG_NO_ANSWER, NO_HTTP_STATUS, '', null, {
         cause: error,
       });
     }

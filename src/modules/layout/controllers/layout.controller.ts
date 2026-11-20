@@ -20,7 +20,7 @@ export class LayoutController {
   }
 
   @Put()
-  @ApiDomainErrors(ErrorCode.SHOPS_FILE_UNREADABLE)
+  @ApiDomainErrors(ErrorCode.SHOPS_FILE_UNREADABLE, ErrorCode.LAYOUT_FILE_UNREADABLE)
   update(@Body(RejectNullFieldsPipe) body: UpdateLayoutDto): Promise<LayoutSnapshotDto> {
     return this.layoutService.update(body);
   }

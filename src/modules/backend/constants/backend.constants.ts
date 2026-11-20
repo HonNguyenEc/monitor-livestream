@@ -17,12 +17,12 @@ export const SESSION_FILE = 'backend_session.json';
 // Indentation of backend_session.json, kept readable by hand.
 export const SESSION_FILE_INDENT = 2;
 
-// Timeout of every backend request.
+// Also the budget of one authenticated read: its first try, a token refresh it waits for, and its retry together.
 export const BACKEND_TIMEOUT_MS = 25_000;
 // The window of BackendStatus.api_calls_5m.
 export const API_CALLS_WINDOW_MS = 5 * 60_000;
 export const MAX_REMOTE_MESSAGE_LENGTH = 300;
-/** The board of a day is the biggest answer: a few hundred rows of a few hundred bytes. */
+/** Far above any real answer (the board of a day is the biggest, a few hundred rows); only stops a runaway body. */
 export const MAX_BACKEND_RESPONSE_BYTES = 8 * 1024 * 1024;
 // Messages of the errors this module throws; the user sees backendErrorText, never these.
 export const MSG_NOT_LOGGED_IN = 'Not logged in to the backend';
@@ -47,3 +47,16 @@ export const playUrlPath = (brandId: string): string =>
 // Shown on the shop detail: which session the last play_url answer was about.
 export const SESSION_SOURCE_SCHEDULE = 'theo lịch';
 export const SESSION_SOURCE_CURRENT = 'phiên hiện tại của shop';
+
+export const VALIDATION_SEPARATOR = '; ';
+
+export const MSG_BRANDS = 'Brands answer is not a list of objects';
+export const MSG_BRAND_ID = 'Brand without an id';
+export const MSG_BOARD = 'Board answer is not an object with a list of rows';
+export const MSG_PLAY_URL = 'play_url answer is not an object';
+
+// For the log only: an installed operator has no .env to edit, a developer does.
+export const MSG_LOG_BACKEND_URL_INVALID = `${BACKEND_URL_ENV} in the data folder .env is not an http(s) URL`;
+export const MSG_LOG_CHECK_BACKEND_URL = `check ${BACKEND_URL_ENV} in the data folder .env`;
+
+export const MSG_NO_ANSWER = 'Backend did not answer';

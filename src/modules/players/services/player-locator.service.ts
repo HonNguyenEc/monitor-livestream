@@ -36,14 +36,6 @@ export class PlayerLocator {
     return null;
   }
 
-  async candidates(): Promise<string[]> {
-    const all: string[] = [];
-    for await (const candidate of this.search()) {
-      all.push(candidate);
-    }
-    return all;
-  }
-
   // Lazy, so the two reg.exe scans run only when no earlier location has mpv.
   private async *search(): AsyncGenerator<string> {
     const localAppData =

@@ -11,7 +11,7 @@ import {
 } from '../constants/shops.constants';
 import { BRAND_ID_FIELD, PLATFORM_FIELD, ShopField } from '../constants/shop-fields.constants';
 import { ShopRecord } from '../models/shop-record.model';
-import { isPythonTruthy, pythonStr } from './python-values';
+import { isPythonTruthy, pythonStr } from '../../../common/utils/python-values';
 
 const PLATFORMS: readonly string[] = Object.values(Platform);
 

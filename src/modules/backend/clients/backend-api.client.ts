@@ -7,10 +7,10 @@ import {
   PLAY_URL_SESSION_PARAM,
   playUrlPath,
 } from '../constants/backend.constants';
+import { AuthenticatedBackendTransport } from './authenticated-backend.transport';
 import { BackendBrand } from '../models/backend-brand.model';
 import { BackendSchedule } from '../models/backend-schedule.model';
 import { PlayUrlAnswer } from '../models/play-url-answer.model';
-import { BackendSessionService } from '../services/backend-session.service';
 import { readBoard, readBrands, readPlayUrl } from '../utils/backend-answers';
 
 /**
@@ -19,21 +19,26 @@ import { readBoard, readBrands, readPlayUrl } from '../utils/backend-answers';
  */
 @Injectable()
 export class BackendApiClient {
-  constructor(private readonly session: BackendSessionService) {}
+  constructor(private readonly transport: AuthenticatedBackendTransport) {}
 
   /** The brands the logged-in account can see; the backend scopes the list. */
   async brands(): Promise<BackendBrand[]> {
-    return readBrands(await this.session.get(BRANDS_PATH));
+    return readBrands(await this.transport.get(BRANDS_PATH));
   }
 
   /** The schedules of every brand the account can see on `day` (YYYY-MM-DD), grouped by brand id. */
   async board(day: string): Promise<Map<string, BackendSchedule[]>> {
-    return readBoard(await this.session.get(BOARD_PATH, { [BOARD_DATE_PARAM]: day }));
+    return readBoard(await this.transport.get(BOARD_PATH, { [BOARD_DATE_PARAM]: day }));
   }
 
   /** Signed pull URL of a brand's session; an empty `sessionId` means the brand's current one. */
-  async playUrl(brandId: string, sessionId: string, timeoutMs?: number): Promise<PlayUrlAnswer> {
+  async playUrl(
+    brandId: string,
+    sessionId: string,
+    timeoutMs?: number,
+    signal?: AbortSignal,
+  ): Promise<PlayUrlAnswer> {
     const query = { [PLAY_URL_SESSION_PARAM]: sessionId };
-    return readPlayUrl(await this.session.get(playUrlPath(brandId), query, timeoutMs));
+    return readPlayUrl(await this.transport.get(playUrlPath(brandId), query, timeoutMs, signal));
   }
 }

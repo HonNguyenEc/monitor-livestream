@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { HttpStatus, Logger } from '@nestjs/common';
 
 import { DomainException } from '../../../common/exceptions/domain.exception';
+import { AuthenticatedBackendTransport } from '../clients/authenticated-backend.transport';
 import { BackendHttpClient } from '../clients/backend-http.client';
 import { toBackendConfig } from '../config/backend.config';
 import { NO_HTTP_STATUS, SESSION_FILE } from '../constants/backend.constants';
@@ -23,7 +24,7 @@ const LOGIN_ANSWER = { access_token: 'a1', refresh_token: 'r1', user: { ...USER,
 const STORED = { base_url: BASE_URL, access_token: 'a1', refresh_token: 'r1', user: USER };
 const RENEWED = { access_token: 'a2', refresh_token: 'r2' };
 
-type Answer = unknown | Error;
+type Answer = unknown;
 
 interface Routes {
   login?: () => Promise<unknown>;
@@ -49,10 +50,22 @@ function deferred(): { promise: Promise<unknown>; settle: (answer: Answer) => vo
 
 const tick = (): Promise<void> => new Promise(setImmediate);
 
-describe('BackendSessionService', () => {
+async function waitUntil(check: () => Promise<void>): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await check();
+    } catch (error) {
+      if (attempt >= 100) throw error;
+      await new Promise((done) => setTimeout(done, 20));
+    }
+  }
+}
+
+describe('BackendSessionService with its transport', () => {
   let dir: string;
   let request: jest.Mock;
   let service: BackendSessionService;
+  let transport: AuthenticatedBackendTransport;
   let repository: BackendSessionRepository;
 
   const sessionFile = (): string => join(dir, SESSION_FILE);
@@ -76,7 +89,8 @@ describe('BackendSessionService', () => {
   const start = async (url = BASE_URL): Promise<BackendSessionService> => {
     const http = { request } as unknown as BackendHttpClient;
     repository = new BackendSessionRepository(dir);
-    service = new BackendSessionService(toBackendConfig(url), http, repository);
+    transport = new AuthenticatedBackendTransport(http, repository);
+    service = new BackendSessionService(toBackendConfig(url), http, repository, transport);
     await service.onModuleInit();
     return service;
   };
@@ -141,7 +155,10 @@ describe('BackendSessionService', () => {
     it('refuses an AUTO_LIVES_BACKEND_URL that is not http(s) without calling out', async () => {
       await start('backend.test');
 
-      expect((await loginError()).message).toContain('AUTO_LIVES_BACKEND_URL');
+      const { message } = await loginError();
+
+      expect(message).toContain('quản trị viên');
+      expect(message).not.toContain('.env');
       expect(request).not.toHaveBeenCalled();
     });
 
@@ -214,30 +231,153 @@ describe('BackendSessionService', () => {
     });
   });
 
+  describe('epoch', () => {
+    it('changes on a login, a logout and a refused refresh', async () => {
+      await start();
+      request.mockResolvedValue(LOGIN_ANSWER);
+      const seen = [transport.epoch];
+
+      await service.login(USER.email, 'pw');
+      seen.push(transport.epoch);
+      await service.login(USER.email, 'pw');
+      seen.push(transport.epoch);
+      await service.logout();
+      seen.push(transport.epoch);
+      await service.login(USER.email, 'pw');
+      seen.push(transport.epoch);
+      route({ refresh: () => settle(unauthorized()) });
+      await transport.get('/brands').catch(() => undefined);
+      seen.push(transport.epoch);
+
+      expect(new Set(seen).size).toBe(seen.length);
+      expect(seen).toEqual([...seen].sort((a, b) => a - b));
+    });
+
+    it('stays the same when the tokens rotate', async () => {
+      await startLoggedIn();
+      route({});
+      const before = transport.epoch;
+
+      await transport.get('/brands');
+
+      expect(await storedSession()).toMatchObject(RENEWED);
+      expect(transport.epoch).toBe(before);
+    });
+  });
+
+  describe('one deadline for a request, its refresh and its retry', () => {
+    it('gives the first try and the retry the same signal', async () => {
+      await startLoggedIn();
+      route({});
+
+      await transport.get('/brands', {}, 5000);
+
+      const gets = request.mock.calls.filter(([method]) => method === 'GET');
+      expect(gets).toHaveLength(2);
+      expect(gets[0][2].signal).toBe(gets[1][2].signal);
+    });
+
+    it('stops waiting for the refresh when the caller aborts, while the refresh goes on for others', async () => {
+      await startLoggedIn();
+      const refresh = deferred();
+      route({ refresh: () => refresh.promise });
+      const controller = new AbortController();
+
+      const pending = transport
+        .get('/brands', {}, 5000, controller.signal)
+        .catch((e: unknown) => e);
+      await tick();
+      controller.abort(new Error('stopped'));
+
+      expect(await pending).toMatchObject({ status: NO_HTTP_STATUS, cause: new Error('stopped') });
+      refresh.settle(RENEWED);
+      await waitUntil(async () => expect(await storedSession()).toMatchObject(RENEWED));
+    });
+
+    it('records the epoch a refused refresh ended even when a login lands while the file is cleared', async () => {
+      await startLoggedIn();
+      route({ refresh: () => settle(unauthorized()) });
+      const before = transport.epoch;
+      const clearing = deferred();
+      jest.spyOn(repository, 'storeQuietly').mockImplementation(() => clearing.promise as never);
+
+      const pending = transport.get('/brands').catch((e: unknown) => e);
+      await tick();
+      transport.adopt({ ...STORED, access_token: 'a9' });
+      clearing.settle(undefined);
+      const error = (await pending) as BackendAuthError;
+
+      expect(error.endedEpoch).toBe(before + 1);
+      expect(transport.epoch).toBe(before + 2);
+    });
+
+    it('gives the request, its refresh wait and its retry the timeout it was asked for', async () => {
+      await startLoggedIn();
+      request.mockImplementation(
+        (_method: string, _url: string, options: { signal: AbortSignal }) =>
+          new Promise((_resolve, reject) =>
+            options.signal.addEventListener('abort', () => reject(new Error('timed out'))),
+          ),
+      );
+
+      await expect(transport.get('/brands', {}, 30)).rejects.toThrow('timed out');
+    });
+
+    it('honours a budget above the 25 s default instead of capping each request', async () => {
+      await startLoggedIn();
+      request.mockResolvedValue([]);
+
+      await transport.get('/brands', {}, 90_000);
+
+      const { signal } = request.mock.calls[0][2];
+      expect(signal).toBeInstanceOf(AbortSignal);
+      expect(signal.aborted).toBe(false);
+    });
+
+    it('passes on a failure of the refresh wait that is not an abort, unchanged', async () => {
+      await startLoggedIn();
+      route({ refresh: () => settle(new BackendAnswerError('odd answer')) });
+
+      const error = await transport.get('/brands', {}, 5000).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BackendAnswerError);
+    });
+
+    it('reports a refresh wait the budget cut short as a backend that did not answer', async () => {
+      await startLoggedIn();
+      route({ refresh: () => new Promise(() => undefined) });
+
+      const error = await transport.get('/brands', {}, 50).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BackendRequestError);
+      expect(error).toMatchObject({ status: NO_HTTP_STATUS });
+    });
+  });
+
   describe('get', () => {
     it('sends the query, the timeout and the access token, and counts the call', async () => {
       await startLoggedIn();
       request.mockResolvedValue([]);
 
-      await expect(service.get('/brands', { a: '1', b: '' }, 5000)).resolves.toEqual([]);
+      await expect(transport.get('/brands', { a: '1', b: '' }, 5000)).resolves.toEqual([]);
 
       expect(request).toHaveBeenCalledWith('GET', `${BRANDS_URL}?a=1`, {
         token: 'a1',
-        timeoutMs: 5000,
+        signal: expect.any(AbortSignal),
       });
       expect(service.recentCallCount()).toBe(1);
     });
 
     it('throws BackendAuthError without a login', async () => {
       await start();
-      await expect(service.get('/brands')).rejects.toBeInstanceOf(BackendAuthError);
+      await expect(transport.get('/brands')).rejects.toBeInstanceOf(BackendAuthError);
     });
 
     it('refreshes once on a 401, saves the new pair and retries', async () => {
       await startLoggedIn();
       route({});
 
-      const results = await Promise.all([service.get('/brands'), service.get('/brands')]);
+      const results = await Promise.all([transport.get('/brands'), transport.get('/brands')]);
 
       expect(results).toEqual([['a2'], ['a2']]);
       expect(refreshCalls()).toEqual([['POST', REFRESH_URL, { body: { refresh_token: 'r1' } }]]);
@@ -250,14 +390,14 @@ describe('BackendSessionService', () => {
       jest.spyOn(repository, 'store').mockRejectedValue(new Error('EPERM'));
       route({});
 
-      await expect(service.get('/brands')).resolves.toEqual(['a2']);
+      await expect(transport.get('/brands')).resolves.toEqual(['a2']);
     });
 
     it('logs out when the refresh token is rejected', async () => {
       await startLoggedIn();
       route({ refresh: () => settle(unauthorized()) });
 
-      await expect(service.get('/brands')).rejects.toBeInstanceOf(BackendAuthError);
+      await expect(transport.get('/brands')).rejects.toBeInstanceOf(BackendAuthError);
 
       expect(service.connected).toBe(false);
       await expectNoSessionFile();
@@ -267,7 +407,7 @@ describe('BackendSessionService', () => {
       await startLoggedIn();
       route({ refresh: () => settle(new BackendRequestError('x', status)) });
 
-      await expect(service.get('/brands')).rejects.toMatchObject({ status });
+      await expect(transport.get('/brands')).rejects.toMatchObject({ status });
       expect(service.connected).toBe(true);
     });
 
@@ -275,7 +415,7 @@ describe('BackendSessionService', () => {
       await startLoggedIn();
       route({ refresh: () => settle({}) });
 
-      await expect(service.get('/brands')).rejects.toBeInstanceOf(BackendAnswerError);
+      await expect(transport.get('/brands')).rejects.toBeInstanceOf(BackendAnswerError);
       expect(service.connected).toBe(true);
     });
 
@@ -283,7 +423,7 @@ describe('BackendSessionService', () => {
       await startLoggedIn();
       route({ get: () => settle(unauthorized()) });
 
-      const error = await service.get('/brands').catch((caught: unknown) => caught);
+      const error = await transport.get('/brands').catch((caught: unknown) => caught);
 
       expect(error).toBeInstanceOf(BackendRequestError);
       expect(error).not.toBeInstanceOf(BackendAuthError);
@@ -302,8 +442,8 @@ describe('BackendSessionService', () => {
         },
       });
 
-      const first = service.get('/brands');
-      const slow = service.get('/brands');
+      const first = transport.get('/brands');
+      const slow = transport.get('/brands');
       await expect(first).resolves.toEqual(['a2']);
       slowGet.settle(unauthorized());
 
@@ -323,7 +463,7 @@ describe('BackendSessionService', () => {
         refresh: () => refresh.promise,
       });
 
-      const pending = service.get('/brands');
+      const pending = transport.get('/brands');
       await tick();
       await service.login(USER.email, 'pw');
       refresh.settle(outcome);
@@ -350,7 +490,7 @@ describe('BackendSessionService', () => {
       const refresh = deferred();
       route({ refresh: () => refresh.promise });
 
-      const pending = service.get('/brands').catch((caught: unknown) => caught);
+      const pending = transport.get('/brands').catch((caught: unknown) => caught);
       await tick();
       const logout = service.logout();
       refresh.settle(RENEWED);

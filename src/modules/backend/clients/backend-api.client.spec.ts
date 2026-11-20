@@ -1,9 +1,9 @@
-import { BackendSessionService } from '../services/backend-session.service';
+import { AuthenticatedBackendTransport } from './authenticated-backend.transport';
 import { BackendApiClient } from './backend-api.client';
 
 describe('BackendApiClient', () => {
   const get = jest.fn();
-  const client = new BackendApiClient({ get } as unknown as BackendSessionService);
+  const client = new BackendApiClient({ get } as unknown as AuthenticatedBackendTransport);
 
   beforeEach(() => get.mockReset());
 
@@ -25,12 +25,15 @@ describe('BackendApiClient', () => {
   it('asks for a session of a brand, escaping the brand id, with the timeout', async () => {
     get.mockResolvedValue({ is_live: true, play_url: 'https://p' });
 
-    const answer = await client.playUrl('a/b', '123', 5000);
+    const { signal } = new AbortController();
+
+    const answer = await client.playUrl('a/b', '123', 5000, signal);
 
     expect(get).toHaveBeenCalledWith(
       '/brands/a%2Fb/livestream/play_url',
       { session_id: '123' },
       5000,
+      signal,
     );
     expect(answer.isLive).toBe(true);
   });

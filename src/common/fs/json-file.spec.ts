@@ -15,6 +15,15 @@ describe('json-file', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  it('can leave out the newline Python does not write', async () => {
+    const path = join(dir, 'no-newline.json');
+
+    await writeJsonFileAtomic(path, { a: 1 }, 2, false);
+
+    expect((await readFile(path, 'utf8')).endsWith('}')).toBe(true);
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ a: 1 });
+  });
+
   it('reads undefined for a missing file', async () => {
     expect(await readJsonFile(join(dir, 'missing.json'))).toBeUndefined();
   });

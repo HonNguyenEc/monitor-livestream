@@ -12,6 +12,8 @@ export interface ResolveRequest {
   brandId?: string;
   /** Seller Center cookie as the stored `SPC_SC_SESSION=<value>` pair; a bare value is prefixed. */
   cookie?: string;
-  /** Limit of each HTTP request or yt-dlp run, not of the whole resolve; defaults to DEFAULT_RESOLVE_TIMEOUT_MS. */
+  /** Budget of the whole resolve, shared by every HTTP request of it (TikTok's yt-dlp fallback gets its own); defaults to DEFAULT_RESOLVE_TIMEOUT_MS. */
   timeoutMs?: number;
+  /** Cancels the resolve and kills a yt-dlp run in flight. */
+  signal?: AbortSignal;
 }

@@ -1,16 +1,15 @@
 import { Injectable } from '@nestjs/common';
 
-import { LayoutService } from '../../layout/services/layout.service';
-import { ShopsService } from '../../shops/services/shops.service';
+import { LayoutService } from '../../layout';
+import { ChannelDirectory } from '../../shops';
 import { WallRefreshResponseDto } from '../dtos/wall-refresh-response.dto';
 import { WallResponseDto } from '../dtos/wall-response.dto';
-
-const SAMPLE_STREAM_URL = 'https://example.com/live/sample.flv';
+import { SAMPLE_STREAM_URL } from '../constants/wall.constants';
 
 @Injectable()
 export class WallService {
   constructor(
-    private readonly shopsService: ShopsService,
+    private readonly directory: ChannelDirectory,
     private readonly layoutService: LayoutService,
   ) {}
 
@@ -25,7 +24,7 @@ export class WallService {
   }
 
   async refresh(key: string): Promise<WallRefreshResponseDto> {
-    await this.shopsService.assertExists(key);
+    await this.directory.require(key);
     return { url: SAMPLE_STREAM_URL };
   }
 }

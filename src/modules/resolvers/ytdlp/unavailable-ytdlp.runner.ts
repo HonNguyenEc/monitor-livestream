@@ -9,6 +9,7 @@ export class UnavailableYtDlpRunner implements YtDlpRunner {
       exitCode: YTDLP_UNAVAILABLE_EXIT_CODE,
       stdout: '',
       stderr: YTDLP_UNAVAILABLE_MESSAGE,
+      timedOut: false,
     });
   }
 }

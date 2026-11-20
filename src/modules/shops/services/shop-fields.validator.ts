@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 
-import { ErrorCode } from '../../../common/constants/error-codes.constants';
 import { DIGITS } from '../../../common/constants/patterns.constants';
 import { Platform } from '../../../common/enums/platform.enum';
-import { DomainException } from '../../../common/exceptions/domain.exception';
-import { isAllowedShopeeUrl } from '../../../common/shopee/shopee-url-policy';
+import { badRequest } from '../../../common/exceptions/bad-request';
+import { isAllowedShopeeUrl, SHOPEE_ALLOWED_DOMAINS } from '../../shopee';
+import { parseUrl } from '../../../common/utils/parse-url';
 import {
   INTEGER_FIELDS,
   LIVE_URL_PREFIXES,
@@ -33,7 +33,7 @@ export class ShopFieldsValidator {
       .filter(([field, value]) => value !== undefined && value !== null && !allowed.includes(field))
       .map(([field]) => field);
     if (foreign.length > 0) {
-      throw invalid(ErrorMessage.fieldsNotForPlatform(platform, foreign));
+      throw badRequest(ErrorMessage.fieldsNotForPlatform(platform, foreign));
     }
   }
 
@@ -52,7 +52,7 @@ export class ShopFieldsValidator {
       const stored = field === ShopField.USERNAME ? value.replace(USERNAME_PREFIX, '') : value;
       if (!stored) {
         if (REQUIRED_FIELDS[platform].includes(field)) {
-          throw invalid(ErrorMessage.missingField(field));
+          throw badRequest(ErrorMessage.missingField(field));
         }
         continue;
       }
@@ -63,38 +63,26 @@ export class ShopFieldsValidator {
       typeof liveUrl === 'string' &&
       !LIVE_URL_PREFIXES.some((prefix) => liveUrl.toLowerCase().startsWith(prefix))
     ) {
-      throw invalid(ErrorMessage.liveUrlScheme);
+      throw badRequest(ErrorMessage.liveUrlScheme);
     }
     return shop;
   }
 }
 
-// Shopee links are fetched with the shop's cookie, so a supplied one must pass the shared Shopee policy.
+// The link is fetched from the operator's machine, so a supplied one must pass the shared Shopee policy.
 function assertLiveUrl(platform: Platform, liveUrl: string): void {
   if (platform === Platform.SHOPEE) {
     const parsed = parseUrl(liveUrl);
     if (!parsed || !isAllowedShopeeUrl(parsed)) {
-      throw invalid(ErrorMessage.shopeeLiveUrlNotAllowed);
+      throw badRequest(ErrorMessage.shopeeLiveUrlNotAllowed(SHOPEE_ALLOWED_DOMAINS));
     }
-  }
-}
-
-function parseUrl(value: string): URL | null {
-  try {
-    return new URL(value);
-  } catch {
-    return null;
   }
 }
 
 function toInteger(field: ShopField, value: string): number {
   const number = Number(value);
   if (!DIGITS.test(value) || !Number.isSafeInteger(number)) {
-    throw invalid(ErrorMessage.notPositiveInteger(field));
+    throw badRequest(ErrorMessage.notPositiveInteger(field));
   }
   return number;
-}
-
-function invalid(message: string): DomainException {
-  return new DomainException(ErrorCode.BAD_REQUEST, message);
 }

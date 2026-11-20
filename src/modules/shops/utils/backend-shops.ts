@@ -1,11 +1,13 @@
 import { maskId } from '../../../common/utils/mask';
 import { Platform } from '../../../common/enums/platform.enum';
 import { ShopSource } from '../../../common/enums/shop-source.enum';
-import { DEFAULT_SCHEDULE_PLATFORM } from '../../backend/constants/backend-sync.constants';
-import { BackendBrand } from '../../backend/models/backend-brand.model';
-import { BackendSchedule } from '../../backend/models/backend-schedule.model';
-import { BackendSessionInfo } from '../../backend/models/backend-session-info.model';
-import { BackendSyncStore } from '../../backend/services/backend-sync-store.service';
+import {
+  BackendBrand,
+  BackendSchedule,
+  BackendSessionInfo,
+  BackendSyncStore,
+  DEFAULT_SCHEDULE_PLATFORM,
+} from '../../backend';
 import { BRAND_ID_FIELD, PLATFORM_FIELD, ShopField } from '../constants/shop-fields.constants';
 import { ScheduleDto } from '../dtos/schedule.dto';
 import { SessionInfoDto } from '../dtos/session-info.dto';

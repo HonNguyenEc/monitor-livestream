@@ -63,7 +63,7 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 Filename: "{app}\{#ExeName}"; Flags: nowait
 
 [UninstallRun]
-Filename: "{sys}\taskkill.exe"; Parameters: "/F /FI ""USERNAME eq {username}"" /IM {#ExeName}"; Flags: runhidden; RunOnceId: "StopService"
+Filename: "{sys}\taskkill.exe"; Parameters: "/T /F /FI ""USERNAME eq {username}"" /IM {#ExeName}"; Flags: runhidden; RunOnceId: "StopService"
 
 [Code]
 procedure StopService;
@@ -71,7 +71,7 @@ var
   ResultCode: Integer;
 begin
   // Without the user filter, an admin running Setup would also stop other users' instances.
-  Exec(ExpandConstant('{sys}\taskkill.exe'), ExpandConstant('/F /FI "USERNAME eq {username}" /IM {#ExeName}'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), ExpandConstant('/T /F /FI "USERNAME eq {username}" /IM {#ExeName}'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
 function ServiceRunning: Boolean;

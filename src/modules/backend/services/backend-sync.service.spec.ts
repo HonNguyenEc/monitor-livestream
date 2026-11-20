@@ -1,5 +1,6 @@
 import { HttpStatus, Logger } from '@nestjs/common';
 
+import { FakeLoginState } from '../../../../test/helpers/fake-login-state';
 import { ErrorMessage } from '../../../common/constants/error-messages.constants';
 import { BackendApiClient } from '../clients/backend-api.client';
 import { NO_HTTP_STATUS } from '../constants/backend.constants';
@@ -7,7 +8,6 @@ import { BackendAnswerError } from '../errors/backend-answer.error';
 import { BackendAuthError } from '../errors/backend-auth.error';
 import { BackendRequestError } from '../errors/backend-request.error';
 import { BackendSchedule } from '../models/backend-schedule.model';
-import { BackendSessionService } from './backend-session.service';
 import { BackendSyncStore } from './backend-sync-store.service';
 import { BackendSyncService } from './backend-sync.service';
 
@@ -33,7 +33,7 @@ const failure = (
 
 describe('BackendSyncService', () => {
   const noon = new Date(2026, 0, 15, 12, 0, 0).getTime();
-  let session: { connected: boolean };
+  let session: FakeLoginState;
   let api: { brands: jest.Mock; board: jest.Mock };
   let store: BackendSyncStore;
   let service: BackendSyncService;
@@ -47,17 +47,13 @@ describe('BackendSyncService', () => {
     jest.useFakeTimers({ now: noon });
     jest.spyOn(Logger.prototype, 'log').mockImplementation();
     jest.spyOn(Logger.prototype, 'warn').mockImplementation();
-    session = { connected: true };
+    session = new FakeLoginState();
     api = {
       brands: jest.fn().mockResolvedValue(BRANDS),
       board: jest.fn().mockResolvedValue(BOARD),
     };
-    store = new BackendSyncStore(session as BackendSessionService);
-    service = new BackendSyncService(
-      session as BackendSessionService,
-      api as unknown as BackendApiClient,
-      store,
-    );
+    store = new BackendSyncStore(session);
+    service = new BackendSyncService(session, api as unknown as BackendApiClient, store);
   });
 
   afterEach(() => {
@@ -145,6 +141,22 @@ describe('BackendSyncService', () => {
     service.onModuleDestroy();
     await jest.advanceTimersByTimeAsync(10 * MINUTE);
     expect(api.board).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps ticking after a tick throws, instead of leaving an unhandled rejection', async () => {
+    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    jest.spyOn(store, 'markSynced').mockImplementationOnce(() => {
+      throw new Error('store broke');
+    });
+
+    service.onApplicationBootstrap();
+    await jest.advanceTimersByTimeAsync(0);
+    await jest.advanceTimersByTimeAsync(2 * MINUTE);
+
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('Sync tick failed'));
+    expect(api.board.mock.calls.length).toBeGreaterThanOrEqual(2);
+    service.onModuleDestroy();
+    error.mockRestore();
   });
 
   it('forces brands and board now, due or not', async () => {
@@ -256,11 +268,29 @@ describe('BackendSyncService', () => {
   });
 
   describe('a lost login', () => {
+    it('ignores a refusal that ended an older login than the current one', async () => {
+      let fail: (error: Error) => void = () => undefined;
+      api.brands.mockReturnValue(new Promise((_resolve, reject) => (fail = reject)));
+      const running = service.syncNow();
+      await jest.advanceTimersByTimeAsync(0);
+
+      const refused = new BackendAuthError('x', HttpStatus.UNAUTHORIZED);
+      refused.endedEpoch = session.epoch + 1;
+      session.relogin();
+      session.relogin();
+      fail(refused);
+      await running;
+
+      expect(store.status.error).toBeNull();
+    });
+
     it('clears everything synced and says why when the refresh token is refused', async () => {
       await service.tick();
       api.board.mockImplementation(() => {
         session.connected = false;
-        return Promise.reject(new BackendAuthError('x', HttpStatus.UNAUTHORIZED));
+        const refused = new BackendAuthError('x', HttpStatus.UNAUTHORIZED);
+        refused.endedEpoch = session.epoch;
+        return Promise.reject(refused);
       });
 
       await service.syncNow();
@@ -302,6 +332,7 @@ describe('BackendSyncService', () => {
       const running = service.syncNow();
       await jest.advanceTimersByTimeAsync(0);
 
+      session.relogin();
       service.reset();
       release(BRANDS);
       await running;
@@ -316,6 +347,7 @@ describe('BackendSyncService', () => {
       const running = service.syncNow();
       await jest.advanceTimersByTimeAsync(0);
 
+      session.relogin();
       service.reset();
       fail(failure());
       await running;
@@ -379,6 +411,7 @@ describe('BackendSyncService', () => {
       const tick = service.tick();
       await jest.advanceTimersByTimeAsync(0);
 
+      session.relogin();
       service.reset();
       await service.syncNow();
 

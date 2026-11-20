@@ -34,7 +34,9 @@ describe('TikTokResolver', () => {
   let ytDlpResolve: jest.Mock;
   let resolver: TikTokResolver;
 
+  // A frozen clock keeps the remaining budget equal to the whole budget.
   beforeEach(() => {
+    jest.useFakeTimers({ now: 1_000_000 });
     fetchRoom = jest.fn();
     ytDlpResolve = jest.fn().mockResolvedValue(FALLBACK_RESULT);
     resolver = new TikTokResolver(
@@ -43,8 +45,12 @@ describe('TikTokResolver', () => {
     );
   });
 
-  it('reports the TikTok platform', () => {
-    expect(resolver.platform).toBe(Platform.TIKTOK);
+  afterEach(() => jest.useRealTimers());
+
+  it('supports TikTok requests without a brand id only', () => {
+    expect(resolver.supports(REQUEST)).toBe(true);
+    expect(resolver.supports({ ...REQUEST, platform: Platform.SHOPEE })).toBe(false);
+    expect(resolver.supports({ ...REQUEST, brandId: 'b1' })).toBe(false);
   });
 
   it('fails as unsupported without a username', async () => {
@@ -104,7 +110,35 @@ describe('TikTokResolver', () => {
     it('is used on network error or timeout', async () => {
       fetchRoom.mockRejectedValue(new Error('timeout'));
       expect(await resolver.resolve({ ...REQUEST, timeoutMs: 5000 })).toBe(FALLBACK_RESULT);
-      expect(ytDlpResolve).toHaveBeenCalledWith(USERNAME, 5000);
+      expect(ytDlpResolve).toHaveBeenCalledWith(USERNAME, 5000, undefined);
+    });
+
+    it('gets a whole budget of its own, even when the room API used up the first one', async () => {
+      fetchRoom.mockImplementation(() => {
+        jest.advanceTimersByTime(4900);
+        return Promise.reject(new Error('timeout'));
+      });
+
+      await resolver.resolve({ ...REQUEST, timeoutMs: 5000 });
+
+      expect(fetchRoom).toHaveBeenCalledWith(USERNAME, 5000, undefined);
+      expect(ytDlpResolve).toHaveBeenCalledWith(USERNAME, 5000, undefined);
+    });
+
+    it('is not used when the caller aborted, and nothing is logged', async () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const controller = new AbortController();
+      fetchRoom.mockImplementation(() => {
+        controller.abort();
+        return Promise.reject(new Error('aborted'));
+      });
+
+      const result = await resolver.resolve({ ...REQUEST, signal: controller.signal });
+
+      expect(result).toMatchObject({ ok: false, code: ResolveFailureCode.CANCELLED });
+      expect(ytDlpResolve).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
     });
 
     it('is used on a non-200 response', async () => {
@@ -186,6 +220,6 @@ describe('TikTokResolver', () => {
   it('defaults the timeout and passes the username to the client', async () => {
     fetchRoom.mockResolvedValue(liveOriginBoth());
     await resolver.resolve(REQUEST);
-    expect(fetchRoom).toHaveBeenCalledWith(USERNAME, DEFAULT_RESOLVE_TIMEOUT_MS);
+    expect(fetchRoom).toHaveBeenCalledWith(USERNAME, DEFAULT_RESOLVE_TIMEOUT_MS, undefined);
   });
 });

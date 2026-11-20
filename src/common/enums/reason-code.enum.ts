@@ -1,0 +1,20 @@
+/** Why a channel is not live; the table in docs/contract/live-qc-api.md maps every failure to one. */
+export enum ReasonCode {
+  NOT_LIVE = 'not_live',
+  NO_STREAM_URL = 'no_stream_url',
+  COOKIE_MISSING = 'cookie_missing',
+  COOKIE_INVALID = 'cookie_invalid',
+  COOKIE_STORE_UNREADABLE = 'cookie_store_unreadable',
+  SELLER_CENTER_NO_ACCESS = 'seller_center_no_access',
+  INVALID_LIVE_URL = 'invalid_live_url',
+  MISSING_USER_ID = 'missing_user_id',
+  LOOKUP_FAILED = 'lookup_failed',
+  PLATFORM_UNREACHABLE = 'platform_unreachable',
+  BACKEND_NOT_CONNECTED = 'backend_not_connected',
+  BACKEND_ERROR = 'backend_error',
+  UNSUPPORTED = 'unsupported',
+  TOOL_MISSING = 'tool_missing',
+  PLAYER_FAILED = 'player_failed',
+  NO_FRAMES = 'no_frames',
+  INTERNAL_ERROR = 'internal_error',
+}

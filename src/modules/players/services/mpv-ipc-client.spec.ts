@@ -2,7 +2,7 @@ import { createServer, Server, Socket } from 'node:net';
 
 import { MPV_IPC_MAX_BUFFER_CHARS } from '../constants/players.constants';
 import { MpvIpcError, MpvIpcErrorCode } from '../errors/mpv-ipc.error';
-import { MpvIpcClient, MpvIpcOptions, mpvPipePath } from './mpv-ipc-client';
+import { MpvIpcClient, MpvIpcOptions, mpvPipePath, newLaunchId } from './mpv-ipc-client';
 
 const FAST: MpvIpcOptions = { connectTimeoutMs: 1_000, connectRetryMs: 20, requestTimeoutMs: 200 };
 
@@ -18,7 +18,7 @@ const serverSockets = new Set<Socket>();
 let pipeCounter = 0;
 function uniquePipe(): string {
   pipeCounter += 1;
-  return mpvPipePath(`test-${process.pid}-${pipeCounter}`);
+  return mpvPipePath(`test${process.pid}`, `${pipeCounter}`);
 }
 
 function startFakeMpv(path: string, respond: Responder): Promise<Server> {
@@ -41,8 +41,17 @@ function reply(socket: Socket, request: Request, fields: object): void {
 }
 
 describe('mpvPipePath', () => {
-  it('uses the Python tool pipe name', () => {
-    expect(mpvPipePath('tiktok_shop')).toBe('\\\\.\\pipe\\livestream-qc-tiktok_shop');
+  it('names the pipe by launch and channel, apart from the Python tool pipes', () => {
+    expect(mpvPipePath('ab12cd34', 'tiktok_shop')).toBe(
+      '\\\\.\\pipe\\live-qc-ab12cd34-tiktok_shop',
+    );
+  });
+
+  it('gives every launch its own id', () => {
+    const ids = new Set(Array.from({ length: 50 }, () => newLaunchId()));
+
+    expect(ids.size).toBe(50);
+    expect([...ids][0]).toMatch(/^[0-9a-f]{8}$/);
   });
 });
 
@@ -221,13 +230,18 @@ describe('MpvIpcClient', () => {
     server = await startFakeMpv(path, (request, socket) =>
       reply(socket, request, { error: 'success', data: 9 }),
     );
-    server.once('connection', (socket) => {
-      socket.write('{"event":"pro');
-      setTimeout(() => socket.destroy(), 20);
+    const closed = new Promise<void>((resolve) => {
+      server?.once('connection', (socket) => {
+        socket.once('close', () => resolve());
+        socket.write('{"event":"pro');
+        setTimeout(() => socket.destroy(), 20);
+      });
     });
     client = new MpvIpcClient(path, FAST);
     await client.connect();
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await closed;
+    // The client sees the close one event-loop turn after the server did.
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     await client.connect();
 

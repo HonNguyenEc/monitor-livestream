@@ -6,9 +6,14 @@ import { YtDlpRunner, YtDlpRunResult } from './ytdlp-runner';
 const USER = 'some_user';
 const TIMEOUT = 4321;
 
-function makeFallback(result: YtDlpRunResult | Error): { svc: YtDlpFallback; run: jest.Mock } {
+function makeFallback(result: Omit<YtDlpRunResult, 'timedOut'> | Error): {
+  svc: YtDlpFallback;
+  run: jest.Mock;
+} {
   const run = jest.fn(() =>
-    result instanceof Error ? Promise.reject(result) : Promise.resolve(result),
+    result instanceof Error
+      ? Promise.reject(result)
+      : Promise.resolve({ timedOut: false, ...result }),
   );
   const runner: YtDlpRunner = { run };
   return { svc: new YtDlpFallback(runner), run };
@@ -82,8 +87,53 @@ describe('YtDlpFallback', () => {
     expect(result).toEqual({
       ok: false,
       code: ResolveFailureCode.YTDLP_FAILED,
-      detail: 'yt-dlp timed out or was killed',
+      detail: 'yt-dlp was killed',
     });
+  });
+
+  it('reports a timeout as a timeout', async () => {
+    const run = jest
+      .fn()
+      .mockResolvedValue({ exitCode: null, stdout: '', stderr: 'noise', timedOut: true });
+    const result = await new YtDlpFallback({ run }).resolve(USER, TIMEOUT);
+
+    expect(result).toEqual({
+      ok: false,
+      code: ResolveFailureCode.YTDLP_FAILED,
+      detail: 'yt-dlp timed out',
+    });
+  });
+
+  it('is cancelled, not a yt-dlp failure, when the caller aborted, and then never starts yt-dlp', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    const { svc, run } = makeFallback({ exitCode: 0, stdout: '', stderr: '' });
+
+    const result = await svc.resolve(USER, TIMEOUT, AbortSignal.abort());
+
+    expect(result).toMatchObject({ ok: false, code: ResolveFailureCode.CANCELLED });
+    expect(run).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('is cancelled when the caller aborts while yt-dlp runs, whatever yt-dlp printed', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    const controller = new AbortController();
+    const run = jest.fn().mockImplementation(() => {
+      controller.abort();
+      return Promise.resolve({
+        exitCode: null,
+        stdout: '',
+        stderr: 'half a line',
+        timedOut: false,
+      });
+    });
+
+    const result = await new YtDlpFallback({ run }).resolve(USER, TIMEOUT, controller.signal);
+
+    expect(result).toMatchObject({ ok: false, code: ResolveFailureCode.CANCELLED });
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('encodes the username into the live URL literally', async () => {
@@ -105,10 +155,12 @@ describe('YtDlpFallback', () => {
 
   it('passes the exact args and forwards the timeout', async () => {
     const { svc, run } = makeFallback({ exitCode: 0, stdout: 'https://a.example/1', stderr: '' });
-    await svc.resolve(USER, TIMEOUT);
+    const controller = new AbortController();
+    await svc.resolve(USER, TIMEOUT, controller.signal);
     expect(run).toHaveBeenCalledWith(
       ['--no-warnings', '--get-url', `https://www.tiktok.com/@${USER}/live`],
       TIMEOUT,
+      controller.signal,
     );
   });
 });

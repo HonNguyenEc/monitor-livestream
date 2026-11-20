@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 
 import { BackendBrand } from '../models/backend-brand.model';
+import { BackendLoginState } from '../models/backend-login-state.model';
 import { BackendSchedule } from '../models/backend-schedule.model';
 import { BackendSessionInfo } from '../models/backend-session-info.model';
 import { onAirSchedules } from '../utils/on-air-schedules';
-import { BackendSessionService } from './backend-session.service';
 
 export interface BackendSyncStatus {
   syncedAt: string | null;
@@ -18,14 +18,17 @@ const EMPTY_STATUS: BackendSyncStatus = { syncedAt: null, error: null, brands: 0
 /** The brands, today's schedules and last session answers synced from livestream-backend; memory only, never written to disk. */
 @Injectable()
 export class BackendSyncStore {
-  /** Bumped by every clear, so a sync that started before it can tell its answers are stale. */
-  generation = 0;
   private brandList: BackendBrand[] = [];
   private schedulesByBrand = new Map<string, BackendSchedule[]>();
   private sessions = new Map<string, BackendSessionInfo>();
   private syncStatus: BackendSyncStatus = EMPTY_STATUS;
 
-  constructor(private readonly session: BackendSessionService) {}
+  constructor(private readonly session: BackendLoginState) {}
+
+  /** The login the lists belong to: an answer fetched under another epoch is stale. */
+  get epoch(): number {
+    return this.session.epoch;
+  }
 
   /** Empty without a login, so a login that ended by itself never leaves rows behind. */
   get brands(): readonly BackendBrand[] {
@@ -82,7 +85,6 @@ export class BackendSyncStore {
   }
 
   clear(): void {
-    this.generation += 1;
     this.brandList = [];
     this.schedulesByBrand = new Map();
     this.sessions = new Map();

@@ -1,12 +1,12 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 
+import { MAX_RETRY_DELAY_MS, MS_PER_SECOND } from '../../../common/constants/time.constants';
+import { retryDelayMs } from '../../../common/utils/retry-delay';
 import { BackendApiClient } from '../clients/backend-api.client';
 import {
   BOARD_REFRESH_MS,
   BRANDS_REFRESH_MS,
-  MS_PER_SECOND,
-  SYNC_BACKOFF_BASE_S,
-  SYNC_MAX_BACKOFF_S,
+  SYNC_BACKOFF_SCHEDULE_MS,
   SYNC_TICK_MS,
 } from '../constants/backend-sync.constants';
 import { BackendAuthError } from '../errors/backend-auth.error';
@@ -15,12 +15,12 @@ import { BackendBrand } from '../models/backend-brand.model';
 import { BackendSchedule } from '../models/backend-schedule.model';
 import { backendErrorDetail, backendErrorText } from '../utils/backend-error-text';
 import { localDate } from '../utils/local-date';
-import { BackendSessionService } from './backend-session.service';
+import { BackendLoginState } from '../models/backend-login-state.model';
 import { BackendSyncStore } from './backend-sync-store.service';
 
 interface RunningSync {
-  /** Store generation it started under: a reset makes it stale. */
-  generation: number;
+  /** Login epoch it started under: a new login or a logout makes it stale. */
+  epoch: number;
   /** Reads both brands and board, so it answers a forced sync too. */
   full: boolean;
   done: Promise<void>;
@@ -49,16 +49,25 @@ export class BackendSyncService implements OnApplicationBootstrap, OnModuleDestr
   private retryAt = 0;
 
   constructor(
-    private readonly session: BackendSessionService,
+    private readonly session: BackendLoginState,
     private readonly api: BackendApiClient,
     private readonly store: BackendSyncStore,
   ) {}
 
   // Not onModuleInit: that hook runs while the stored login may still be loading.
   onApplicationBootstrap(): void {
-    this.timer = setInterval(() => void this.tick(), SYNC_TICK_MS);
+    this.timer = setInterval(() => void this.safeTick(), SYNC_TICK_MS);
     this.timer.unref();
-    void this.tick();
+    void this.safeTick();
+  }
+
+  // A throw nobody awaits would end the service, and with it every monitored channel.
+  private async safeTick(): Promise<void> {
+    try {
+      await this.tick();
+    } catch (error) {
+      this.logger.error(`Sync tick failed: ${backendErrorDetail(error)}`);
+    }
   }
 
   onModuleDestroy(): void {
@@ -94,7 +103,7 @@ export class BackendSyncService implements OnApplicationBootstrap, OnModuleDestr
 
   /** The running sync of the current login; one that started before a reset is stale and ignored. */
   private runningNow(): RunningSync | null {
-    return this.running?.generation === this.store.generation ? this.running : null;
+    return this.running?.epoch === this.store.epoch ? this.running : null;
   }
 
   private start(force: boolean): Promise<void> {
@@ -108,11 +117,11 @@ export class BackendSyncService implements OnApplicationBootstrap, OnModuleDestr
         this.boardDay !== localDate(now),
     };
     if (!plan.needBrands && !plan.needBoard) return Promise.resolve();
-    const generation = this.store.generation;
+    const epoch = this.store.epoch;
     const running: RunningSync = {
-      generation,
+      epoch,
       full: plan.needBrands && plan.needBoard,
-      done: this.sync(plan, generation, now).finally(() => {
+      done: this.sync(plan, epoch, now).finally(() => {
         if (this.running === running) this.running = null;
       }),
     };
@@ -122,7 +131,7 @@ export class BackendSyncService implements OnApplicationBootstrap, OnModuleDestr
 
   private async sync(
     { needBrands, needBoard }: SyncPlan,
-    generation: number,
+    epoch: number,
     now: number,
   ): Promise<void> {
     const today = localDate(now);
@@ -132,10 +141,10 @@ export class BackendSyncService implements OnApplicationBootstrap, OnModuleDestr
       brands = needBrands ? await this.api.brands() : null;
       board = needBoard ? await this.api.board(today) : null;
     } catch (error) {
-      if (generation === this.store.generation) this.fail(error);
+      if (this.isCurrent(epoch, error)) this.fail(error);
       return;
     }
-    if (generation !== this.store.generation || !this.session.connected) return;
+    if (epoch !== this.store.epoch) return;
     this.failures = 0;
     this.retryAt = 0;
     if (brands) {
@@ -152,6 +161,12 @@ export class BackendSyncService implements OnApplicationBootstrap, OnModuleDestr
     this.logger.log(`Synced: ${brandCount} Shopee API brands, ${schedules} schedules today`);
   }
 
+  /** A failure of an older login is dropped, except the one that ended the login itself. */
+  private isCurrent(epoch: number, error: unknown): boolean {
+    const endedHere = error instanceof BackendAuthError && error.endedEpoch === this.store.epoch;
+    return epoch === this.store.epoch || endedHere;
+  }
+
   private fail(error: unknown): void {
     const reason = backendErrorText(error);
     if (error instanceof BackendAuthError) {
@@ -162,14 +177,16 @@ export class BackendSyncService implements OnApplicationBootstrap, OnModuleDestr
     }
     this.failures += 1;
     const retryAfter = error instanceof BackendRequestError ? error.retryAfterSeconds : null;
-    const delayS = Math.min(
-      SYNC_MAX_BACKOFF_S,
-      retryAfter || SYNC_BACKOFF_BASE_S * 2 ** (this.failures - 1),
+    const delayMs = retryDelayMs(
+      this.failures,
+      SYNC_BACKOFF_SCHEDULE_MS,
+      retryAfter,
+      MAX_RETRY_DELAY_MS,
     );
-    this.retryAt = Date.now() + delayS * MS_PER_SECOND;
+    this.retryAt = Date.now() + delayMs;
     this.store.setError(reason);
     this.logger.warn(
-      `Sync failed: ${reason} [${backendErrorDetail(error)}]; retrying in ${delayS}s`,
+      `Sync failed: ${reason} [${backendErrorDetail(error)}]; retrying in ${delayMs / MS_PER_SECOND}s`,
     );
   }
 }

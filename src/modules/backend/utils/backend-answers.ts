@@ -4,11 +4,7 @@ import { BackendBrand } from '../models/backend-brand.model';
 import { BackendSchedule } from '../models/backend-schedule.model';
 import { PlayUrlAnswer } from '../models/play-url-answer.model';
 import { textOf } from './backend-values';
-
-const MSG_BRANDS = 'Brands answer is not a list of objects';
-const MSG_BRAND_ID = 'Brand without an id';
-const MSG_BOARD = 'Board answer is not an object with a list of rows';
-const MSG_PLAY_URL = 'play_url answer is not an object';
+import { MSG_BRANDS, MSG_BRAND_ID, MSG_BOARD, MSG_PLAY_URL } from '../constants/backend.constants';
 
 function nullableText(value: unknown): string | null {
   return typeof value === 'string' ? value : null;

@@ -11,9 +11,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { DOMAIN_ERROR_STATUS } from '../constants/domain-error-status.constants';
 import { DomainException } from '../exceptions/domain.exception';
 import { errorResponse } from './error-response';
-
-const INTERNAL_ERROR_MESSAGE = 'Internal server error';
-const MESSAGE_SEPARATOR = ', ';
+import { INTERNAL_ERROR_MESSAGE, MESSAGE_SEPARATOR } from '../constants/http.constants';
 
 interface ErrorDescription {
   status: number;

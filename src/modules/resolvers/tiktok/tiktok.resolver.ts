@@ -3,12 +3,18 @@ import { Platform } from '../../../common/enums/platform.enum';
 import { errorMessage } from '../../../common/utils/error-message';
 import { isPlainObject } from '../../../common/utils/is-plain-object';
 import { safeError } from '../../../common/utils/safe-error';
-import { DEFAULT_RESOLVE_TIMEOUT_MS } from '../constants/resolver.constants';
+import { ResolveDeadline } from '../utils/resolve-deadline';
 import { ResolveFailureCode } from '../enums/resolve-failure-code.enum';
 import { JsonResponse } from '../../../common/http/get-json';
 import { PlatformResolver } from '../interfaces/platform-resolver.interface';
 import { ResolveRequest } from '../models/resolve-request.model';
-import { failed, failedRaw, resolved, ResolveResult } from '../models/resolve-result.model';
+import {
+  cancelled,
+  failed,
+  failedRaw,
+  resolved,
+  ResolveResult,
+} from '../models/resolve-result.model';
 import { YtDlpFallback } from '../ytdlp/ytdlp-fallback.service';
 import { TikTokRoomClient } from './tiktok-room.client';
 import { selectTikTokStream } from './tiktok-stream-selector';
@@ -48,7 +54,6 @@ function extractLiveRoom(data: JsonObject): JsonObject {
 
 @Injectable()
 export class TikTokResolver implements PlatformResolver {
-  readonly platform = Platform.TIKTOK;
   private readonly logger = new Logger(TikTokResolver.name);
 
   constructor(
@@ -56,21 +61,26 @@ export class TikTokResolver implements PlatformResolver {
     private readonly ytDlp: YtDlpFallback,
   ) {}
 
+  supports(request: ResolveRequest): boolean {
+    return request.platform === Platform.TIKTOK && request.brandId === undefined;
+  }
+
   async resolve(request: ResolveRequest): Promise<ResolveResult> {
     const { username } = request;
     if (!username) return failed(ResolveFailureCode.UNSUPPORTED, TIKTOK_MISSING_USERNAME_MESSAGE);
-    const timeoutMs = request.timeoutMs ?? DEFAULT_RESOLVE_TIMEOUT_MS;
+    const deadline = ResolveDeadline.of(request);
 
     let response: JsonResponse;
     try {
-      response = await this.roomClient.fetchRoom(username, timeoutMs);
+      response = await this.roomClient.fetchRoom(username, deadline.remainingMs(), deadline.signal);
     } catch (error) {
-      return this.fallBackToYtDlp(username, timeoutMs, safeError(errorMessage(error)));
+      if (deadline.signal?.aborted) return cancelled();
+      return this.fallBackToYtDlp(username, request, safeError(errorMessage(error)));
     }
 
     const room = extractLiveRoom(response.data);
     const apiFailure = roomApiFailure(response, room);
-    if (apiFailure) return this.fallBackToYtDlp(username, timeoutMs, apiFailure);
+    if (apiFailure) return this.fallBackToYtDlp(username, request, apiFailure);
 
     if (room['status'] !== TIKTOK_LIVE_STATUS) {
       return failed(ResolveFailureCode.NOT_LIVE, msgTikTokNotLive(String(room['status'])));
@@ -83,11 +93,13 @@ export class TikTokResolver implements PlatformResolver {
 
   private async fallBackToYtDlp(
     username: string,
-    timeoutMs: number,
+    request: ResolveRequest,
     reason: string,
   ): Promise<ResolveResult> {
     this.logger.warn(`${TIKTOK_API_FAILED_EVENT}: ${reason}`);
-    const result = await this.ytDlp.resolve(username, timeoutMs);
+    // As in the Python tool, yt-dlp gets a whole budget of its own: a room API that used up its time must not starve it.
+    const own = ResolveDeadline.of(request);
+    const result = await this.ytDlp.resolve(username, own.remainingMs(), own.signal);
     return result.ok ? result : failedRaw(result.code, msgRoomApiFailed(reason, result.detail));
   }
 }

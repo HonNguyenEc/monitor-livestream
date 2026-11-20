@@ -1,0 +1,10 @@
+export { BackendModule } from './backend.module';
+export { DEFAULT_SCHEDULE_PLATFORM } from './constants/backend-sync.constants';
+export { BackendAuthError } from './errors/backend-auth.error';
+export { BackendRequestError } from './errors/backend-request.error';
+export { BackendBrand } from './models/backend-brand.model';
+export { BackendSchedule } from './models/backend-schedule.model';
+export { BackendSessionInfo } from './models/backend-session-info.model';
+export { BackendPlayUrlGateway, PlayUrlLookup } from './services/backend-play-url.gateway';
+export { BackendSyncStore } from './services/backend-sync-store.service';
+export { backendErrorDetail, backendErrorText } from './utils/backend-error-text';

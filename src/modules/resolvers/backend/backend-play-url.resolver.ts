@@ -1,24 +1,29 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { AsyncLock } from '../../../common/concurrency/async-lock';
+import { MS_PER_SECOND } from '../../../common/constants/time.constants';
 import { maskId } from '../../../common/utils/mask';
-import { BackendApiClient } from '../../backend/clients/backend-api.client';
 import {
-  SESSION_SOURCE_CURRENT,
-  SESSION_SOURCE_SCHEDULE,
-} from '../../backend/constants/backend.constants';
-import { MS_PER_SECOND } from '../../backend/constants/backend-sync.constants';
-import { BackendAuthError } from '../../backend/errors/backend-auth.error';
-import { BackendRequestError } from '../../backend/errors/backend-request.error';
-import { BackendSchedule } from '../../backend/models/backend-schedule.model';
-import { PlayUrlAnswer } from '../../backend/models/play-url-answer.model';
-import { BackendSessionService } from '../../backend/services/backend-session.service';
-import { BackendSyncStore } from '../../backend/services/backend-sync-store.service';
-import { backendErrorDetail, backendErrorText } from '../../backend/utils/backend-error-text';
-import { DEFAULT_RESOLVE_TIMEOUT_MS } from '../constants/resolver.constants';
+  BackendAuthError,
+  BackendPlayUrlGateway,
+  BackendRequestError,
+  BackendSchedule,
+  PlayUrlLookup,
+  backendErrorDetail,
+  backendErrorText,
+} from '../../backend';
+import { PlatformResolver } from '../interfaces/platform-resolver.interface';
+import { MSG_BUDGET_SPENT } from '../constants/resolver.constants';
+import { ResolveDeadline } from '../utils/resolve-deadline';
 import { ResolveFailureCode } from '../enums/resolve-failure-code.enum';
 import { ResolveRequest } from '../models/resolve-request.model';
-import { failed, failedRaw, resolved, ResolveResult } from '../models/resolve-result.model';
+import {
+  cancelled,
+  failed,
+  failedRaw,
+  resolved,
+  ResolveResult,
+} from '../models/resolve-result.model';
 import {
   CACHE_KEY_SEPARATOR,
   CACHE_RETENTION_MS,
@@ -44,49 +49,52 @@ interface Fetched {
   result: ResolveResult;
   ttlMs: number;
   failed: boolean;
+  /** Not an answer of the backend (the resolve was cancelled): neither cached nor counted as a failure. */
+  transient?: boolean;
 }
 
 /**
  * The stream of a backend (Shopee Open API) channel from the backend play_url endpoint, as
  * `BackendSync.resolve` of backend_sync.py. Tries the session of every on-air schedule, most
- * likely first, then the brand current session, and stops at the first that is live.
+ * likely first, then the brand current session. It stops at the first that is live, or at a
+ * backend failure or a cancel. Only answers it stored itself are reused, for a TTL by outcome.
  */
 @Injectable()
-export class BackendPlayUrlResolver {
+export class BackendPlayUrlResolver implements PlatformResolver {
   private readonly logger = new Logger(BackendPlayUrlResolver.name);
   private readonly cache = new Map<string, CacheEntry>();
   private readonly brandLocks = new Map<string, AsyncLock>();
-  private seenGeneration: number;
+  private seenEpoch: number;
 
-  constructor(
-    private readonly session: BackendSessionService,
-    private readonly api: BackendApiClient,
-    private readonly store: BackendSyncStore,
-  ) {
-    this.seenGeneration = store.generation;
+  constructor(private readonly backend: BackendPlayUrlGateway) {
+    this.seenEpoch = backend.epoch;
+  }
+
+  supports(request: ResolveRequest): boolean {
+    return request.brandId !== undefined;
   }
 
   /** One request per brand at a time: a caller arriving meanwhile waits, then takes the cached answer. */
   async resolve(request: ResolveRequest): Promise<ResolveResult> {
     const brandId = request.brandId;
     this.dropStale();
-    if (!brandId || !this.session.connected) {
+    if (!brandId || !this.backend.connected) {
       return failed(ResolveFailureCode.BACKEND_NOT_CONNECTED, MSG_NOT_CONNECTED);
     }
     const candidates = new Map<string, BackendSchedule | null>();
-    for (const schedule of this.store.onAirSchedules(brandId)) {
+    for (const schedule of this.backend.onAirSchedules(brandId)) {
       if (!candidates.has(schedule.sessionId)) candidates.set(schedule.sessionId, schedule);
     }
     if (!candidates.has(CURRENT_SESSION_ID)) candidates.set(CURRENT_SESSION_ID, null);
-    const timeoutMs = request.timeoutMs ?? DEFAULT_RESOLVE_TIMEOUT_MS;
+    const deadline = ResolveDeadline.of(request);
     return this.lockOf(brandId).run(async () => {
       let first: ResolveResult | null = null;
       for (const [sessionId, schedule] of candidates) {
-        const result = await this.resolveSession(brandId, schedule, sessionId, timeoutMs);
+        const result = await this.resolveSession(brandId, schedule, sessionId, deadline);
         if (result.ok) return result;
         first ??= result;
-        // Not logged in or the backend failing: do not hammer it with the next session.
-        if (isBackendFailure(result.code)) break;
+        // Not logged in, the backend failing or the resolve cancelled: do not try the next session.
+        if (stopsSessionSearch(result.code)) break;
       }
       return first as ResolveResult;
     });
@@ -94,8 +102,8 @@ export class BackendPlayUrlResolver {
 
   /** A logout, a new login or a refused refresh must not leave answers of the old login behind; the locks stay, so a resolve of the old login still in flight keeps the brand serialized. */
   private dropStale(): void {
-    if (this.seenGeneration === this.store.generation && this.session.connected) return;
-    this.seenGeneration = this.store.generation;
+    if (this.seenEpoch === this.backend.epoch) return;
+    this.seenEpoch = this.backend.epoch;
     this.cache.clear();
   }
 
@@ -112,7 +120,7 @@ export class BackendPlayUrlResolver {
     brandId: string,
     schedule: BackendSchedule | null,
     sessionId: string,
-    timeoutMs: number,
+    deadline: ResolveDeadline,
   ): Promise<ResolveResult> {
     const key = `${brandId}${CACHE_KEY_SEPARATOR}${sessionId}`;
     const cached = this.cache.get(key);
@@ -120,18 +128,16 @@ export class BackendPlayUrlResolver {
     if (cached && now < cached.untilMs) {
       return withCacheNote(cached.result, Math.floor((cached.untilMs - now) / MS_PER_SECOND));
     }
+    // A resolve cancelled, or out of budget while it waited for the brand lock, asks nothing.
+    if (deadline.signal?.aborted) return cancelled();
+    if (deadline.expired()) return BUDGET_SPENT;
     const failures = cached?.failures ?? 0;
-    const generation = this.store.generation;
-    const fetched = await this.fetch(brandId, schedule, sessionId, timeoutMs, failures, generation);
-    if (this.isCurrent(generation)) {
+    const epoch = this.backend.epoch;
+    const fetched = await this.fetch(brandId, schedule, sessionId, deadline, failures);
+    if (!fetched.transient && this.backend.epoch === epoch) {
       this.remember(key, fetched, failures);
     }
     return fetched.result;
-  }
-
-  /** False once a logout, a new login or a refused refresh happened since `generation`: the answer is stale. */
-  private isCurrent(generation: number): boolean {
-    return generation === this.store.generation && this.session.connected;
   }
 
   private remember(key: string, fetched: Fetched, failures: number): void {
@@ -151,31 +157,25 @@ export class BackendPlayUrlResolver {
     brandId: string,
     schedule: BackendSchedule | null,
     sessionId: string,
-    timeoutMs: number,
+    deadline: ResolveDeadline,
     failures: number,
-    generation: number,
   ): Promise<Fetched> {
-    const where = schedule ? SESSION_SOURCE_SCHEDULE : SESSION_SOURCE_CURRENT;
     const offTtl = notLiveTtlMs(schedule !== null);
-    let answer: PlayUrlAnswer;
+    let lookup: PlayUrlLookup;
     try {
-      answer = await this.api.playUrl(brandId, sessionId, timeoutMs);
+      lookup = await this.backend.lookup(
+        brandId,
+        sessionId,
+        schedule,
+        deadline.remainingMs(),
+        deadline.signal,
+      );
     } catch (error) {
+      if (deadline.signal?.aborted) return { ...TRANSIENT_FETCH, result: cancelled() };
       return this.failure(error, offTtl, failures);
     }
+    const { answer, source: where } = lookup;
     const shownId = maskId(answer.sessionId);
-    if (this.isCurrent(generation))
-      this.store.setSession(brandId, {
-        sessionId: shownId,
-        shopeeStatus: answer.shopeeStatus,
-        isLive: answer.isLive,
-        title: answer.title,
-        shareUrl: answer.shareUrl,
-        expiresAt: answer.expiresAt,
-        source: where,
-        scheduleId: schedule?.scheduleId ?? null,
-        checkedAt: new Date().toISOString(),
-      });
     if (!answer.isLive) {
       const detail = msgNotLive(shownId, where, answer.shopeeStatus);
       return { result: failed(ResolveFailureCode.NOT_LIVE, detail), ttlMs: offTtl, failed: false };
@@ -218,11 +218,18 @@ export class BackendPlayUrlResolver {
   }
 }
 
-function isBackendFailure(code: ResolveFailureCode): boolean {
+/** Whether trying the next session is pointless: the backend is not usable, or nobody wants the answer. */
+function stopsSessionSearch(code: ResolveFailureCode): boolean {
   return (
-    code === ResolveFailureCode.BACKEND_NOT_CONNECTED || code === ResolveFailureCode.BACKEND_ERROR
+    code === ResolveFailureCode.BACKEND_NOT_CONNECTED ||
+    code === ResolveFailureCode.BACKEND_ERROR ||
+    code === ResolveFailureCode.CANCELLED
   );
 }
+
+// A timeout of the resolve itself, not an answer of the backend: never cached.
+const BUDGET_SPENT = failed(ResolveFailureCode.BACKEND_ERROR, MSG_BUDGET_SPENT);
+const TRANSIENT_FETCH = { ttlMs: 0, failed: false, transient: true };
 
 function withCacheNote(result: ResolveResult, seconds: number): ResolveResult {
   const note = msgCached(seconds);

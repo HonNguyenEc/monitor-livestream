@@ -9,7 +9,7 @@ import { COOKIES_FILE } from '../constants/shops.constants';
 import { RememberedCookie } from '../models/remembered-cookie.model';
 import { CookieStore } from '../models/shop-record.model';
 import { CookieRepository } from '../repositories/cookie.repository';
-import { isPythonTruthy, pythonStr } from '../utils/python-values';
+import { isPythonTruthy, pythonStr } from '../../../common/utils/python-values';
 
 /** Owns shopee_cookies.json: one cookie per user_id still in use by a shop in shops.json. */
 @Injectable()

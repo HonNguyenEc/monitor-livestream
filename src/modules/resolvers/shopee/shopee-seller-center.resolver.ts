@@ -1,19 +1,28 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Platform } from '../../../common/enums/platform.enum';
-import { isLoginOutage } from '../../../common/shopee/login-outage';
-import { INVALID_COOKIE_CHARS } from '../../../common/shopee/shopee-cookie.constants';
+import {
+  DisallowedLiveUrlError,
+  INVALID_COOKIE_CHARS,
+  LoginLookup,
+  SellerCenterClient,
+  isLoginOutage,
+} from '../../shopee';
 import { errorMessage } from '../../../common/utils/error-message';
 import { isNetworkError } from '../../../common/utils/is-network-error';
 import { safeError } from '../../../common/utils/safe-error';
 import { isPlainObject } from '../../../common/utils/is-plain-object';
-import { DEFAULT_RESOLVE_TIMEOUT_MS } from '../constants/resolver.constants';
+import { ResolveDeadline } from '../utils/resolve-deadline';
 import { ResolveFailureCode } from '../enums/resolve-failure-code.enum';
 import { JsonResponse } from '../../../common/http/get-json';
 import { PlatformResolver } from '../interfaces/platform-resolver.interface';
 import { ResolveRequest } from '../models/resolve-request.model';
-import { failed, resolved, ResolveFailure, ResolveResult } from '../models/resolve-result.model';
-import { DisallowedLiveUrlError } from './disallowed-live-url.error';
-import { LoginLookup, SellerCenterSessionClient } from './seller-center-session.client';
+import {
+  cancelled,
+  failed,
+  resolved,
+  ResolveFailure,
+  ResolveResult,
+} from '../models/resolve-result.model';
 import {
   ABSENT_VALUE_TEXT,
   MSG_INVALID_BODY,
@@ -66,10 +75,13 @@ function text(value: unknown): string {
 
 @Injectable()
 export class ShopeeSellerCenterResolver implements PlatformResolver {
-  readonly platform = Platform.SHOPEE;
   private readonly logger = new Logger(ShopeeSellerCenterResolver.name);
 
-  constructor(private readonly client: SellerCenterSessionClient) {}
+  constructor(private readonly client: SellerCenterClient) {}
+
+  supports(request: ResolveRequest): boolean {
+    return request.platform === Platform.SHOPEE && request.brandId === undefined;
+  }
 
   async resolve(request: ResolveRequest): Promise<ResolveResult> {
     const cookie = request.cookie?.trim();
@@ -77,16 +89,22 @@ export class ShopeeSellerCenterResolver implements PlatformResolver {
     if (INVALID_COOKIE_CHARS.test(cookie)) {
       return failed(ResolveFailureCode.INVALID_COOKIE, MSG_INVALID_COOKIE);
     }
-    const timeoutMs = request.timeoutMs ?? DEFAULT_RESOLVE_TIMEOUT_MS;
+    const deadline = ResolveDeadline.of(request);
     try {
-      const lookup = await this.findSession(request, cookie, timeoutMs);
+      const lookup = await this.findSession(request, cookie, deadline);
       if ('failure' in lookup) return lookup.failure;
-      const info = await this.client.sessionInfo(lookup.sessionId, cookie, timeoutMs);
+      const info = await this.client.sessionInfo(
+        lookup.sessionId,
+        cookie,
+        deadline.remainingMs(),
+        deadline.signal,
+      );
       return this.fromSessionInfo(lookup.sessionId, info);
     } catch (error) {
       if (error instanceof DisallowedLiveUrlError) {
         return failed(ResolveFailureCode.INVALID_LIVE_URL, MSG_INVALID_LIVE_URL);
       }
+      if (deadline.signal?.aborted) return cancelled();
       if (!isNetworkError(error)) throw error;
       const reason = safeError(errorMessage(error));
       this.logger.warn(`${SHOPEE_REQUEST_FAILED_EVENT}: ${reason}`);
@@ -97,19 +115,27 @@ export class ShopeeSellerCenterResolver implements PlatformResolver {
   private async findSession(
     request: ResolveRequest,
     cookie: string,
-    timeoutMs: number,
+    deadline: ResolveDeadline,
   ): Promise<SessionLookup> {
     if (request.liveUrl) {
-      const fromLink = await this.client.sessionFromLink(request.liveUrl, timeoutMs);
+      const fromLink = await this.client.sessionFromLink(
+        request.liveUrl,
+        deadline.remainingMs(),
+        deadline.signal,
+      );
       if (fromLink) return { sessionId: fromLink };
     }
     let userId = request.userId;
     if (!userId) {
-      const login = await this.client.loginUserId(cookie, timeoutMs);
+      const login = await this.client.loginUserId(cookie, deadline.remainingMs(), deadline.signal);
       if (!login.userId) return { failure: loginFailure(login) };
       userId = login.userId;
     }
-    const { status, data, invalidBody } = await this.client.ongoingLive(userId, timeoutMs);
+    const { status, data, invalidBody } = await this.client.ongoingLive(
+      userId,
+      deadline.remainingMs(),
+      deadline.signal,
+    );
     const ongoing = isPlainObject(data.data) ? data.data.ongoing_live : undefined;
     const sessionId = toSafeId(isPlainObject(ongoing) ? ongoing.session_id : undefined);
     if (sessionId) return { sessionId };

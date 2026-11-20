@@ -25,7 +25,9 @@ export const REGISTRY_MPV_MARKER = 'mpv';
 export const REG_QUERY_TIMEOUT_MS = 10_000;
 export const REG_QUERY_MAX_BUFFER_BYTES = 16 * 1024 * 1024;
 
-export const MPV_PIPE_PREFIX = '\\\\.\\pipe\\livestream-qc-';
+// Not the Python tool's `livestream-qc-`, so a parity run next to this service never shares a pipe.
+export const MPV_PIPE_PREFIX = '\\\\.\\pipe\\live-qc-';
+export const LAUNCH_ID_LENGTH = 8;
 export const MPV_IPC_CONNECT_TIMEOUT_MS = 10_000;
 export const MPV_IPC_CONNECT_RETRY_MS = 250;
 // Same budget as the Python tool's IPC_TIMEOUT.
@@ -38,3 +40,9 @@ export const MPV_COMMAND_GET_PROPERTY = 'get_property';
 export const MPV_COMMAND_SCREENSHOT_TO_FILE = 'screenshot-to-file';
 // `video` captures the decoded frame without OSD or subtitles.
 export const MPV_SCREENSHOT_FLAGS = 'video';
+
+export const LINE_SEPARATOR = '\n';
+
+export const MPV_CONFIG_DIR_ARG = '--config-dir=';
+export const MPV_NO_TERMINAL_ARG = '--no-terminal';
+export const MPVNET_MULTI_INSTANCE_ARG = '--process-instance=multi';

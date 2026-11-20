@@ -1,6 +1,6 @@
 import { HttpStatus } from '@nestjs/common';
 
-import { MS_PER_SECOND, SYNC_MAX_BACKOFF_S } from '../../backend/constants/backend-sync.constants';
+import { MAX_RETRY_DELAY_MS, MS_PER_SECOND } from '../../../common/constants/time.constants';
 
 // Every play_url call costs the backend one Shopee API call, so answers are cached per brand and session.
 /** A live answer is reused this long, never past EXPIRY_MARGIN_MS before the URL expires. */
@@ -17,10 +17,8 @@ export const ERROR_BACKOFF_MS: readonly number[] = [
   120 * MS_PER_SECOND,
   300 * MS_PER_SECOND,
 ];
-/** Cap of a backend Retry-After, the same as the sync backoff. */
-export const MAX_BACKOFF_MS = SYNC_MAX_BACKOFF_S * MS_PER_SECOND;
 /** A cache entry is dropped this long after it expires; the wait keeps a failure streak's backoff growing. */
-export const CACHE_RETENTION_MS = MAX_BACKOFF_MS;
+export const CACHE_RETENTION_MS = MAX_RETRY_DELAY_MS;
 
 /** Every 400 of the play_url route: the backend's only one is ERR_UPDATE_SESSION_ID_REQUIRED, the brand has no API session yet (it never created one, or only manual sessions). */
 export const NO_API_SESSION_STATUS = HttpStatus.BAD_REQUEST;

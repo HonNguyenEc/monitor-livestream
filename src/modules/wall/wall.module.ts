@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 
-import { LayoutModule } from '../layout/layout.module';
-import { ShopsModule } from '../shops/shops.module';
+import { LayoutModule } from '../layout';
+import { ShopsModule } from '../shops';
 import { WallController } from './controllers/wall.controller';
 import { WallService } from './services/wall.service';
 

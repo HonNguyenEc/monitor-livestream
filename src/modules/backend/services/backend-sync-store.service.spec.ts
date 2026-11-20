@@ -1,6 +1,6 @@
+import { FakeLoginState } from '../../../../test/helpers/fake-login-state';
 import { BackendSchedule } from '../models/backend-schedule.model';
 import { BackendSessionInfo } from '../models/backend-session-info.model';
-import { BackendSessionService } from './backend-session.service';
 import { BackendSyncStore } from './backend-sync-store.service';
 
 const NOW = Date.parse('2026-01-15T10:30:00+07:00');
@@ -33,12 +33,12 @@ function info(scheduleId: string | null): BackendSessionInfo {
 }
 
 describe('BackendSyncStore', () => {
-  let session: { connected: boolean };
+  let session: FakeLoginState;
   let store: BackendSyncStore;
 
   beforeEach(() => {
-    session = { connected: true };
-    store = new BackendSyncStore(session as BackendSessionService);
+    session = new FakeLoginState();
+    store = new BackendSyncStore(session);
     store.setBoard(
       new Map([
         [
@@ -62,6 +62,14 @@ describe('BackendSyncStore', () => {
     expect(store.onAirSchedule('other', NOW)).toBeNull();
   });
 
+  it('reports the epoch of the login', () => {
+    const before = store.epoch;
+
+    session.relogin();
+
+    expect(store.epoch).toBe(before + 1);
+  });
+
   it('counts brands and schedules', () => {
     store.setBrands([{ id: 'b1', name: 'One' }]);
 
@@ -78,14 +86,12 @@ describe('BackendSyncStore', () => {
     expect(store.sessionOf('b1')).toBeNull();
   });
 
-  it('forgets everything on clear and bumps the generation', () => {
+  it('forgets everything on clear', () => {
     store.setBrands([{ id: 'b1', name: 'One' }]);
     store.setSession('b1', info(null));
-    const before = store.generation;
 
     store.clear();
 
-    expect(store.generation).toBe(before + 1);
     expect(store.brands).toEqual([]);
     expect(store.schedulesOf('b1')).toEqual([]);
     expect(store.sessionOf('b1')).toBeNull();

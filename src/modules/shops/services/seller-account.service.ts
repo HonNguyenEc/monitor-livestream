@@ -1,22 +1,25 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { ErrorCode } from '../../../common/constants/error-codes.constants';
 import { ErrorMessage } from '../../../common/constants/error-messages.constants';
-import { DomainException } from '../../../common/exceptions/domain.exception';
-import { INVALID_COOKIE_CHARS } from '../../../common/shopee/shopee-cookie.constants';
+import { badRequest } from '../../../common/exceptions/bad-request';
+import {
+  INVALID_COOKIE_CHARS,
+  SellerAccount,
+  SellerCenterClient,
+  SellerCenterUnavailableError,
+} from '../../shopee';
+import { wrappedErrorCode } from '../../../common/utils/error-chain';
 import { errorMessage } from '../../../common/utils/error-message';
 import { safeError } from '../../../common/utils/safe-error';
-import { SellerCenterLoginClient } from '../clients/seller-center-login.client';
-import { SellerCenterUnavailableError } from '../errors/seller-center-unavailable.error';
 import {
   PASTED_COOKIE_PREFIX,
   SELLER_CENTER_COOKIE,
   SELLER_CENTER_COOKIE_PATTERN,
 } from '../constants/seller-cookie.constants';
 import { ShopField } from '../constants/shop-fields.constants';
-import { SellerAccount, VerifiedCookie } from '../models/seller-account.model';
+import { VerifiedCookie } from '../models/seller-account.model';
 import { CookieStore, ShopRecord } from '../models/shop-record.model';
-import { isPythonTruthy, pythonStr } from '../utils/python-values';
+import { isPythonTruthy, pythonStr } from '../../../common/utils/python-values';
 import { optionalInteger } from '../utils/record-values';
 
 /** A Shopee shop's identity comes from its Seller Center login, as _apply_seller_account does. */
@@ -24,7 +27,7 @@ import { optionalInteger } from '../utils/record-values';
 export class SellerAccountService {
   private readonly logger = new Logger(SellerAccountService.name);
 
-  constructor(private readonly sellerCenter: SellerCenterLoginClient) {}
+  constructor(private readonly sellerCenter: SellerCenterClient) {}
 
   /** Keeps only SPC_SC_SESSION, the one cookie the stream API needs, and checks it with Seller Center. */
   async verify(pasted: string): Promise<VerifiedCookie> {
@@ -36,14 +39,14 @@ export class SellerAccountService {
       if (!(error instanceof SellerCenterUnavailableError)) {
         throw error;
       }
-      const code = networkCode(error);
+      const code = wrappedErrorCode(error);
       this.logger.warn(
         `Seller Center login check failed: ${safeError(errorMessage(error))}${code ? ` (${code})` : ''}`,
       );
-      throw invalid(ErrorMessage.sellerCenterUnreachable);
+      throw badRequest(ErrorMessage.sellerCenterUnreachable);
     }
     if (!account) {
-      throw invalid(ErrorMessage.cookieRejected);
+      throw badRequest(ErrorMessage.cookieRejected);
     }
     return { cookie, account };
   }
@@ -51,7 +54,9 @@ export class SellerAccountService {
   applyAccount(shop: ShopRecord, account: SellerAccount): void {
     const typedId = shop[ShopField.USER_ID];
     if (isPythonTruthy(typedId) && typedId !== account.user_id) {
-      throw invalid(ErrorMessage.cookieAccountMismatch(account.username, account.user_id, typedId));
+      throw badRequest(
+        ErrorMessage.cookieAccountMismatch(account.username, account.user_id, typedId),
+      );
     }
     shop[ShopField.USER_ID] = account.user_id;
     if (account.shop_id) {
@@ -64,10 +69,10 @@ export class SellerAccountService {
   keepStoredAccount(shop: ShopRecord, stored: ShopRecord, cookies: CookieStore): void {
     const storedId = optionalInteger(stored[ShopField.USER_ID]);
     if (!storedId || !Object.hasOwn(cookies, pythonStr(storedId))) {
-      throw invalid(ErrorMessage.missingStoredCookie);
+      throw badRequest(ErrorMessage.missingStoredCookie);
     }
     if ((shop[ShopField.USER_ID] ?? storedId) !== storedId) {
-      throw invalid(ErrorMessage.userIdNeedsCookie);
+      throw badRequest(ErrorMessage.userIdNeedsCookie);
     }
     shop[ShopField.USER_ID] = storedId;
     shop[ShopField.NAME] ??= String(storedId);
@@ -80,21 +85,10 @@ export function extractSellerCookie(pasted: string): string {
     header.startsWith(PASTED_COOKIE_PREFIX) ? header.slice(PASTED_COOKIE_PREFIX.length) : header,
   );
   if (!match) {
-    throw invalid(ErrorMessage.cookieWithoutSession(SELLER_CENTER_COOKIE));
+    throw badRequest(ErrorMessage.cookieWithoutSession(SELLER_CENTER_COOKIE));
   }
   if (INVALID_COOKIE_CHARS.test(match[1])) {
-    throw invalid(ErrorMessage.cookieInvalidCharacters);
+    throw badRequest(ErrorMessage.cookieInvalidCharacters);
   }
   return `${SELLER_CENTER_COOKIE}=${match[1]}`;
-}
-
-// fetch hides the socket error code (ECONNRESET, ...) one `cause` down; it never carries a cookie value.
-function networkCode(error: Error): string {
-  const cause = error.cause as { code?: unknown; cause?: { code?: unknown } } | undefined;
-  const code = cause?.code ?? cause?.cause?.code;
-  return typeof code === 'string' ? code : '';
-}
-
-function invalid(message: string): DomainException {
-  return new DomainException(ErrorCode.BAD_REQUEST, message);
 }

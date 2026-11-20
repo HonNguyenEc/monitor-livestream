@@ -1,7 +1,7 @@
-import { JobState } from '../../../common/enums/job-state.enum';
-import { LiveStatus } from '../../../common/enums/live-status.enum';
+import { API_PREFIX, FRAME_ROUTE, SHOPS_ROUTE } from '../../../common/constants/app.constants';
 import { Platform } from '../../../common/enums/platform.enum';
 import { ShopSource } from '../../../common/enums/shop-source.enum';
+import { DetectionSnapshot } from '../../detection-state';
 import { ShopField } from '../constants/shop-fields.constants';
 import { ScheduleDto } from '../dtos/schedule.dto';
 import { SessionInfoDto } from '../dtos/session-info.dto';
@@ -10,24 +10,29 @@ import { ShopDetailDto } from '../dtos/shop-detail.dto';
 import { ShopRowDto } from '../dtos/shop-row.dto';
 import { CookieStore, ShopRecord } from '../models/shop-record.model';
 import { StoredShop } from '../models/stored-shop.model';
-import { isPythonTruthy, pythonStr } from './python-values';
+import { isPythonTruthy, pythonStr } from '../../../common/utils/python-values';
 import { optionalInteger, optionalString } from './record-values';
 import { shopLabel } from './shop-identity';
 
-/** The row of a local or a backend channel; both report the idle detection state: not checked, job stopped. */
-export function toShopRow(shop: StoredShop, cookies: CookieStore): ShopRowDto {
+/** The row of a local or a backend channel, with the detection state of its job (idle without one). */
+export function toShopRow(
+  shop: StoredShop,
+  cookies: CookieStore,
+  detection: DetectionSnapshot,
+): ShopRowDto {
   return {
     key: shop.key,
     platform: shop.platform,
     label: shopLabel(shop.record),
     source: shop.source,
-    status: LiveStatus.NOT_CHECKED,
-    job_state: JobState.STOPPED,
-    attempts: 0,
-    message: null,
-    checked_at: null,
-    live_since: null,
-    frame_url: null,
+    status: detection.status,
+    job_state: detection.jobState,
+    attempts: detection.attempts,
+    message: detection.message,
+    reason_code: detection.reasonCode,
+    checked_at: detection.checkedAt,
+    live_since: detection.liveSince,
+    frame_url: frameUrl(shop.key, detection),
     cookie_set: shop.platform === Platform.SHOPEE && hasStoredCookie(shop.record, cookies),
   };
 }
@@ -42,15 +47,22 @@ export interface BackendDetailParts {
 export function toShopDetail(
   shop: StoredShop,
   cookies: CookieStore,
+  detection: DetectionSnapshot,
   backend?: BackendDetailParts,
 ): ShopDetailDto {
   return {
-    ...toShopRow(shop, cookies),
+    ...toShopRow(shop, cookies, detection),
     config: toShopConfig(shop),
     session: backend?.session ?? null,
     schedules: backend?.schedules ?? [],
     on_air_schedule_id: backend?.onAirScheduleId ?? null,
   };
+}
+
+/** Versioned by the frame time, so a viewer reloads the image when a new frame lands. */
+function frameUrl(key: string, detection: DetectionSnapshot): string | null {
+  if (detection.framePath === null || detection.frameAtMs === null) return null;
+  return `/${API_PREFIX}/${SHOPS_ROUTE}/${encodeURIComponent(key)}/${FRAME_ROUTE}?t=${detection.frameAtMs}`;
 }
 
 export function hasStoredCookie(record: ShopRecord, cookies: CookieStore): boolean {

@@ -22,8 +22,8 @@ import {
   TEST_COOKIE,
   USER_ID,
 } from './fixtures/seller-center.fixtures';
-import { DisallowedLiveUrlError } from './disallowed-live-url.error';
-import { SellerCenterSessionClient } from './seller-center-session.client';
+import { DisallowedLiveUrlError } from '../../shopee/errors/disallowed-live-url.error';
+import { SellerCenterClient } from '../../shopee/clients/seller-center.client';
 import { ShopeeSellerCenterResolver } from './shopee-seller-center.resolver';
 
 function networkError(message: string): TypeError {
@@ -38,7 +38,7 @@ const REQUEST: ResolveRequest = {
 };
 
 describe('ShopeeSellerCenterResolver', () => {
-  let client: jest.Mocked<SellerCenterSessionClient>;
+  let client: jest.Mocked<SellerCenterClient>;
   let resolver: ShopeeSellerCenterResolver;
 
   beforeEach(() => {
@@ -47,7 +47,7 @@ describe('ShopeeSellerCenterResolver', () => {
       ongoingLive: jest.fn().mockResolvedValue(ongoingFound()),
       sessionInfo: jest.fn().mockResolvedValue(liveInfo()),
       loginUserId: jest.fn().mockResolvedValue({ status: 200, data: {}, userId: null }),
-    } as unknown as jest.Mocked<SellerCenterSessionClient>;
+    } as unknown as jest.Mocked<SellerCenterClient>;
     resolver = new ShopeeSellerCenterResolver(client);
   });
 
@@ -70,8 +70,13 @@ describe('ShopeeSellerCenterResolver', () => {
       urls: [STREAM_URL],
       detail: `session ${SESSION_ID} via Seller Center (${SESSION_TITLE})`,
     });
-    expect(client.ongoingLive).toHaveBeenCalledWith(USER_ID, expect.any(Number));
-    expect(client.sessionInfo).toHaveBeenCalledWith(SESSION_ID, TEST_COOKIE, expect.any(Number));
+    expect(client.ongoingLive).toHaveBeenCalledWith(USER_ID, expect.any(Number), undefined);
+    expect(client.sessionInfo).toHaveBeenCalledWith(
+      SESSION_ID,
+      TEST_COOKIE,
+      expect.any(Number),
+      undefined,
+    );
   });
 
   it('uses the live_url session and skips the ongoing lookup', async () => {
@@ -79,13 +84,18 @@ describe('ShopeeSellerCenterResolver', () => {
     const result = await resolver.resolve({ ...REQUEST, liveUrl: SHARE_LINK });
     expect(result.ok).toBe(true);
     expect(client.ongoingLive).not.toHaveBeenCalled();
-    expect(client.sessionInfo).toHaveBeenCalledWith(SESSION_ID, TEST_COOKIE, expect.any(Number));
+    expect(client.sessionInfo).toHaveBeenCalledWith(
+      SESSION_ID,
+      TEST_COOKIE,
+      expect.any(Number),
+      undefined,
+    );
   });
 
   it('falls back to the user id when a short link carries no session', async () => {
     const result = await resolver.resolve({ ...REQUEST, liveUrl: SHORT_LINK });
-    expect(client.sessionFromLink).toHaveBeenCalledWith(SHORT_LINK, expect.any(Number));
-    expect(client.ongoingLive).toHaveBeenCalledWith(USER_ID, expect.any(Number));
+    expect(client.sessionFromLink).toHaveBeenCalledWith(SHORT_LINK, expect.any(Number), undefined);
+    expect(client.ongoingLive).toHaveBeenCalledWith(USER_ID, expect.any(Number), undefined);
     expect(result.ok).toBe(true);
   });
 
@@ -119,8 +129,8 @@ describe('ShopeeSellerCenterResolver', () => {
   it('takes the user id from the cookie when the request has none', async () => {
     client.loginUserId.mockResolvedValue({ status: 200, data: {}, userId: USER_ID });
     const result = await resolver.resolve({ ...REQUEST, userId: undefined });
-    expect(client.loginUserId).toHaveBeenCalledWith(TEST_COOKIE, expect.any(Number));
-    expect(client.ongoingLive).toHaveBeenCalledWith(USER_ID, expect.any(Number));
+    expect(client.loginUserId).toHaveBeenCalledWith(TEST_COOKIE, expect.any(Number), undefined);
+    expect(client.ongoingLive).toHaveBeenCalledWith(USER_ID, expect.any(Number), undefined);
     expect(result.ok).toBe(true);
   });
 
@@ -336,7 +346,12 @@ describe('ShopeeSellerCenterResolver', () => {
   describe('cookie validation', () => {
     it('trims a trailing newline and forwards the clean cookie', async () => {
       await resolver.resolve({ ...REQUEST, cookie: `${TEST_COOKIE}\n` });
-      expect(client.sessionInfo).toHaveBeenCalledWith(SESSION_ID, TEST_COOKIE, expect.any(Number));
+      expect(client.sessionInfo).toHaveBeenCalledWith(
+        SESSION_ID,
+        TEST_COOKIE,
+        expect.any(Number),
+        undefined,
+      );
     });
 
     it.each([
@@ -378,29 +393,61 @@ describe('ShopeeSellerCenterResolver', () => {
     });
   });
 
-  describe('timeout', () => {
-    it('forwards an explicit timeoutMs to every client call', async () => {
-      client.sessionFromLink.mockResolvedValue(null);
-      client.loginUserId.mockResolvedValue({ status: 200, data: {}, userId: USER_ID });
+  describe('a cancelled resolve', () => {
+    it('is cancelled, with no warning, when the caller aborts during a request', async () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const controller = new AbortController();
+      client.sessionInfo.mockImplementation(() => {
+        controller.abort();
+        return Promise.reject(networkError('aborted'));
+      });
+
+      const result = await resolver.resolve({ ...REQUEST, signal: controller.signal });
+
+      expect(result).toMatchObject({ ok: false, code: ResolveFailureCode.CANCELLED });
+      expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
+    });
+  });
+
+  describe('deadline', () => {
+    beforeEach(() => jest.useFakeTimers({ now: 1_000_000 }));
+    afterEach(() => jest.useRealTimers());
+
+    it('gives every client call the budget that is left and the caller signal', async () => {
+      const controller = new AbortController();
+      client.sessionFromLink.mockImplementation(() => {
+        jest.advanceTimersByTime(200);
+        return Promise.resolve(null);
+      });
+      client.loginUserId.mockImplementation(() => {
+        jest.advanceTimersByTime(300);
+        return Promise.resolve({ status: 200, data: {}, userId: USER_ID });
+      });
       await resolver.resolve({
         ...REQUEST,
         userId: undefined,
         liveUrl: SHORT_LINK,
-        timeoutMs: 777,
+        timeoutMs: 1000,
+        signal: controller.signal,
       });
-      expect(client.sessionFromLink).toHaveBeenCalledWith(SHORT_LINK, 777);
-      expect(client.loginUserId).toHaveBeenCalledWith(TEST_COOKIE, 777);
-      expect(client.ongoingLive).toHaveBeenCalledWith(USER_ID, 777);
-      expect(client.sessionInfo).toHaveBeenCalledWith(SESSION_ID, TEST_COOKIE, 777);
-    });
-
-    it('uses the default timeout when none is given', async () => {
-      await resolver.resolve(REQUEST);
-      expect(client.ongoingLive).toHaveBeenCalledWith(USER_ID, DEFAULT_RESOLVE_TIMEOUT_MS);
+      expect(client.sessionFromLink).toHaveBeenCalledWith(SHORT_LINK, 1000, controller.signal);
+      expect(client.loginUserId).toHaveBeenCalledWith(TEST_COOKIE, 800, controller.signal);
+      expect(client.ongoingLive).toHaveBeenCalledWith(USER_ID, 500, controller.signal);
       expect(client.sessionInfo).toHaveBeenCalledWith(
         SESSION_ID,
         TEST_COOKIE,
+        500,
+        controller.signal,
+      );
+    });
+
+    it('uses the default budget when none is given', async () => {
+      await resolver.resolve(REQUEST);
+      expect(client.ongoingLive).toHaveBeenCalledWith(
+        USER_ID,
         DEFAULT_RESOLVE_TIMEOUT_MS,
+        undefined,
       );
     });
   });

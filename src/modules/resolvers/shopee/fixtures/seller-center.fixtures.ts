@@ -1,12 +1,16 @@
 import { JsonResponse } from '../../../../common/http/get-json';
+import {
+  SESSION_ID,
+  SHARE_LINK,
+  SHORT_LINK,
+  TEST_COOKIE,
+  USER_ID,
+} from '../../../shopee/fixtures/seller-center.fixtures';
 
-export const TEST_COOKIE = 'test-cookie';
-export const USER_ID = 4242;
-export const SESSION_ID = 987654;
+export { SESSION_ID, SHARE_LINK, SHORT_LINK, TEST_COOKIE, USER_ID };
+
 export const STREAM_URL = 'https://example.invalid/live/stream.flv';
 export const SESSION_TITLE = 'Synthetic show';
-export const SHARE_LINK = `https://live.shopee.vn/share?from=live&session=${SESSION_ID}`;
-export const SHORT_LINK = 'https://s.shopee.vn/short';
 
 export const ongoingFound = (): JsonResponse => ({
   status: 200,

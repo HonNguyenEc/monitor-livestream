@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { connect, Socket } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -7,16 +8,16 @@ import {
   MPV_IPC_CONNECT_RETRY_MS,
   MPV_IPC_CONNECT_TIMEOUT_MS,
   MPV_IPC_MAX_BUFFER_CHARS,
+  LAUNCH_ID_LENGTH,
   MPV_IPC_REQUEST_TIMEOUT_MS,
   MPV_IPC_SUCCESS,
   MPV_PIPE_PREFIX,
+  LINE_SEPARATOR,
   MPV_PROPERTY_FRAME_NUMBER,
   MPV_SCREENSHOT_FLAGS,
 } from '../constants/players.constants';
 import { MpvIpcMessage } from '../constants/mpv-ipc-messages.constants';
 import { MpvIpcError, MpvIpcErrorCode } from '../errors/mpv-ipc.error';
-
-const LINE_SEPARATOR = '\n';
 
 export interface MpvIpcOptions {
   connectTimeoutMs: number;
@@ -42,8 +43,13 @@ interface PendingRequest {
   timer: NodeJS.Timeout;
 }
 
-export function mpvPipePath(key: string): string {
-  return `${MPV_PIPE_PREFIX}${key}`;
+/** A new id per mpv launch, so a window still closing never holds the pipe name of the next one. */
+export function newLaunchId(): string {
+  return randomUUID().replaceAll('-', '').slice(0, LAUNCH_ID_LENGTH);
+}
+
+export function mpvPipePath(launchId: string, key: string): string {
+  return `${MPV_PIPE_PREFIX}${launchId}-${key}`;
 }
 
 /** One JSON IPC connection to a running mpv, kept open for the life of the player. */

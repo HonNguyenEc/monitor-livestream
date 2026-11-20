@@ -10,11 +10,3 @@ export const KEY_REPLACEMENT = '_';
 export const BACKEND_IDENT_PREFIX = 'api_';
 export const BRAND_HASH_ALGORITHM = 'sha1';
 export const BRAND_HASH_LENGTH = 10;
-
-export const PYTHON_NONE = 'None';
-export const PYTHON_TRUE = 'True';
-export const PYTHON_FALSE = 'False';
-
-export const MSG_SELLER_CENTER_NO_ANSWER = 'Seller Center did not answer';
-export const msgSellerCenterAnswered = (status: number): string =>
-  `Seller Center answered ${status}`;

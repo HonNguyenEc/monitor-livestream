@@ -1,9 +1,9 @@
 import { Logger } from '@nestjs/common';
 
 import { DomainException } from '../../../common/exceptions/domain.exception';
-import { SellerCenterLoginClient } from '../clients/seller-center-login.client';
-import { SellerCenterUnavailableError } from '../errors/seller-center-unavailable.error';
-import { SellerAccount } from '../models/seller-account.model';
+import { SellerCenterClient } from '../../shopee/clients/seller-center.client';
+import { SellerCenterUnavailableError } from '../../shopee/errors/seller-center-unavailable.error';
+import { SellerAccount } from '../../shopee/models/seller-account.model';
 import { extractSellerCookie, SellerAccountService } from './seller-account.service';
 
 const ACCOUNT: SellerAccount = { user_id: 11, shop_id: 22, username: 'seller' };
@@ -49,7 +49,7 @@ describe('extractSellerCookie with characters a header cannot carry', () => {
 
 describe('SellerAccountService', () => {
   const account = jest.fn<Promise<SellerAccount | null>, [string]>();
-  const service = new SellerAccountService({ account } as unknown as SellerCenterLoginClient);
+  const service = new SellerAccountService({ account } as unknown as SellerCenterClient);
 
   beforeEach(() => account.mockReset());
 

@@ -95,3 +95,32 @@ describe('getJson', () => {
     await expect(getJson(URL, HEADERS, TIMEOUT)).rejects.toThrow('fetch failed');
   });
 });
+
+describe('getJson cancellation', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('passes a signal that aborts with the caller signal', async () => {
+    const fetchSpy = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 200 }));
+    const controller = new AbortController();
+
+    await getJson(URL, HEADERS, TIMEOUT, controller.signal);
+    const { signal } = fetchSpy.mock.calls[0][1] as RequestInit;
+
+    expect(signal?.aborted).toBe(false);
+    controller.abort();
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it('rejects when the caller signal is already aborted', async () => {
+    jest.spyOn(globalThis, 'fetch').mockImplementation((_url, init) => {
+      const signal = (init as RequestInit).signal as AbortSignal;
+      return signal.aborted ? Promise.reject(signal.reason) : Promise.resolve(new Response('{}'));
+    });
+
+    await expect(getJson(URL, HEADERS, TIMEOUT, AbortSignal.abort())).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+  });
+});

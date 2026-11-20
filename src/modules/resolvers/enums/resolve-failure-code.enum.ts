@@ -1,4 +1,4 @@
-/** Failure details read `<code>: <message>`, except YTDLP_FAILED, whose details are the masked yt-dlp text, and SHOPEE_REQUEST_FAILED, whose details are the masked network or login failure text; both can be prefixed by the caller with why the primary path failed. */
+/** Why a resolve failed. `cancelled`: the caller aborted it, so it says nothing about the channel. */
 export enum ResolveFailureCode {
   NOT_LIVE = 'not_live',
   NO_PLAY_URL = 'no_play_url',
@@ -14,4 +14,5 @@ export enum ResolveFailureCode {
   BACKEND_NOT_CONNECTED = 'backend_not_connected',
   BACKEND_ERROR = 'backend_error',
   UNSUPPORTED = 'unsupported',
+  CANCELLED = 'cancelled',
 }

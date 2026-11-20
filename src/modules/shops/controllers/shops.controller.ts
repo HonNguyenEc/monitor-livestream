@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiNoContentResponse, ApiTags } from '@nestjs/swagger';
 
+import { SHOPS_ROUTE } from '../../../common/constants/app.constants';
 import { ErrorCode } from '../../../common/constants/error-codes.constants';
 import { ApiDomainErrors } from '../../../common/decorators/api-domain-errors.decorator';
 import { CreateShopDto } from '../dtos/create-shop.dto';
@@ -20,7 +21,7 @@ import { UpdateShopDto } from '../dtos/update-shop.dto';
 import { ShopsService } from '../services/shops.service';
 
 @ApiTags('shops')
-@Controller('shops')
+@Controller(SHOPS_ROUTE)
 export class ShopsController {
   constructor(private readonly shopsService: ShopsService) {}
 

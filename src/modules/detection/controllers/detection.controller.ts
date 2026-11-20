@@ -1,15 +1,15 @@
 import { Controller, Get, HttpCode, HttpStatus, Param, Post, StreamableFile } from '@nestjs/common';
 import { ApiOkResponse, ApiProduces, ApiTags } from '@nestjs/swagger';
 
+import { FRAME_ROUTE, SHOPS_ROUTE } from '../../../common/constants/app.constants';
 import { ErrorCode } from '../../../common/constants/error-codes.constants';
 import { ApiDomainErrors } from '../../../common/decorators/api-domain-errors.decorator';
 import { DetectionStateDto } from '../dtos/detection-state.dto';
 import { DetectionService } from '../services/detection.service';
-
-const FRAME_CONTENT_TYPE = 'image/jpeg';
+import { FRAME_CONTENT_TYPE } from '../constants/detection.constants';
 
 @ApiTags('detection')
-@Controller('shops/:key')
+@Controller(`${SHOPS_ROUTE}/:key`)
 export class DetectionController {
   constructor(private readonly detectionService: DetectionService) {}
 
@@ -21,13 +21,12 @@ export class DetectionController {
   }
 
   @Post('detection/stop')
-  @ApiDomainErrors(ErrorCode.SHOP_NOT_FOUND, ErrorCode.SHOPS_FILE_UNREADABLE)
   @HttpCode(HttpStatus.OK)
   stop(@Param('key') key: string): Promise<DetectionStateDto> {
     return this.detectionService.stop(key);
   }
 
-  @Get('frame')
+  @Get(FRAME_ROUTE)
   @ApiProduces(FRAME_CONTENT_TYPE)
   @ApiOkResponse({ description: 'Latest frame', schema: { type: 'string', format: 'binary' } })
   @ApiDomainErrors(

@@ -1,33 +1,27 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { Platform } from '../../../common/enums/platform.enum';
 import { ResolveFailureCode } from '../enums/resolve-failure-code.enum';
-import { BackendPlayUrlResolver } from '../backend/backend-play-url.resolver';
 import { PLATFORM_RESOLVERS, PlatformResolver } from '../interfaces/platform-resolver.interface';
 import { ResolveRequest } from '../models/resolve-request.model';
-import { failed, ResolveResult } from '../models/resolve-result.model';
+import { cancelled, failed, ResolveResult } from '../models/resolve-result.model';
 
-/** Picks the resolver for a channel: the backend one when it carries a brandId (`source: backend`), else its platform's. */
+/** Hands a request to the first resolver that supports it: the backend resolver claims every request with a brandId, and each platform resolver refuses one. */
 @Injectable()
 export class ResolverService {
-  private readonly byPlatform: Map<Platform, PlatformResolver>;
+  constructor(@Inject(PLATFORM_RESOLVERS) private readonly resolvers: PlatformResolver[]) {}
 
-  constructor(
-    @Inject(PLATFORM_RESOLVERS) resolvers: PlatformResolver[],
-    private readonly backend: BackendPlayUrlResolver,
-  ) {
-    this.byPlatform = new Map(resolvers.map((resolver) => [resolver.platform, resolver]));
-  }
-
-  resolve(request: ResolveRequest): Promise<ResolveResult> {
-    if (request.brandId !== undefined) {
-      return this.backend.resolve(request);
-    }
-    const resolver = this.byPlatform.get(request.platform);
+  async resolve(request: ResolveRequest): Promise<ResolveResult> {
+    const resolver = this.resolvers.find((candidate) => candidate.supports(request));
     if (!resolver) {
-      return Promise.resolve(
-        failed(ResolveFailureCode.UNSUPPORTED, `no resolver for platform ${request.platform}`),
-      );
+      return failed(ResolveFailureCode.UNSUPPORTED, `no resolver for platform ${request.platform}`);
     }
-    return resolver.resolve(request);
+    let result: ResolveResult;
+    try {
+      result = await resolver.resolve(request);
+    } catch (error) {
+      if (request.signal?.aborted) return cancelled();
+      throw error;
+    }
+    // Whatever the resolver made of an aborted request, it says nothing about the channel.
+    return request.signal?.aborted && !result.ok ? cancelled() : result;
   }
 }

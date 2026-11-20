@@ -1,11 +1,14 @@
 import { Module } from '@nestjs/common';
 
-import { ShopsModule } from '../shops/shops.module';
+import { DetectionStateModule } from '../detection-state';
+import { DetectionModule } from '../detection';
+import { SettingsModule } from '../settings';
+import { ShopsModule } from '../shops';
 import { LayoutController } from './controllers/layout.controller';
 import { LayoutService } from './services/layout.service';
 
 @Module({
-  imports: [ShopsModule],
+  imports: [ShopsModule, DetectionStateModule, SettingsModule, DetectionModule],
   controllers: [LayoutController],
   providers: [LayoutService],
   exports: [LayoutService],

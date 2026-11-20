@@ -8,13 +8,13 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { appConfig } from './config/app.config';
 import { DataDirModule } from './config/data-dir.module';
 import { resolveDataDir } from './config/runtime-paths';
-import { BackendModule } from './modules/backend/backend.module';
-import { DetectionModule } from './modules/detection/detection.module';
-import { HealthModule } from './modules/health/health.module';
-import { LayoutModule } from './modules/layout/layout.module';
-import { MonitorModule } from './modules/monitor/monitor.module';
-import { ShopsModule } from './modules/shops/shops.module';
-import { WallModule } from './modules/wall/wall.module';
+import { BackendModule } from './modules/backend';
+import { DetectionModule } from './modules/detection';
+import { HealthModule } from './modules/health';
+import { LayoutModule } from './modules/layout';
+import { MonitorModule } from './modules/monitor';
+import { ShopsModule } from './modules/shops';
+import { WallModule } from './modules/wall';
 
 @Module({
   imports: [

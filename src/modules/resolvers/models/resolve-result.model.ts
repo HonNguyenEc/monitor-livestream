@@ -1,3 +1,4 @@
+import { MSG_CANCELLED } from '../constants/resolver.constants';
 import { ResolveFailureCode } from '../enums/resolve-failure-code.enum';
 
 export interface ResolveSuccess {
@@ -10,7 +11,7 @@ export interface ResolveSuccess {
 export interface ResolveFailure {
   ok: false;
   code: ResolveFailureCode;
-  /** Text of the form `<code>: <message>`, except details built with failedRaw. */
+  /** Text of the form `<code>: <message>`, except what failedRaw builds: the masked yt-dlp text of `ytdlp_failed` (which the TikTok resolver prefixes with why the room API failed) and the backend cache note. */
   detail: string;
 }
 
@@ -27,4 +28,9 @@ export function failed(code: ResolveFailureCode, message: string): ResolveFailur
 /** A failure whose detail is used as given; the caller owns masking and any prefix. */
 export function failedRaw(code: ResolveFailureCode, detail: string): ResolveFailure {
   return { ok: false, code, detail };
+}
+
+/** A resolve the caller aborted; it says nothing about the channel. */
+export function cancelled(): ResolveFailure {
+  return failed(ResolveFailureCode.CANCELLED, MSG_CANCELLED);
 }

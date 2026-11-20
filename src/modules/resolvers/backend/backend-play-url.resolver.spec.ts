@@ -1,5 +1,6 @@
 import { HttpStatus, Logger } from '@nestjs/common';
 
+import { FakeLoginState } from '../../../../test/helpers/fake-login-state';
 import { Platform } from '../../../common/enums/platform.enum';
 import { BackendApiClient } from '../../backend/clients/backend-api.client';
 import { BackendAnswerError } from '../../backend/errors/backend-answer.error';
@@ -7,7 +8,7 @@ import { BackendAuthError } from '../../backend/errors/backend-auth.error';
 import { BackendRequestError } from '../../backend/errors/backend-request.error';
 import { BackendSchedule } from '../../backend/models/backend-schedule.model';
 import { PlayUrlAnswer } from '../../backend/models/play-url-answer.model';
-import { BackendSessionService } from '../../backend/services/backend-session.service';
+import { BackendPlayUrlGateway } from '../../backend/services/backend-play-url.gateway';
 import { BackendSyncStore } from '../../backend/services/backend-sync-store.service';
 import { ResolveFailureCode } from '../enums/resolve-failure-code.enum';
 import { BackendPlayUrlResolver } from './backend-play-url.resolver';
@@ -48,25 +49,27 @@ function schedule(id: string, minutesFromNow: number, status = 'scheduled'): Bac
 }
 
 describe('BackendPlayUrlResolver', () => {
-  let session: { connected: boolean };
+  let session: FakeLoginState;
   let api: { playUrl: jest.Mock };
   let store: BackendSyncStore;
   let resolver: BackendPlayUrlResolver;
 
   const asked = (): string[] => api.playUrl.mock.calls.map((call) => call[1] as string);
+  const endLogin = (): void => {
+    session.relogin();
+    store.clear();
+  };
   const advance = (ms: number): void => jest.setSystemTime(Date.now() + ms);
 
   beforeEach(() => {
     jest.useFakeTimers({ now: new Date(2026, 0, 15, 12, 0, 0) });
     jest.spyOn(Logger.prototype, 'log').mockImplementation();
     jest.spyOn(Logger.prototype, 'warn').mockImplementation();
-    session = { connected: true };
+    session = new FakeLoginState();
     api = { playUrl: jest.fn().mockResolvedValue(offline()) };
-    store = new BackendSyncStore(session as BackendSessionService);
+    store = new BackendSyncStore(session);
     resolver = new BackendPlayUrlResolver(
-      session as BackendSessionService,
-      api as unknown as BackendApiClient,
-      store,
+      new BackendPlayUrlGateway(session, api as unknown as BackendApiClient, store),
     );
   });
 
@@ -369,9 +372,58 @@ describe('BackendPlayUrlResolver', () => {
     });
   });
 
+  describe('a cancelled resolve', () => {
+    it('is not cached, does not count as a failure and logs no warning', async () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const controller = new AbortController();
+      api.playUrl.mockImplementationOnce(() => {
+        controller.abort();
+        return Promise.reject(new Error('aborted'));
+      });
+
+      const cancelled = await resolver.resolve({ ...REQUEST, signal: controller.signal });
+      api.playUrl.mockResolvedValue(answer());
+      const next = await resolver.resolve(REQUEST);
+
+      expect(cancelled).toMatchObject({ ok: false, code: ResolveFailureCode.CANCELLED });
+      expect(next).toMatchObject({ ok: true });
+      expect(api.playUrl).toHaveBeenCalledTimes(2);
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('asks the backend nothing when the budget was spent waiting for the brand lock', async () => {
+      let release: (value: PlayUrlAnswer) => void = () => undefined;
+      api.playUrl.mockReturnValueOnce(new Promise((resolve) => (release = resolve)));
+      const first = resolver.resolve(REQUEST);
+      await jest.advanceTimersByTimeAsync(0);
+
+      const second = resolver.resolve({ ...REQUEST, timeoutMs: 1000 });
+      await jest.advanceTimersByTimeAsync(2000);
+      release(answer({ expiresAt: new Date(Date.now()).toISOString() }));
+      await first;
+
+      expect(await second).toMatchObject({ ok: false, code: ResolveFailureCode.BACKEND_ERROR });
+      expect(api.playUrl).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not ask the next session once the resolve was cancelled', async () => {
+      store.setBoard(new Map([[BRAND, [schedule('now', -5)]]]));
+      const controller = new AbortController();
+      api.playUrl.mockImplementation(() => {
+        controller.abort();
+        return Promise.reject(new Error('aborted'));
+      });
+
+      const result = await resolver.resolve({ ...REQUEST, signal: controller.signal });
+
+      expect(result).toMatchObject({ ok: false, code: ResolveFailureCode.CANCELLED });
+      expect(api.playUrl).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('cache lifetime', () => {
     it.each([
-      ['a logout or a new login', (): void => store.clear()],
+      ['a logout or a new login', (): void => endLogin()],
       ['a refused refresh', (): void => void (session.connected = false)],
     ])('drops every cached answer after %s', async (_case, reset) => {
       api.playUrl.mockResolvedValue(answer());
@@ -387,7 +439,7 @@ describe('BackendPlayUrlResolver', () => {
     });
 
     it.each([
-      ['a logout or a new login', (): void => store.clear()],
+      ['a logout or a new login', (): void => endLogin()],
       ['a refused refresh', (): void => void (session.connected = false)],
     ])('does not cache or record an answer that was in flight during %s', async (_case, reset) => {
       let release: (value: PlayUrlAnswer) => void = () => undefined;
@@ -423,7 +475,7 @@ describe('BackendPlayUrlResolver', () => {
       const first = resolver.resolve(REQUEST);
       await jest.advanceTimersByTimeAsync(0);
 
-      store.clear();
+      endLogin();
       const second = resolver.resolve(REQUEST);
       await jest.advanceTimersByTimeAsync(5 * SECOND);
       await Promise.all([first, second]);
