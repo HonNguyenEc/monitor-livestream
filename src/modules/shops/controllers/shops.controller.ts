@@ -25,24 +25,35 @@ export class ShopsController {
   constructor(private readonly shopsService: ShopsService) {}
 
   @Get()
+  @ApiDomainErrors(ErrorCode.SHOPS_FILE_UNREADABLE)
   list(): Promise<ShopListResponseDto> {
     return this.shopsService.list();
   }
 
   @Get(':key')
-  @ApiDomainErrors(ErrorCode.SHOP_NOT_FOUND)
+  @ApiDomainErrors(ErrorCode.SHOP_NOT_FOUND, ErrorCode.SHOPS_FILE_UNREADABLE)
   get(@Param('key') key: string): Promise<ShopDetailDto> {
     return this.shopsService.get(key);
   }
 
   @Post()
-  @ApiDomainErrors(ErrorCode.SHOP_ALREADY_EXISTS)
+  @ApiDomainErrors(
+    ErrorCode.SHOP_ALREADY_EXISTS,
+    ErrorCode.SHOPS_FILE_UNREADABLE,
+    ErrorCode.COOKIES_FILE_UNREADABLE,
+  )
   create(@Body() body: CreateShopDto): Promise<ShopDetailDto> {
     return this.shopsService.create(body);
   }
 
   @Put(':key')
-  @ApiDomainErrors(ErrorCode.SHOP_NOT_FOUND, ErrorCode.BACKEND_SHOP_READ_ONLY)
+  @ApiDomainErrors(
+    ErrorCode.SHOP_NOT_FOUND,
+    ErrorCode.BACKEND_SHOP_READ_ONLY,
+    ErrorCode.SHOP_ALREADY_EXISTS,
+    ErrorCode.SHOPS_FILE_UNREADABLE,
+    ErrorCode.COOKIES_FILE_UNREADABLE,
+  )
   update(@Param('key') key: string, @Body() body: UpdateShopDto): Promise<ShopDetailDto> {
     return this.shopsService.update(key, body);
   }
@@ -50,7 +61,11 @@ export class ShopsController {
   @Delete(':key')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
-  @ApiDomainErrors(ErrorCode.SHOP_NOT_FOUND, ErrorCode.BACKEND_SHOP_READ_ONLY)
+  @ApiDomainErrors(
+    ErrorCode.SHOP_NOT_FOUND,
+    ErrorCode.BACKEND_SHOP_READ_ONLY,
+    ErrorCode.SHOPS_FILE_UNREADABLE,
+  )
   remove(@Param('key') key: string): Promise<void> {
     return this.shopsService.remove(key);
   }

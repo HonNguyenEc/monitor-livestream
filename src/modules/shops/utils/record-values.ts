@@ -1,4 +1,4 @@
-import { DIGITS } from '../constants/shop-fields.constants';
+import { DIGITS } from '../../../common/constants/patterns.constants';
 
 export function optionalString(value: unknown): string | undefined {
   return (typeof value === 'string' || typeof value === 'number') && value !== ''
@@ -8,8 +8,6 @@ export function optionalString(value: unknown): string | undefined {
 
 // The Python tool accepts ids typed as digit strings, so hand-edited files may hold either form.
 export function optionalInteger(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isInteger(value)) {
-    return value;
-  }
-  return typeof value === 'string' && DIGITS.test(value) ? Number(value) : undefined;
+  const number = typeof value === 'string' && DIGITS.test(value) ? Number(value) : value;
+  return Number.isSafeInteger(number) ? (number as number) : undefined;
 }

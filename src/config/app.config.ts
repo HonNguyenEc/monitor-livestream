@@ -11,6 +11,7 @@ import {
   PACKAGE_JSON_FILE,
   UNKNOWN_VERSION,
 } from '../common/constants/app.constants';
+import { DIGITS } from '../common/constants/patterns.constants';
 import { PROJECT_ROOT } from './runtime-paths';
 
 export interface AppConfig {
@@ -43,17 +44,15 @@ function readPackageVersion(): string {
   return UNKNOWN_VERSION;
 }
 
-// Number() also reads "1e3" and "0x1F", so a typo would bind a port nobody configured.
-const DECIMAL_DIGITS = /^\d+$/;
-
-// An empty QC_PORT would become 0, which lets the OS pick a random port the admin cannot find.
+// A blank QC_PORT (an empty line in .env) falls back to the default instead of failing the range check.
 function parsePort(raw: string | undefined): number {
   const value = raw?.trim();
   if (!value) {
     return DEFAULT_QC_PORT;
   }
   const port = Number(value);
-  if (!DECIMAL_DIGITS.test(value) || port < MIN_PORT || port > MAX_PORT) {
+  // Number() also reads "1e3" and "0x1F", so a typo would bind a port nobody configured.
+  if (!DIGITS.test(value) || port < MIN_PORT || port > MAX_PORT) {
     throw new Error(`QC_PORT must be an integer between ${MIN_PORT} and ${MAX_PORT}, got "${raw}"`);
   }
   return port;

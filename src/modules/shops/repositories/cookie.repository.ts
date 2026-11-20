@@ -1,6 +1,10 @@
 import { join } from 'node:path';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
+import { ErrorCode } from '../../../common/constants/error-codes.constants';
+import { ErrorMessage } from '../../../common/constants/error-messages.constants';
+import { DomainException } from '../../../common/exceptions/domain.exception';
+import { fsErrorSummary } from '../../../common/fs/fs-error';
 import { readJsonFile, writeJsonFileAtomic } from '../../../common/fs/json-file';
 import { isPlainObject } from '../../../common/utils/is-plain-object';
 import { DATA_DIR } from '../../../config/data-dir.module';
@@ -17,18 +21,33 @@ export class CookieRepository {
     this.path = join(dataDir, COOKIES_FILE);
   }
 
-  // Like the Python tool, an unreadable file counts as empty: the shops then show no stored cookie.
+  // Only a missing file is empty. Callers write the result back, so an unreadable file must fail
+  // instead of letting the next save replace every stored cookie.
   async load(): Promise<CookieStore> {
+    let parsed: unknown;
     try {
-      const parsed = await readJsonFile(this.path);
-      return isPlainObject(parsed) ? parsed : {};
+      parsed = await readJsonFile(this.path);
     } catch (error) {
-      this.logger.warn(`Cannot read ${COOKIES_FILE}: ${(error as Error).name}`);
+      this.logger.warn(`Cannot read ${COOKIES_FILE}: ${fsErrorSummary(error)}`);
+      throw unreadable();
+    }
+    if (parsed === undefined) {
       return {};
     }
+    if (!isPlainObject(parsed)) {
+      throw unreadable();
+    }
+    return parsed;
   }
 
   save(cookies: CookieStore): Promise<void> {
     return writeJsonFileAtomic(this.path, cookies, COOKIES_FILE_INDENT);
   }
+}
+
+function unreadable(): DomainException {
+  return new DomainException(
+    ErrorCode.COOKIES_FILE_UNREADABLE,
+    ErrorMessage.dataFileUnreadable(COOKIES_FILE),
+  );
 }

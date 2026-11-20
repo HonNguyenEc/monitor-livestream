@@ -14,7 +14,7 @@ export class ShopRowDto {
   message: string | null;
   checked_at: string | null;
   live_since: string | null;
-  /** Path from the host root with a `t` query that changes on every new frame; null until the first frame. */
+  /** Always null for local shops until detection captures frames. */
   frame_url: string | null;
   cookie_set: boolean;
 }

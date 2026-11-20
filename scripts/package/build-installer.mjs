@@ -22,8 +22,8 @@ const ISCC_CANDIDATES = [
   process.env.ProgramFiles && join(process.env.ProgramFiles, INNO_FOLDER, ISCC_EXE),
 ].filter(Boolean);
 const JSON_INDENT = 2;
-// Mirrors livestream-backend's LIVE_QC_INSTALLER_FILE_NAME_PATTERN and _MAX_LENGTH: it rejects a
-// latest.json whose file_name breaks them.
+// Mirrors livestream-backend's LIVE_QC_INSTALLER_FILE_NAME_PATTERN and _MAX_LENGTH, which reject an
+// installer file name that breaks them; checked here on the installer file name before it is built.
 const PUBLISHABLE_FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._ -]*$/;
 const MAX_FILE_NAME_LENGTH = 255;
 

@@ -17,6 +17,7 @@ export const LOG_FILE = 'live-qc.log';
 export const ROTATED_LOG_SUFFIX = '.1';
 export const LOG_FILE_LOG_CONTEXT = 'LogFile';
 export const MAX_LOG_BYTES = 5 * 1024 * 1024;
+export const LOG_ROTATION_RETRY_MS = 60_000;
 export const FATAL_EXIT_CODE = 1;
 export const FATAL_LOG_CONTEXT = 'Fatal';
 export const UNCAUGHT_EXCEPTION_MESSAGE = 'Uncaught exception';

@@ -7,7 +7,7 @@ export class StartMonitorDto {
   @IsEnum(Platform, { each: true })
   platforms: Platform[];
 
-  /** Limit monitoring to these shops. Every start replaces the monitored set; omitting keys means every shop of `platforms`. */
+  /** Limit monitoring to these shops. Every start replaces the monitored set; omitting keys means every shop of `platforms`, while `[]` monitors none. */
   @IsOptional()
   @IsArray()
   @IsString({ each: true })

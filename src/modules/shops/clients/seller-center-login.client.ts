@@ -1,51 +1,43 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 
-import { DIGITS } from '../constants/shop-fields.constants';
-import {
-  COOKIE_HEADER,
-  SELLER_CENTER_HEADERS,
-  SELLER_CENTER_LOGIN_URL,
-  SELLER_CENTER_TIMEOUT_MS,
-} from './seller-center-login.constants';
+import { JsonResponse } from '../../../common/http/get-json';
+import { isLoginOutage } from '../../../common/shopee/login-outage';
+import { fetchSellerCenterLogin } from '../../../common/shopee/seller-center-login';
+import { SELLER_CENTER_TIMEOUT_MS } from '../../../common/shopee/seller-center.constants';
+import { toSafeId } from '../../../common/utils/to-safe-id';
+import { MSG_SELLER_CENTER_NO_ANSWER, msgSellerCenterAnswered } from '../constants/shops.constants';
+import { SellerCenterUnavailableError } from '../errors/seller-center-unavailable.error';
 import { SellerAccount } from '../models/seller-account.model';
-import { isPlainObject } from '../../../common/utils/is-plain-object';
-import { isPythonTruthy, pythonStr } from '../utils/python-values';
 
-/** Seller Center login check with a shop's own cookie; the live and session calls belong to the resolvers. */
+/** Login check of a shop's own cookie (the same call as seller_center_account in livestream_qc/resolvers.py). */
 @Injectable()
 export class SellerCenterLoginClient {
   /**
-   * The account behind `cookie`, or null when Seller Center rejects it; network failures throw.
-   * Same reading as seller_center_account in resolvers.py.
+   * The account behind `cookie`, or null when Seller Center answers without one (expired or wrong cookie).
+   * Throws SellerCenterUnavailableError for a network failure, a timeout, 5xx, 429 or a 200 whose body
+   * is not JSON, so an outage is not reported as a rejected cookie.
    */
   async account(cookie: string): Promise<SellerAccount | null> {
-    const response = await fetch(SELLER_CENTER_LOGIN_URL, {
-      headers: { ...SELLER_CENTER_HEADERS, [COOKIE_HEADER]: cookie },
-      signal: AbortSignal.timeout(SELLER_CENTER_TIMEOUT_MS),
-    });
-    const body = await response.text();
-    if (response.status !== HttpStatus.OK) {
+    const { status, data, invalidBody } = await this.fetchLogin(cookie);
+    if (isLoginOutage(status, invalidBody)) {
+      throw new SellerCenterUnavailableError(msgSellerCenterAnswered(status));
+    }
+    const userId = status === HttpStatus.OK ? toSafeId(data.id) : null;
+    if (userId === null) {
       return null;
     }
-    const data = parseObject(body);
-    const userId = isPythonTruthy(data.id) ? pythonStr(data.id) : '';
-    if (!DIGITS.test(userId)) {
-      return null;
-    }
-    const shopId = isPythonTruthy(data.shopid) ? pythonStr(data.shopid) : '';
     return {
-      user_id: Number(userId),
-      shop_id: DIGITS.test(shopId) ? Number(shopId) : null,
+      user_id: userId,
+      shop_id: toSafeId(data.shopid),
       username: typeof data.username === 'string' ? data.username : '',
     };
   }
-}
 
-function parseObject(body: string): Record<string, unknown> {
-  try {
-    const parsed: unknown = JSON.parse(body);
-    return isPlainObject(parsed) ? parsed : {};
-  } catch {
-    return {};
+  private async fetchLogin(cookie: string): Promise<JsonResponse> {
+    try {
+      return await fetchSellerCenterLogin(cookie, SELLER_CENTER_TIMEOUT_MS);
+    } catch (error) {
+      throw new SellerCenterUnavailableError(MSG_SELLER_CENTER_NO_ANSWER, { cause: error });
+    }
   }
 }

@@ -1,7 +1,8 @@
 import { PYTHON_FALSE, PYTHON_NONE, PYTHON_TRUE } from '../constants/shops.constants';
 
 // Shop keys must match what the Python tool derives from the same shops.json, so its truthiness
-// and str() rules apply: an empty list or object is falsy, and a missing value prints as "None".
+// rules apply (an empty list or object is falsy) and str() is followed for None, booleans, integers
+// and strings. A float id such as 12.0 keys differently here; ids are integers in practice.
 export function isPythonTruthy(value: unknown): boolean {
   if (Array.isArray(value)) {
     return value.length > 0;

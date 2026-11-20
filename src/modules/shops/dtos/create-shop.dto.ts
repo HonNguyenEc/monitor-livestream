@@ -39,11 +39,12 @@ export class CreateShopDto {
   @IsPositive()
   shop_id?: number;
 
+  /** TikTok: an http(s) URL. Shopee: an https URL on shopee.vn or shp.ee. */
   @IsOptional()
   @IsUrl({ protocols: URL_PROTOCOLS, require_protocol: true })
   live_url?: string;
 
-  /** Raw `cookie` header of a banhang.shopee.vn request, required for Shopee shops. On update, omit it to keep the stored cookie. */
+  /** Raw `cookie` header of a banhang.shopee.vn request, required for Shopee shops. */
   @ValidateIf(
     (shop: CreateShopDto) => shop.platform === Platform.SHOPEE || shop.cookie !== undefined,
   )

@@ -25,7 +25,8 @@ const { SWAGGER_UI_FOLDER } = require(join(ROOT, 'dist', 'openapi', 'openapi.con
 const SEA_RESOURCE = 'NODE_SEA_BLOB';
 const SEA_FUSE = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2';
 
-// Nest requires these lazily inside try/catch. None is installed, so a run from source skips them too.
+// Nest requires these lazily inside try/catch. None resolves (class-transformer is installed but has no
+// `storage` subpath), so a run from source skips them too.
 const OPTIONAL_PACKAGES = [
   '@fastify/view',
   '@nestjs/microservices',

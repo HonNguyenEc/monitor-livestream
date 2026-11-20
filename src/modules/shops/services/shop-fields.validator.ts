@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 
 import { ErrorCode } from '../../../common/constants/error-codes.constants';
+import { DIGITS } from '../../../common/constants/patterns.constants';
 import { Platform } from '../../../common/enums/platform.enum';
 import { DomainException } from '../../../common/exceptions/domain.exception';
+import { isAllowedShopeeUrl } from '../../../common/shopee/shopee-url-policy';
 import {
-  DIGITS,
   INTEGER_FIELDS,
   LIVE_URL_PREFIXES,
   PLATFORM_EXTRA_INPUTS,
@@ -21,7 +22,7 @@ import { ShopRecord } from '../models/shop-record.model';
 /** validate_shop of the Python tool: the stored fields of one shop, cleaned per platform. */
 @Injectable()
 export class ShopFieldsValidator {
-  /** A request may only carry the fields its platform stores, so a typo never vanishes silently. */
+  /** A request may only carry the fields its platform stores plus its request-only inputs, so a typo never vanishes silently. */
   rejectForeignFields(platform: Platform, request: object): void {
     const allowed = [
       PLATFORM_FIELD,
@@ -34,6 +35,12 @@ export class ShopFieldsValidator {
     if (foreign.length > 0) {
       throw invalid(ErrorMessage.fieldsNotForPlatform(platform, foreign));
     }
+  }
+
+  /** The rule for a live_url the request supplies; stored values only keep the generic http(s) check in clean. */
+  assertSuppliedLiveUrl(platform: Platform, liveUrl: unknown): void {
+    if (typeof liveUrl !== 'string' || !liveUrl.trim()) return;
+    assertLiveUrl(platform, liveUrl.trim());
   }
 
   // Values are trimmed and blanks dropped as in Python, so ids typed as digit strings become numbers.
@@ -54,11 +61,29 @@ export class ShopFieldsValidator {
     const liveUrl = shop[ShopField.LIVE_URL];
     if (
       typeof liveUrl === 'string' &&
-      !LIVE_URL_PREFIXES.some((prefix) => liveUrl.startsWith(prefix))
+      !LIVE_URL_PREFIXES.some((prefix) => liveUrl.toLowerCase().startsWith(prefix))
     ) {
       throw invalid(ErrorMessage.liveUrlScheme);
     }
     return shop;
+  }
+}
+
+// Shopee links are fetched with the shop's cookie, so a supplied one must pass the shared Shopee policy.
+function assertLiveUrl(platform: Platform, liveUrl: string): void {
+  if (platform === Platform.SHOPEE) {
+    const parsed = parseUrl(liveUrl);
+    if (!parsed || !isAllowedShopeeUrl(parsed)) {
+      throw invalid(ErrorMessage.shopeeLiveUrlNotAllowed);
+    }
+  }
+}
+
+function parseUrl(value: string): URL | null {
+  try {
+    return new URL(value);
+  } catch {
+    return null;
   }
 }
 

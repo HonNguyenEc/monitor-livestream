@@ -14,12 +14,12 @@ export class LayoutSettingsDto {
   @IsInt()
   y: number;
 
-  /** 0 together with height 0 means the full screen work area. */
+  /** 0 for width or height means the full screen work area. */
   @IsInt()
   @Min(0)
   width: number;
 
-  /** 0 together with width 0 means the full screen work area. */
+  /** 0 for width or height means the full screen work area. */
   @IsInt()
   @Min(0)
   height: number;

@@ -25,7 +25,7 @@ export class WallService {
   }
 
   async refresh(key: string): Promise<WallRefreshResponseDto> {
-    await this.shopsService.get(key);
+    await this.shopsService.assertExists(key);
     return { url: SAMPLE_STREAM_URL };
   }
 }

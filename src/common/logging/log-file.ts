@@ -5,6 +5,7 @@ import { ConsoleLogger } from '@nestjs/common';
 import {
   LOG_FILE,
   LOG_FILE_LOG_CONTEXT,
+  LOG_ROTATION_RETRY_MS,
   MAX_LOG_BYTES,
   ROTATED_LOG_SUFFIX,
 } from '../constants/app.constants';
@@ -15,10 +16,12 @@ const APPEND_FLAG = 'a';
 export class LogFile {
   private fd: number | null;
   private rotationEnabled = false;
+  private nextRotationAt = 0;
 
   constructor(
     readonly path: string,
     private readonly maxBytes = MAX_LOG_BYTES,
+    private readonly now: () => number = Date.now,
   ) {
     this.fd = openSync(path, APPEND_FLAG);
   }
@@ -27,7 +30,11 @@ export class LogFile {
     try {
       this.fd ??= openSync(this.path, APPEND_FLAG);
       writeSync(this.fd, typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
-      if (this.rotationEnabled && fstatSync(this.fd).size > this.maxBytes) {
+      if (
+        this.rotationEnabled &&
+        this.now() >= this.nextRotationAt &&
+        fstatSync(this.fd).size > this.maxBytes
+      ) {
         this.rotate(this.fd);
       }
     } catch {
@@ -48,7 +55,8 @@ export class LogFile {
     try {
       renameSync(this.path, `${this.path}${ROTATED_LOG_SUFFIX}`);
     } catch {
-      // A locked rotated file must not take the service down; the next write retries.
+      // A locked rotated file must not take the service down, nor cost a rename on every line.
+      this.nextRotationAt = this.now() + LOG_ROTATION_RETRY_MS;
     }
   }
 }

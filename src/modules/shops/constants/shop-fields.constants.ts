@@ -11,6 +11,7 @@ export const ShopField = {
 export type ShopField = (typeof ShopField)[keyof typeof ShopField];
 
 export const PLATFORM_FIELD = 'platform';
+export const BRAND_ID_FIELD = 'brand_id';
 export const COOKIE_FIELD = 'cookie';
 
 // Same fields and order as FIELDS in livestream_qc/shop_store.py.
@@ -37,4 +38,3 @@ export const MANAGED_FIELDS: readonly string[] = [PLATFORM_FIELD, ...Object.valu
 
 export const LIVE_URL_PREFIXES = ['http://', 'https://'];
 export const USERNAME_PREFIX = /^@+/;
-export const DIGITS = /^\d+$/;

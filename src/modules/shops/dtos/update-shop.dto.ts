@@ -34,6 +34,7 @@ export class UpdateShopDto {
   @IsPositive()
   shop_id?: number | null;
 
+  /** TikTok: an http(s) URL. Shopee: an https URL on shopee.vn or shp.ee. */
   @IsOptional()
   @IsUrl({ protocols: URL_PROTOCOLS, require_protocol: true })
   live_url?: string | null;

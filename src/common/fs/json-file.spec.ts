@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { EOL, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -49,5 +49,14 @@ describe('json-file', () => {
     await writeJsonFileAtomic(path, { new: true }, 2);
 
     expect(await readJsonFile(path)).toEqual({ new: true });
+  });
+
+  it('leaves no temp file behind when the target cannot be replaced', async () => {
+    const path = join(dir, 'a.json');
+    await mkdir(path);
+
+    await expect(writeJsonFileAtomic(path, { a: 1 }, 2)).rejects.toThrow();
+
+    expect(await readdir(dir)).toEqual(['a.json']);
   });
 });

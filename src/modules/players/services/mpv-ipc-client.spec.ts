@@ -1,5 +1,6 @@
 import { createServer, Server, Socket } from 'node:net';
 
+import { MPV_IPC_MAX_BUFFER_CHARS } from '../constants/players.constants';
 import { MpvIpcError, MpvIpcErrorCode } from '../errors/mpv-ipc.error';
 import { MpvIpcClient, MpvIpcOptions, mpvPipePath } from './mpv-ipc-client';
 
@@ -180,6 +181,96 @@ describe('MpvIpcClient', () => {
 
     expect(error).toBeInstanceOf(MpvIpcError);
     expect(error).toMatchObject({ code: MpvIpcErrorCode.CLOSED });
+  });
+
+  it('shares one connection between repeated connect calls', async () => {
+    const path = uniquePipe();
+    let connections = 0;
+    server = await startFakeMpv(path, () => undefined);
+    server.on('connection', () => (connections += 1));
+    client = new MpvIpcClient(path, FAST);
+
+    await Promise.all([client.connect(), client.connect()]);
+    await client.connect();
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(connections).toBe(1);
+  });
+
+  it('reconnects after the pipe closes', async () => {
+    const path = uniquePipe();
+    let connections = 0;
+    server = await startFakeMpv(path, (request, socket) =>
+      reply(socket, request, { error: 'success', data: 7 }),
+    );
+    server.on('connection', () => (connections += 1));
+    client = new MpvIpcClient(path, FAST);
+    await client.connect();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    serverSockets.forEach((socket) => socket.destroy());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    await client.connect();
+
+    expect(await client.framesShown()).toBe(7);
+    expect(connections).toBe(2);
+  });
+
+  it('drops a partial line of the closed pipe before reading the new one', async () => {
+    const path = uniquePipe();
+    server = await startFakeMpv(path, (request, socket) =>
+      reply(socket, request, { error: 'success', data: 9 }),
+    );
+    server.once('connection', (socket) => {
+      socket.write('{"event":"pro');
+      setTimeout(() => socket.destroy(), 20);
+    });
+    client = new MpvIpcClient(path, FAST);
+    await client.connect();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    await client.connect();
+
+    expect(await client.framesShown()).toBe(9);
+  });
+
+  it('can connect again after a connect attempt timed out', async () => {
+    const path = uniquePipe();
+    client = new MpvIpcClient(path, { ...FAST, connectTimeoutMs: 60 });
+    await expect(client.connect()).rejects.toMatchObject({ code: MpvIpcErrorCode.CONNECT_TIMEOUT });
+    server = await startFakeMpv(path, (request, socket) =>
+      reply(socket, request, { error: 'success', data: 3 }),
+    );
+
+    await client.connect();
+
+    expect(await client.framesShown()).toBe(3);
+  });
+
+  it('answers replies that arrive in the same chunk as an oversized partial line', async () => {
+    const path = uniquePipe();
+    server = await startFakeMpv(path, (request, socket) =>
+      socket.write(
+        JSON.stringify({ request_id: request.request_id, error: 'success', data: 5 }) +
+          '\n' +
+          'x'.repeat(MPV_IPC_MAX_BUFFER_CHARS + 1),
+      ),
+    );
+    client = new MpvIpcClient(path, FAST);
+    await client.connect();
+
+    expect(await client.framesShown()).toBe(5);
+  });
+
+  it('drops the connection when a reply line outgrows the buffer limit', async () => {
+    const path = uniquePipe();
+    server = await startFakeMpv(path, (_request, socket) =>
+      socket.write('x'.repeat(MPV_IPC_MAX_BUFFER_CHARS + 1)),
+    );
+    client = new MpvIpcClient(path, FAST);
+    await client.connect();
+
+    await expect(client.framesShown()).rejects.toMatchObject({ code: MpvIpcErrorCode.CLOSED });
   });
 
   it('rejects requests after close', async () => {

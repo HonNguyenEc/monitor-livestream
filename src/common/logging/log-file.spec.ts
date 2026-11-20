@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { LOG_FILE, ROTATED_LOG_SUFFIX } from '../constants/app.constants';
+import { LOG_FILE, LOG_ROTATION_RETRY_MS, ROTATED_LOG_SUFFIX } from '../constants/app.constants';
 import { LogFile, redirectOutputToLogFile } from './log-file';
 
 const MAX_BYTES = 10;
@@ -56,9 +56,10 @@ describe('log file', () => {
     describe('when the file system fails', () => {
       afterEach(() => jest.restoreAllMocks());
 
-      it('keeps writing to the current file while the rotated file is locked, then rotates', () => {
+      it('keeps writing while the rotated file is locked and retries the rotation later', () => {
         const logPath = newLogPath();
-        const logFile = new LogFile(logPath, MAX_BYTES);
+        let now = 0;
+        const logFile = new LogFile(logPath, MAX_BYTES, () => now);
         logFile.enableRotation();
         const rename = jest.spyOn(fs, 'renameSync').mockImplementationOnce(() => {
           throw new Error('EBUSY');
@@ -66,10 +67,14 @@ describe('log file', () => {
 
         logFile.write('x'.repeat(MAX_BYTES + 1));
         logFile.write('y');
+        expect(rename).toHaveBeenCalledTimes(1);
+
+        now = LOG_ROTATION_RETRY_MS;
+        logFile.write('z');
 
         expect(rename).toHaveBeenCalledTimes(2);
         expect(readFileSync(`${logPath}${ROTATED_LOG_SUFFIX}`, 'utf8')).toBe(
-          `${'x'.repeat(MAX_BYTES + 1)}y`,
+          `${'x'.repeat(MAX_BYTES + 1)}yz`,
         );
       });
 

@@ -30,6 +30,8 @@ export const MPV_IPC_CONNECT_TIMEOUT_MS = 10_000;
 export const MPV_IPC_CONNECT_RETRY_MS = 250;
 // Same budget as the Python tool's IPC_TIMEOUT.
 export const MPV_IPC_REQUEST_TIMEOUT_MS = 3_000;
+// mpv replies are one short line; a longer unterminated line means a broken peer.
+export const MPV_IPC_MAX_BUFFER_CHARS = 1024 * 1024;
 export const MPV_IPC_SUCCESS = 'success';
 export const MPV_PROPERTY_FRAME_NUMBER = 'estimated-frame-number';
 export const MPV_COMMAND_GET_PROPERTY = 'get_property';

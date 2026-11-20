@@ -15,7 +15,6 @@ import { SAMPLE_BACKEND_DETAILS, SAMPLE_BACKEND_ROWS } from '../fixtures/shop.fi
 import { VerifiedCookie } from '../models/seller-account.model';
 import { ShopRecord, ShopsDocument } from '../models/shop-record.model';
 import { StoredShop } from '../models/stored-shop.model';
-import { CookieRepository } from '../repositories/cookie.repository';
 import { ShopRepository } from '../repositories/shop.repository';
 import { inputFromCreate, inputFromUpdate, withUnknownFields } from '../utils/shop-input';
 import { shopKey } from '../utils/shop-identity';
@@ -25,7 +24,6 @@ import { SellerAccountService } from './seller-account.service';
 import { ShopCookieService } from './shop-cookie.service';
 import { ShopFieldsValidator } from './shop-fields.validator';
 
-// Backend channels stay sample data until the backend sync lands.
 @Injectable()
 export class ShopsService {
   // Every read-modify-write of shops.json runs under this lock, as the Python tool's _write_lock.
@@ -33,7 +31,6 @@ export class ShopsService {
 
   constructor(
     private readonly shopRepository: ShopRepository,
-    private readonly cookieRepository: CookieRepository,
     private readonly validator: ShopFieldsValidator,
     private readonly sellerAccounts: SellerAccountService,
     private readonly shopCookies: ShopCookieService,
@@ -42,7 +39,7 @@ export class ShopsService {
   async list(): Promise<ShopListResponseDto> {
     const [document, cookies] = await Promise.all([
       this.shopRepository.load(),
-      this.cookieRepository.load(),
+      this.shopCookies.peek(),
     ]);
     const local = storedShops(document).map((shop) => toShopRow(shop, cookies));
     return { items: [...local, ...SAMPLE_BACKEND_ROWS] };
@@ -51,7 +48,7 @@ export class ShopsService {
   async get(key: string): Promise<ShopDetailDto> {
     const [document, cookies] = await Promise.all([
       this.shopRepository.load(),
-      this.cookieRepository.load(),
+      this.shopCookies.peek(),
     ]);
     const local = findStoredShop(storedShops(document), key);
     if (local) {
@@ -64,8 +61,16 @@ export class ShopsService {
     return backend;
   }
 
+  async assertExists(key: string): Promise<void> {
+    const document = await this.shopRepository.load();
+    if (!findStoredShop(storedShops(document), key) && !isSampleBackend(key)) {
+      throw notFound(key);
+    }
+  }
+
   async create(body: CreateShopDto): Promise<ShopDetailDto> {
     this.validator.rejectForeignFields(body.platform, body);
+    this.validator.assertSuppliedLiveUrl(body.platform, body.live_url);
     const shop = this.validator.clean(body.platform, inputFromCreate(body));
     // Seller Center is called before taking the lock, so a slow login check never blocks other edits.
     const verified =
@@ -83,6 +88,7 @@ export class ShopsService {
   async update(key: string, body: UpdateShopDto): Promise<ShopDetailDto> {
     const before = editableShop(storedShops(await this.shopRepository.load()), key);
     this.validator.rejectForeignFields(before.platform, body);
+    this.validator.assertSuppliedLiveUrl(before.platform, body.live_url);
     const verified =
       body.cookie === undefined ? null : await this.sellerAccounts.verify(body.cookie);
     return this.writeLock.run(async () => {
@@ -94,7 +100,7 @@ export class ShopsService {
       if (verified) {
         this.sellerAccounts.applyAccount(shop, verified.account);
       } else if (current.platform === Platform.SHOPEE) {
-        const cookies = await this.cookieRepository.load();
+        const cookies = await this.shopCookies.load();
         this.sellerAccounts.keepStoredAccount(shop, current.record, cookies);
       }
       const saved = this.place(document, shop, current);
@@ -117,22 +123,28 @@ export class ShopsService {
     });
   }
 
-  /** Writes shops.json first, then the cookie, in the Python tool's order. */
+  /**
+   * Stores the cookie before shops.json: a failed cookie write leaves both files as they were, and a
+   * failed shops.json write puts the previous cookie back.
+   */
   private async save(
     document: ShopsDocument,
     saved: StoredShop,
     verified: VerifiedCookie | null,
     previousUserId: unknown,
   ): Promise<ShopDetailDto> {
-    await this.shopRepository.save(document);
-    const cookies = verified
-      ? await this.shopCookies.remember(
-          verified.cookie,
-          saved.record[ShopField.USER_ID],
-          previousUserId,
-          document.shops,
-        )
-      : await this.cookieRepository.load();
+    const userId = saved.record[ShopField.USER_ID];
+    const remembered = verified ? await this.shopCookies.remember(verified.cookie, userId) : null;
+    const cookies = remembered?.cookies ?? (await this.shopCookies.peek());
+    try {
+      await this.shopRepository.save(document);
+    } catch (error) {
+      await remembered?.undo();
+      throw error;
+    }
+    if (verified && previousUserId !== userId) {
+      await this.shopCookies.forgetUnused(previousUserId, document.shops);
+    }
     return toShopDetail(saved, cookies);
   }
 

@@ -6,12 +6,14 @@ import {
   MPV_COMMAND_SCREENSHOT_TO_FILE,
   MPV_IPC_CONNECT_RETRY_MS,
   MPV_IPC_CONNECT_TIMEOUT_MS,
+  MPV_IPC_MAX_BUFFER_CHARS,
   MPV_IPC_REQUEST_TIMEOUT_MS,
   MPV_IPC_SUCCESS,
   MPV_PIPE_PREFIX,
   MPV_PROPERTY_FRAME_NUMBER,
   MPV_SCREENSHOT_FLAGS,
 } from '../constants/players.constants';
+import { MpvIpcMessage } from '../constants/mpv-ipc-messages.constants';
 import { MpvIpcError, MpvIpcErrorCode } from '../errors/mpv-ipc.error';
 
 const LINE_SEPARATOR = '\n';
@@ -50,6 +52,7 @@ export class MpvIpcClient {
   private buffer = '';
   private nextRequestId = 1;
   private closed = false;
+  private connecting: Promise<void> | null = null;
   private readonly pending = new Map<number, PendingRequest>();
 
   constructor(
@@ -58,7 +61,15 @@ export class MpvIpcClient {
   ) {}
 
   // mpv creates its pipe a moment after launch, so early attempts fail with ENOENT.
-  async connect(): Promise<void> {
+  connect(): Promise<void> {
+    if (this.socket) return Promise.resolve();
+    this.connecting ??= this.connectWithRetry().finally(() => {
+      this.connecting = null;
+    });
+    return this.connecting;
+  }
+
+  private async connectWithRetry(): Promise<void> {
     const deadline = Date.now() + this.options.connectTimeoutMs;
     while (!this.closed) {
       let socket: Socket;
@@ -68,7 +79,7 @@ export class MpvIpcClient {
         if (Date.now() + this.options.connectRetryMs > deadline) {
           throw new MpvIpcError(
             MpvIpcErrorCode.CONNECT_TIMEOUT,
-            `mpv pipe unreachable: ${this.pipePath}`,
+            MpvIpcMessage.pipeUnreachable(this.pipePath),
           );
         }
         await delay(this.options.connectRetryMs);
@@ -81,21 +92,19 @@ export class MpvIpcClient {
       this.attach(socket);
       return;
     }
-    throw new MpvIpcError(MpvIpcErrorCode.CLOSED, 'mpv IPC client closed while connecting');
+    throw new MpvIpcError(MpvIpcErrorCode.CLOSED, MpvIpcMessage.closedWhileConnecting);
   }
 
   command(args: unknown[]): Promise<MpvReply> {
     const socket = this.socket;
     if (!socket || socket.destroyed) {
-      return Promise.reject(new MpvIpcError(MpvIpcErrorCode.CLOSED, 'mpv IPC is not connected'));
+      return Promise.reject(new MpvIpcError(MpvIpcErrorCode.CLOSED, MpvIpcMessage.notConnected));
     }
     const requestId = this.nextRequestId++;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId);
-        reject(
-          new MpvIpcError(MpvIpcErrorCode.REQUEST_TIMEOUT, `mpv did not answer ${String(args[0])}`),
-        );
+        reject(new MpvIpcError(MpvIpcErrorCode.REQUEST_TIMEOUT, MpvIpcMessage.noAnswer(args[0])));
       }, this.options.requestTimeoutMs);
       this.pending.set(requestId, { resolve, reject, timer });
       socket.write(JSON.stringify({ command: args, request_id: requestId }) + LINE_SEPARATOR);
@@ -132,7 +141,14 @@ export class MpvIpcClient {
     socket.on('data', (chunk: string) => this.onData(chunk));
     // 'close' always follows 'error'; pending requests are failed there.
     socket.on('error', () => undefined);
-    socket.on('close', () => this.failPending());
+    socket.on('close', () => {
+      if (this.socket === socket) {
+        this.socket = null;
+        // A partial line of this pipe would corrupt the first reply of the next connection.
+        this.buffer = '';
+      }
+      this.failPending();
+    });
   }
 
   // Event notifications share the pipe; only replies carry one of our request ids.
@@ -150,12 +166,16 @@ export class MpvIpcClient {
         request.resolve(reply);
       }
     }
+    if (this.buffer.length > MPV_IPC_MAX_BUFFER_CHARS) {
+      this.buffer = '';
+      this.socket?.destroy(new Error(MpvIpcMessage.replyTooLong));
+    }
   }
 
   private failPending(): void {
     for (const request of this.pending.values()) {
       clearTimeout(request.timer);
-      request.reject(new MpvIpcError(MpvIpcErrorCode.CLOSED, 'mpv IPC connection closed'));
+      request.reject(new MpvIpcError(MpvIpcErrorCode.CLOSED, MpvIpcMessage.connectionClosed));
     }
     this.pending.clear();
   }

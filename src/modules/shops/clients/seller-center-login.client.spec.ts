@@ -1,11 +1,12 @@
 import { HttpStatus } from '@nestjs/common';
 
-import { SELLER_CENTER_LOGIN_URL } from './seller-center-login.constants';
+import { SELLER_CENTER_LOGIN_URL } from '../../../common/shopee/seller-center.constants';
 import {
   LOGIN_EXPIRED,
   LOGIN_OK,
   LOGIN_WITHOUT_SHOP,
 } from './fixtures/seller-center-login.fixtures';
+import { SellerCenterUnavailableError } from '../errors/seller-center-unavailable.error';
 import { SellerCenterLoginClient } from './seller-center-login.client';
 
 const COOKIE = 'SPC_SC_SESSION=fake';
@@ -37,7 +38,7 @@ describe('SellerCenterLoginClient', () => {
     });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(SELLER_CENTER_LOGIN_URL);
-    expect(init.headers).toMatchObject({ cookie: COOKIE, referer: 'https://banhang.shopee.vn/' });
+    expect(init.headers).toMatchObject({ Cookie: COOKIE, referer: 'https://banhang.shopee.vn/' });
   });
 
   it('accepts a digit-string id and reports no shop for shopid 0', async () => {
@@ -53,16 +54,35 @@ describe('SellerCenterLoginClient', () => {
   it.each([
     ['an error body', HttpStatus.OK, LOGIN_EXPIRED],
     ['a 403', HttpStatus.FORBIDDEN, LOGIN_OK],
-    ['a body that is not JSON', HttpStatus.OK, '<html></html>'],
+    ['a user id beyond the safe integer range', HttpStatus.OK, { id: '99999999999999999999' }],
   ])('treats %s as a rejected cookie', async (_case, status, body) => {
     answer(status, body);
 
     expect(await client.account(COOKIE)).toBeNull();
   });
 
-  it('lets a network failure through', async () => {
+  it.each([
+    ['a 503', HttpStatus.SERVICE_UNAVAILABLE, ''],
+    ['a 429', HttpStatus.TOO_MANY_REQUESTS, ''],
+    ['a body that is not JSON', HttpStatus.OK, '<html></html>'],
+  ])(
+    'reports %s as Seller Center being unavailable, not as a rejected cookie',
+    async (_case, status, body) => {
+      answer(status, body);
+
+      await expect(client.account(COOKIE)).rejects.toThrow(SellerCenterUnavailableError);
+    },
+  );
+
+  it('reports a network failure as Seller Center being unavailable', async () => {
     fetchMock.mockRejectedValue(new TypeError('fetch failed'));
 
-    await expect(client.account(COOKIE)).rejects.toThrow(TypeError);
+    await expect(client.account(COOKIE)).rejects.toThrow(SellerCenterUnavailableError);
+  });
+
+  it('only parses a 200: a 4xx with an unreadable body is still a rejected cookie', async () => {
+    answer(HttpStatus.UNAUTHORIZED, '<html></html>');
+
+    expect(await client.account(COOKIE)).toBeNull();
   });
 });

@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { AspectRatio } from '../../../common/enums/aspect-ratio.enum';
 import { Detector } from '../../../common/enums/detector.enum';
 import { LiveStatus } from '../../../common/enums/live-status.enum';
+import { ShopRowDto } from '../../shops/dtos/shop-row.dto';
 import { ShopsService } from '../../shops/services/shops.service';
 import { LayoutSettingsDto } from '../dtos/layout-settings.dto';
 import { LayoutSnapshotDto } from '../dtos/layout-snapshot.dto';
@@ -17,6 +18,10 @@ export class LayoutService {
 
   async snapshot(): Promise<LayoutSnapshotDto> {
     const { items } = await this.shopsService.list();
+    return this.toSnapshot(items);
+  }
+
+  private toSnapshot(items: ShopRowDto[]): LayoutSnapshotDto {
     return {
       settings: this.settings,
       screen: SAMPLE_SCREEN,
@@ -33,8 +38,10 @@ export class LayoutService {
     };
   }
 
-  update(body: UpdateLayoutDto): Promise<LayoutSnapshotDto> {
+  // The shop list is read first: a failing read must leave the settings untouched.
+  async update(body: UpdateLayoutDto): Promise<LayoutSnapshotDto> {
+    const { items } = await this.shopsService.list();
     this.settings = { ...this.settings, ...body };
-    return this.snapshot();
+    return this.toSnapshot(items);
   }
 }

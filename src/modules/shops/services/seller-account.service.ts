@@ -3,7 +3,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ErrorCode } from '../../../common/constants/error-codes.constants';
 import { ErrorMessage } from '../../../common/constants/error-messages.constants';
 import { DomainException } from '../../../common/exceptions/domain.exception';
+import { INVALID_COOKIE_CHARS } from '../../../common/shopee/shopee-cookie.constants';
+import { errorMessage } from '../../../common/utils/error-message';
+import { safeError } from '../../../common/utils/safe-error';
 import { SellerCenterLoginClient } from '../clients/seller-center-login.client';
+import { SellerCenterUnavailableError } from '../errors/seller-center-unavailable.error';
 import {
   PASTED_COOKIE_PREFIX,
   SELLER_CENTER_COOKIE,
@@ -29,7 +33,13 @@ export class SellerAccountService {
     try {
       account = await this.sellerCenter.account(cookie);
     } catch (error) {
-      this.logger.warn(`Seller Center login check failed: ${(error as Error).name}`);
+      if (!(error instanceof SellerCenterUnavailableError)) {
+        throw error;
+      }
+      const code = networkCode(error);
+      this.logger.warn(
+        `Seller Center login check failed: ${safeError(errorMessage(error))}${code ? ` (${code})` : ''}`,
+      );
       throw invalid(ErrorMessage.sellerCenterUnreachable);
     }
     if (!account) {
@@ -72,7 +82,17 @@ export function extractSellerCookie(pasted: string): string {
   if (!match) {
     throw invalid(ErrorMessage.cookieWithoutSession(SELLER_CENTER_COOKIE));
   }
+  if (INVALID_COOKIE_CHARS.test(match[1])) {
+    throw invalid(ErrorMessage.cookieInvalidCharacters);
+  }
   return `${SELLER_CENTER_COOKIE}=${match[1]}`;
+}
+
+// fetch hides the socket error code (ECONNRESET, ...) one `cause` down; it never carries a cookie value.
+function networkCode(error: Error): string {
+  const cause = error.cause as { code?: unknown; cause?: { code?: unknown } } | undefined;
+  const code = cause?.code ?? cause?.cause?.code;
+  return typeof code === 'string' ? code : '';
 }
 
 function invalid(message: string): DomainException {
