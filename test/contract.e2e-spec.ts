@@ -10,7 +10,8 @@ import { DetectionStateStore } from '../src/modules/detection-state/services/det
 import { createTestApp } from './helpers/create-test-app';
 import { BRAND_KEY, fakeBackend, loginToFakeBackend } from './helpers/fake-backend';
 import { createDataDir, removeDataDir } from './helpers/data-dir';
-import { apiPath, callApi, expectError, Method } from './helpers/http';
+import { callApi, expectError, Method } from './helpers/http';
+import { JPEG } from './helpers/frame-grabs';
 
 const KNOWN_SHOP = 'tiktok_sample_shop';
 const DELETABLE_SHOP = 'tiktok_to_delete';
@@ -417,12 +418,11 @@ describe('Monitor Livestream contract v1 (e2e)', () => {
     useFreshApp();
 
     const startJob = async (): Promise<void> => {
-      await writeFile(join(dataDir, 'frame.jpg'), Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+      await writeFile(join(dataDir, 'frame.jpg'), JPEG);
       app.get(DetectionStateStore, { strict: false }).update(KNOWN_SHOP, {
         status: LiveStatus.LIVE,
         jobState: JobState.PLAYING,
         attempts: 2,
-        message: null,
         checkedAt: '2026-01-01T00:00:00.000Z',
         liveSince: '2026-01-01T00:00:00.000Z',
         framePath: join(dataDir, 'frame.jpg'),
@@ -453,10 +453,7 @@ describe('Monitor Livestream contract v1 (e2e)', () => {
     it('serves its frame as a JPEG', async () => {
       await startJob();
 
-      const response = await app.inject({
-        method: 'GET',
-        url: apiPath(`/shops/${KNOWN_SHOP}/frame`),
-      });
+      const response = await call('GET', `/shops/${KNOWN_SHOP}/frame`);
 
       expect(response.statusCode).toBe(200);
       expect(response.headers['content-type']).toBe('image/jpeg');

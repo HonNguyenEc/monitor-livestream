@@ -8,6 +8,7 @@ import { createDataDir, removeDataDir } from './helpers/data-dir';
 import { hang, JPEG } from './helpers/frame-grabs';
 import { callApi } from './helpers/http';
 import { fakeChildProcessRegistry } from './helpers/outbound-fakes';
+import { pollUntil } from './helpers/poll-until';
 
 const SHOP = 'tiktok_sample_shop';
 const PID = 5150;
@@ -18,7 +19,6 @@ const STREAM_RUN = {
   stderr: '',
   timedOut: false,
 };
-const WAIT_STEP_MS = 20;
 const WAIT_LIMIT_MS = 6_000;
 
 class FakeMpv extends EventEmitter {
@@ -53,12 +53,9 @@ describe('Monitor Livestream mpv detection (e2e)', () => {
   const row = async (): Promise<Record<string, unknown>> =>
     (await callApi(app, 'GET', `/shops/${SHOP}`)).json();
 
-  async function until(done: (shop: Record<string, unknown>) => boolean): Promise<void> {
-    const giveUpAt = Date.now() + WAIT_LIMIT_MS;
-    while (!done(await row()) && Date.now() < giveUpAt) {
-      await new Promise((resolve) => setTimeout(resolve, WAIT_STEP_MS));
-    }
-  }
+  const until = (
+    done: (shop: Record<string, unknown>) => boolean,
+  ): Promise<Record<string, unknown>> => pollUntil(row, done, WAIT_LIMIT_MS);
 
   const startApp = async (
     mpvPlayer: unknown = { get: async () => PLAYER, forget: () => 0 },
@@ -98,7 +95,7 @@ describe('Monitor Livestream mpv detection (e2e)', () => {
 
     await callApi(app, 'POST', `/shops/${SHOP}/detection/start`);
     await until((shop) => shop.status === 'live');
-    const frame = await app.inject({ method: 'GET', url: `/api/v1/shops/${SHOP}/frame` });
+    const frame = await callApi(app, 'GET', `/shops/${SHOP}/frame`);
     await callApi(app, 'POST', `/shops/${SHOP}/detection/stop`);
 
     expect(await row()).toMatchObject({ status: 'not_checked', job_state: 'stopped' });

@@ -5,6 +5,7 @@ import { createTestApp } from './helpers/create-test-app';
 import { createDataDir, removeDataDir } from './helpers/data-dir';
 import { Grab, hang, JPEG, writeFrame } from './helpers/frame-grabs';
 import { callApi, expectError } from './helpers/http';
+import { pollUntil } from './helpers/poll-until';
 
 const SHOP = 'tiktok_sample_shop';
 const STREAM_RUN = {
@@ -13,16 +14,7 @@ const STREAM_RUN = {
   stderr: '',
   timedOut: false,
 };
-const WAIT_STEP_MS = 20;
 const WAIT_LIMIT_MS = 5_000;
-
-async function until<T>(read: () => Promise<T>, done: (value: T) => boolean): Promise<T> {
-  const giveUpAt = Date.now() + WAIT_LIMIT_MS;
-  for (let value = await read(); ; value = await read()) {
-    if (done(value) || Date.now() > giveUpAt) return value;
-    await new Promise((resolve) => setTimeout(resolve, WAIT_STEP_MS));
-  }
-}
 
 describe('Monitor Livestream detection (e2e)', () => {
   let app: NestFastifyApplication;
@@ -41,6 +33,9 @@ describe('Monitor Livestream detection (e2e)', () => {
 
   const row = async (): Promise<Record<string, unknown>> =>
     (await callApi(app, 'GET', `/shops/${SHOP}`)).json();
+  const until = (
+    done: (shop: Record<string, unknown>) => boolean,
+  ): Promise<Record<string, unknown>> => pollUntil(row, done, WAIT_LIMIT_MS);
 
   async function startApp(grab: Grab): Promise<void> {
     app = await createTestApp({
@@ -54,8 +49,8 @@ describe('Monitor Livestream detection (e2e)', () => {
     await startApp(writeFrame);
 
     const start = await callApi(app, 'POST', `/shops/${SHOP}/detection/start`);
-    const live = await until(row, (shop) => shop.status === 'live');
-    const frame = await app.inject({ method: 'GET', url: `/api/v1/shops/${SHOP}/frame` });
+    const live = await until((shop) => shop.status === 'live');
+    const frame = await callApi(app, 'GET', `/shops/${SHOP}/frame`);
     const stop = await callApi(app, 'POST', `/shops/${SHOP}/detection/stop`);
 
     expect(start.json()).toEqual({
@@ -90,7 +85,7 @@ describe('Monitor Livestream detection (e2e)', () => {
     await startApp(hang);
 
     await callApi(app, 'POST', `/shops/${SHOP}/detection/start`);
-    await until(row, (shop) => shop.job_state === 'checking_image');
+    await until((shop) => shop.job_state === 'checking_image');
     const again = await callApi(app, 'POST', `/shops/${SHOP}/detection/start`);
 
     expect(again.json()).toMatchObject({ key: SHOP, state: 'checking_image' });
@@ -100,7 +95,7 @@ describe('Monitor Livestream detection (e2e)', () => {
     await startApp(() => Promise.resolve(GrabOutcome.TOOL_MISSING));
 
     await callApi(app, 'POST', `/shops/${SHOP}/detection/start`);
-    const errored = await until(row, (shop) => shop.job_state === 'error');
+    const errored = await until((shop) => shop.job_state === 'error');
 
     expect(errored).toMatchObject({
       job_state: 'error',
@@ -117,7 +112,7 @@ describe('Monitor Livestream detection (e2e)', () => {
     await startApp(() => Promise.resolve(GrabOutcome.NO_FRAME));
 
     await callApi(app, 'POST', `/shops/${SHOP}/detection/start`);
-    const shop = await until(row, (value) => value.status === 'no_signal');
+    const shop = await until((value) => value.status === 'no_signal');
 
     expect(shop).toMatchObject({ status: 'no_signal', reason_code: 'no_frames' });
   });
@@ -125,7 +120,7 @@ describe('Monitor Livestream detection (e2e)', () => {
   it('ends the job of a channel that is deleted, before the delete answers', async () => {
     await startApp(hang);
     await callApi(app, 'POST', `/shops/${SHOP}/detection/start`);
-    await until(row, (shop) => shop.job_state === 'checking_image');
+    await until((shop) => shop.job_state === 'checking_image');
 
     const removed = await callApi(app, 'DELETE', `/shops/${SHOP}`);
 
@@ -146,7 +141,7 @@ describe('Monitor Livestream detection (e2e)', () => {
       frameGrabber: { grab: writeFrame },
     });
     await callApi(app, 'POST', `/shops/${SHOP}/detection/start`);
-    await until(row, (shop) => shop.status === 'live');
+    await until((shop) => shop.status === 'live');
 
     const wall = (await callApi(app, 'GET', '/wall')).json();
     const refreshed = await callApi(app, 'POST', `/wall/${SHOP}/refresh`);

@@ -4,6 +4,7 @@ import { createTestApp } from './helpers/create-test-app';
 import { createDataDir, removeDataDir } from './helpers/data-dir';
 import { hang } from './helpers/frame-grabs';
 import { callApi } from './helpers/http';
+import { pollUntil } from './helpers/poll-until';
 
 const STREAM_RUN = {
   exitCode: 0,
@@ -11,7 +12,6 @@ const STREAM_RUN = {
   stderr: '',
   timedOut: false,
 };
-const WAIT_STEP_MS = 20;
 const WAIT_LIMIT_MS = 8_000;
 
 describe('Monitor Livestream monitor (e2e)', () => {
@@ -44,12 +44,9 @@ describe('Monitor Livestream monitor (e2e)', () => {
     return Object.fromEntries(items.map((row: Record<string, string>) => [row.key, row.job_state]));
   }
 
-  async function until(done: (states: Record<string, string>) => boolean): Promise<void> {
-    const giveUpAt = Date.now() + WAIT_LIMIT_MS;
-    while (!done(await jobStates()) && Date.now() < giveUpAt) {
-      await new Promise((resolve) => setTimeout(resolve, WAIT_STEP_MS));
-    }
-  }
+  const until = (
+    done: (states: Record<string, string>) => boolean,
+  ): Promise<Record<string, string>> => pollUntil(jobStates, done, WAIT_LIMIT_MS);
 
   const running = (state: string | undefined): boolean =>
     state !== undefined && state !== 'stopped';
