@@ -76,6 +76,7 @@ describe('Backend sync (e2e)', () => {
       job_state: 'stopped',
       attempts: 0,
       message: null,
+      reason_code: null,
       checked_at: null,
       live_since: null,
       frame_url: null,

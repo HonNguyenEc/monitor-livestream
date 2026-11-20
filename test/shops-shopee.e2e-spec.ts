@@ -4,9 +4,9 @@ import { join } from 'node:path';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { LightMyRequestResponse as Response } from 'fastify';
 
-import { SellerCenterUnavailableError } from '../src/modules/shops/errors/seller-center-unavailable.error';
+import { SellerCenterUnavailableError } from '../src/modules/shopee/errors/seller-center-unavailable.error';
 import { ShopRepository } from '../src/modules/shops/repositories/shop.repository';
-import { SellerAccount } from '../src/modules/shops/models/seller-account.model';
+import { SellerAccount } from '../src/modules/shopee/models/seller-account.model';
 import { createTestApp } from './helpers/create-test-app';
 import { BRAND_ID, fakeBackend, loginToFakeBackend } from './helpers/fake-backend';
 import { createDataDir, pythonJsonText, readDataFile, removeDataDir } from './helpers/data-dir';

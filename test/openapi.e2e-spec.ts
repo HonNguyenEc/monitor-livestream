@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 
+import { ErrorCode } from '../src/common/constants/error-codes.constants';
+import { ReasonCode } from '../src/common/enums/reason-code.enum';
 import { AppConfig, appConfig } from '../src/config/app.config';
 import { OPENAPI_OUTPUT_FILE } from '../src/openapi/openapi.constants';
 import { buildOpenApiDocument } from '../src/openapi/openapi.document';
@@ -80,6 +82,22 @@ describe('OpenAPI document (e2e)', () => {
       'not_checked',
     ]);
     expect(row.message.nullable).toBe(true);
+    expect(row.reason_code.nullable).toBe(true);
+    expect(document.components.schemas.ReasonCode).toMatchObject({
+      enum: Object.values(ReasonCode),
+    });
+    expect(JSON.stringify(row.reason_code)).toContain('#/components/schemas/ReasonCode');
     expect(document.components.schemas.ErrorResponseDto.properties.error).toBeDefined();
+  });
+
+  it('publishes the error codes as an enum the consumer can generate', () => {
+    const codes = document.components.schemas.ErrorCode as unknown as { enum: string[] };
+
+    expect(codes.enum).toEqual(
+      expect.arrayContaining([...Object.values(ErrorCode), 'NOT_FOUND', 'INTERNAL_SERVER_ERROR']),
+    );
+    expect(JSON.stringify(document.components.schemas.ErrorBodyDto.properties.code)).toContain(
+      '#/components/schemas/ErrorCode',
+    );
   });
 });

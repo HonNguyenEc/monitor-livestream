@@ -2,10 +2,13 @@ import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { LightMyRequestResponse as Response } from 'fastify';
 
 import { BackendRequestError } from '../src/modules/backend/errors/backend-request.error';
+import { LiveStatus } from '../src/common/enums/live-status.enum';
+import { JobState } from '../src/common/enums/job-state.enum';
+import { DetectionStateStore } from '../src/modules/detection-state/services/detection-state.store';
 import { createTestApp } from './helpers/create-test-app';
 import { BRAND_KEY, fakeBackend, loginToFakeBackend } from './helpers/fake-backend';
 import { createDataDir, removeDataDir } from './helpers/data-dir';
-import { callApi, expectError, Method } from './helpers/http';
+import { apiPath, callApi, expectError, Method } from './helpers/http';
 
 const KNOWN_SHOP = 'tiktok_sample_shop';
 const DELETABLE_SHOP = 'tiktok_to_delete';
@@ -35,6 +38,7 @@ const SHOP_ROW_SHAPE = {
   status: expect.stringMatching(/^(live|offline|unknown|no_signal|checking|not_checked)$/),
   job_state: expect.stringMatching(/^(stopped|retrying|checking_image|playing|stopping|error)$/),
   attempts: expect.any(Number),
+  reason_code: null,
   cookie_set: expect.any(Boolean),
 };
 
@@ -62,7 +66,7 @@ describe('Live QC contract v1 (e2e)', () => {
     await removeDataDir(dataDir);
   });
 
-  // Monitor, backend and layout services keep in-memory state; their tests start from a fresh app.
+  // Monitor and detection keep their state in memory and backend sync keeps its lists, so those tests start from a fresh app; layout settings live in the shared data folder.
   const useFreshApp = (): void => {
     beforeEach(async () => {
       await app.close();
@@ -194,8 +198,14 @@ describe('Live QC contract v1 (e2e)', () => {
         key: KNOWN_SHOP,
         state: 'retrying',
         message: expect.any(String),
+        reason_code: null,
       });
-      expect(stop.json()).toEqual({ key: KNOWN_SHOP, state: 'stopped', message: null });
+      expect(stop.json()).toEqual({
+        key: KNOWN_SHOP,
+        state: 'stopped',
+        message: null,
+        reason_code: null,
+      });
     });
 
     it.each([KNOWN_SHOP, BACKEND_SHOP])(
@@ -210,10 +220,21 @@ describe('Live QC contract v1 (e2e)', () => {
 
     it.each([
       ['POST', `/shops/${UNKNOWN_SHOP}/detection/start`],
-      ['POST', `/shops/${UNKNOWN_SHOP}/detection/stop`],
       ['GET', `/shops/${UNKNOWN_SHOP}/frame`],
     ] as const)('%s %s returns SHOP_NOT_FOUND', async (method, url) => {
       expectError(await call(method, url), 404, 'SHOP_NOT_FOUND');
+    });
+
+    it('stops by key even when the shop does not exist', async () => {
+      const stop = await call('POST', `/shops/${UNKNOWN_SHOP}/detection/stop`);
+
+      expect(stop.statusCode).toBe(200);
+      expect(stop.json()).toEqual({
+        key: UNKNOWN_SHOP,
+        state: 'stopped',
+        message: null,
+        reason_code: null,
+      });
     });
   });
 
@@ -229,6 +250,13 @@ describe('Live QC contract v1 (e2e)', () => {
       expect(start.json()).toEqual(running);
       expect(current.json()).toEqual(running);
       expect(stop.json()).toEqual({ running: false, platforms: [], keys: null });
+    });
+
+    it('reads keys: null as every shop of the platforms, as the Python tool', async () => {
+      const response = await call('POST', '/monitor/start', { platforms: ['tiktok'], keys: null });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ running: true, platforms: ['tiktok'], keys: null });
     });
 
     it('start without keys monitors every shop, and a second start replaces the set', async () => {
@@ -380,6 +408,84 @@ describe('Live QC contract v1 (e2e)', () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.json().settings).toEqual(before);
+    });
+  });
+
+  describe('a channel with a running job', () => {
+    useFreshApp();
+
+    const startJob = (): void => {
+      app.get(DetectionStateStore, { strict: false }).update(KNOWN_SHOP, {
+        status: LiveStatus.LIVE,
+        jobState: JobState.PLAYING,
+        attempts: 2,
+        message: null,
+        checkedAt: '2026-01-01T00:00:00.000Z',
+        liveSince: '2026-01-01T00:00:00.000Z',
+        framePath: 'frame.jpg',
+        frameAtMs: 1700000000000,
+      });
+    };
+
+    it('shows its detection state in the row and the detail', async () => {
+      startJob();
+
+      const row = (await call('GET', '/shops'))
+        .json()
+        .items.find((item: { key: string }) => item.key === KNOWN_SHOP);
+      const detail = (await call('GET', `/shops/${KNOWN_SHOP}`)).json();
+
+      for (const shop of [row, detail]) {
+        expect(shop).toMatchObject({
+          status: 'live',
+          job_state: 'playing',
+          attempts: 2,
+          reason_code: null,
+          live_since: '2026-01-01T00:00:00.000Z',
+          frame_url: `/api/v1/shops/${KNOWN_SHOP}/frame?t=1700000000000`,
+        });
+      }
+    });
+
+    it('serves its frame as a JPEG', async () => {
+      startJob();
+
+      const response = await app.inject({
+        method: 'GET',
+        url: apiPath(`/shops/${KNOWN_SHOP}/frame`),
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['content-type']).toBe('image/jpeg');
+      expect(response.rawPayload.subarray(0, 2).toString('hex')).toBe('ffd8');
+    });
+
+    it('is a live tile with a stream URL on the layout and the wall', async () => {
+      startJob();
+
+      const layout = (await call('GET', '/settings/layout')).json();
+      const wall = (await call('GET', '/wall')).json();
+
+      expect(layout.tiles.find((tile: { key: string }) => tile.key === KNOWN_SHOP)).toMatchObject({
+        live: true,
+      });
+      expect(wall.tiles.find((tile: { key: string }) => tile.key === KNOWN_SHOP)).toMatchObject({
+        live: true,
+        url: expect.stringMatching(/^https:/),
+      });
+    });
+
+    it('goes back to idle once it is stopped', async () => {
+      startJob();
+
+      await call('POST', `/shops/${KNOWN_SHOP}/detection/stop`);
+
+      const detail = (await call('GET', `/shops/${KNOWN_SHOP}`)).json();
+      expect(detail).toMatchObject({
+        status: 'not_checked',
+        job_state: 'stopped',
+        frame_url: null,
+      });
     });
   });
 

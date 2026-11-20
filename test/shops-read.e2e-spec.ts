@@ -52,6 +52,7 @@ describe('Shops read from shops.json (e2e)', () => {
       status: 'not_checked',
       job_state: 'stopped',
       attempts: 0,
+      reason_code: null,
       frame_url: null,
       cookie_set: false,
     });
@@ -141,6 +142,6 @@ describe('Shops read from shops.json (e2e)', () => {
     const response = await callApi(app, 'GET', '/shops/youtube_skipped');
 
     expectError(response, 404, 'SHOP_NOT_FOUND');
-    expect(response.json().detail).toBe('Không tìm thấy shop youtube_skipped.');
+    expect(response.json().detail).toBe('Không tìm thấy kênh youtube_skipped.');
   });
 });

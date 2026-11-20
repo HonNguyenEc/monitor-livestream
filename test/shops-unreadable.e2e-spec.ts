@@ -27,7 +27,6 @@ describe('Routes that read shops.json when it cannot be read (e2e)', () => {
     ['GET', '/shops'],
     ['GET', '/shops/tiktok_a'],
     ['POST', '/shops/tiktok_a/detection/start'],
-    ['POST', '/shops/tiktok_a/detection/stop'],
     ['GET', '/shops/tiktok_a/frame'],
     ['GET', '/settings/layout'],
     ['GET', '/wall'],

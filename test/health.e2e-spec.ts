@@ -14,10 +14,14 @@ describe('Health (e2e)', () => {
     await app.close();
   });
 
-  it('GET /health returns status and version', async () => {
+  it('GET /health returns the product, status and version', async () => {
     const response = await callApi(app, 'GET', '/health');
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ status: 'ok', version: expect.any(String) });
+    expect(response.json()).toEqual({
+      product: 'live-qc',
+      status: 'ok',
+      version: expect.any(String),
+    });
   });
 });

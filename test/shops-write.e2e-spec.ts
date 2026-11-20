@@ -4,6 +4,7 @@ import type { LightMyRequestResponse as Response } from 'fastify';
 
 import { Platform } from '../src/common/enums/platform.enum';
 import { shopKey } from '../src/modules/shops/utils/shop-identity';
+import { DetectionControl } from '../src/modules/detection-state/services/detection-control';
 import { createTestApp } from './helpers/create-test-app';
 import { BRAND_KEY, fakeBackend, loginToFakeBackend } from './helpers/fake-backend';
 import {
@@ -168,6 +169,15 @@ describe('Shops written to shops.json (e2e)', () => {
       expect((await call('GET', '/shops/tiktok_renamed')).statusCode).toBe(200);
     });
 
+    it('stops the job of the old key when a rename gives the channel a new one', async () => {
+      const stop = jest.spyOn(app.get(DetectionControl, { strict: false }), 'stop');
+
+      await call('PUT', '/shops/tiktok_first', { username: 'renamed' });
+      await call('PUT', '/shops/tiktok_renamed', { username: 'renamed' });
+
+      expect(stop.mock.calls).toEqual([['tiktok_first']]);
+    });
+
     it('rejects a username another shop already uses', async () => {
       expectError(
         await call('PUT', '/shops/tiktok_first', { username: 'second' }),
@@ -199,6 +209,14 @@ describe('Shops written to shops.json (e2e)', () => {
   });
 
   describe('DELETE /shops/:key', () => {
+    it('stops the job of the deleted channel', async () => {
+      const stop = jest.spyOn(app.get(DetectionControl, { strict: false }), 'stop');
+
+      await call('DELETE', '/shops/tiktok_first');
+
+      expect(stop).toHaveBeenCalledWith('tiktok_first');
+    });
+
     it('removes the entry and keeps everything else', async () => {
       expect((await call('DELETE', '/shops/tiktok_first')).statusCode).toBe(204);
 

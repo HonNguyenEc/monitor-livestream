@@ -86,6 +86,38 @@ describe('Local request hook (e2e)', () => {
     expect(withoutOrigin.statusCode).toBe(200);
   });
 
+  it.each([
+    ['GET', '/shops', {}],
+    ['GET', '/health', { origin: FOREIGN_ORIGIN }],
+    ['POST', '/monitor/stop', {}],
+  ] as const)(
+    'refuses %s %s marked cross-site without an allowed Origin',
+    async (method, path, extra) => {
+      const response = await callApi(app, method, path, undefined, {
+        'sec-fetch-site': 'cross-site',
+        ...extra,
+      });
+
+      expectError(response, 403, 'ORIGIN_NOT_ALLOWED');
+      expect(response.json().detail).toBe(ErrorMessage.crossSiteNotAllowed);
+    },
+  );
+
+  it('accepts a cross-site request from an allowed Origin', async () => {
+    const response = await callApi(app, 'GET', '/shops', undefined, {
+      'sec-fetch-site': 'cross-site',
+      origin: DEFAULT_ALLOWED_ORIGINS,
+    });
+
+    expect(response.statusCode).toBe(200);
+  });
+
+  it.each(['same-origin', 'same-site', 'none'])('accepts Sec-Fetch-Site %s', async (site) => {
+    const response = await callApi(app, 'GET', '/shops', undefined, { 'sec-fetch-site': site });
+
+    expect(response.statusCode).toBe(200);
+  });
+
   it('lets reads from a foreign origin through, since CORS keeps the response from that page', async () => {
     const response = await callApi(app, 'GET', '/monitor', undefined, { origin: FOREIGN_ORIGIN });
 
