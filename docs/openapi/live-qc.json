@@ -56,6 +56,16 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "SHOPS_FILE_UNREADABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -115,6 +125,16 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "SHOPS_FILE_UNREADABLE or COOKIES_FILE_UNREADABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -158,6 +178,16 @@
           },
           "404": {
             "description": "SHOP_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SHOPS_FILE_UNREADABLE",
             "content": {
               "application/json": {
                 "schema": {
@@ -235,7 +265,17 @@
             }
           },
           "409": {
-            "description": "BACKEND_SHOP_READ_ONLY",
+            "description": "BACKEND_SHOP_READ_ONLY or SHOP_ALREADY_EXISTS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SHOPS_FILE_UNREADABLE or COOKIES_FILE_UNREADABLE",
             "content": {
               "application/json": {
                 "schema": {
@@ -294,6 +334,16 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "SHOPS_FILE_UNREADABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -337,6 +387,16 @@
           },
           "404": {
             "description": "SHOP_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SHOPS_FILE_UNREADABLE",
             "content": {
               "application/json": {
                 "schema": {
@@ -394,6 +454,16 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "SHOPS_FILE_UNREADABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -438,6 +508,16 @@
           },
           "404": {
             "description": "SHOP_NOT_FOUND or FRAME_NOT_FOUND",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SHOPS_FILE_UNREADABLE",
             "content": {
               "image/jpeg": {
                 "schema": {
@@ -743,6 +823,16 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "SHOPS_FILE_UNREADABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -792,6 +882,16 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "SHOPS_FILE_UNREADABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -816,6 +916,16 @@
           },
           "403": {
             "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SHOPS_FILE_UNREADABLE",
             "content": {
               "application/json": {
                 "schema": {
@@ -866,6 +976,16 @@
           },
           "404": {
             "description": "SHOP_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "SHOPS_FILE_UNREADABLE",
             "content": {
               "application/json": {
                 "schema": {
@@ -979,7 +1099,7 @@
           "frame_url": {
             "type": "string",
             "nullable": true,
-            "description": "Path from the host root with a `t` query that changes on every new frame; null until the first frame."
+            "description": "Always null for local shops until detection captures frames."
           },
           "cookie_set": {
             "type": "boolean"
@@ -1014,6 +1134,41 @@
           "items"
         ]
       },
+      "ErrorBodyDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable machine-readable code, e.g. SHOP_NOT_FOUND."
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "request_id"
+        ]
+      },
+      "ErrorResponseDto": {
+        "type": "object",
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ErrorBodyDto"
+          }
+        },
+        "required": [
+          "detail",
+          "error"
+        ]
+      },
       "ShopConfigDto": {
         "type": "object",
         "properties": {
@@ -1041,6 +1196,7 @@
           },
           "live_url": {
             "type": "string",
+            "description": "TikTok: an http(s) URL. Shopee: an https URL on shopee.vn or shp.ee.",
             "format": "uri"
           }
         },
@@ -1207,7 +1363,7 @@
           "frame_url": {
             "type": "string",
             "nullable": true,
-            "description": "Path from the host root with a `t` query that changes on every new frame; null until the first frame."
+            "description": "Always null for local shops until detection captures frames."
           },
           "cookie_set": {
             "type": "boolean"
@@ -1260,41 +1416,6 @@
           "on_air_schedule_id"
         ]
       },
-      "ErrorBodyDto": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string",
-            "description": "Stable machine-readable code, e.g. SHOP_NOT_FOUND."
-          },
-          "message": {
-            "type": "string"
-          },
-          "request_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "code",
-          "message",
-          "request_id"
-        ]
-      },
-      "ErrorResponseDto": {
-        "type": "object",
-        "properties": {
-          "detail": {
-            "type": "string"
-          },
-          "error": {
-            "$ref": "#/components/schemas/ErrorBodyDto"
-          }
-        },
-        "required": [
-          "detail",
-          "error"
-        ]
-      },
       "CreateShopDto": {
         "type": "object",
         "properties": {
@@ -1322,11 +1443,12 @@
           },
           "live_url": {
             "type": "string",
+            "description": "TikTok: an http(s) URL. Shopee: an https URL on shopee.vn or shp.ee.",
             "format": "uri"
           },
           "cookie": {
             "type": "string",
-            "description": "Raw `cookie` header of a banhang.shopee.vn request, required for Shopee shops. On update, omit it to keep the stored cookie."
+            "description": "Raw `cookie` header of a banhang.shopee.vn request, required for Shopee shops."
           }
         },
         "required": [
@@ -1357,6 +1479,7 @@
           "live_url": {
             "type": "string",
             "nullable": true,
+            "description": "TikTok: an http(s) URL. Shopee: an https URL on shopee.vn or shp.ee.",
             "format": "uri"
           },
           "cookie": {
@@ -1439,7 +1562,7 @@
             }
           },
           "keys": {
-            "description": "Limit monitoring to these shops. Every start replaces the monitored set; omitting keys means every shop of `platforms`.",
+            "description": "Limit monitoring to these shops. Every start replaces the monitored set; omitting keys means every shop of `platforms`, while `[]` monitors none.",
             "type": "array",
             "items": {
               "type": "string"
@@ -1532,12 +1655,12 @@
           },
           "width": {
             "type": "number",
-            "description": "0 together with height 0 means the full screen work area.",
+            "description": "0 for width or height means the full screen work area.",
             "minimum": 0
           },
           "height": {
             "type": "number",
-            "description": "0 together with width 0 means the full screen work area.",
+            "description": "0 for width or height means the full screen work area.",
             "minimum": 0
           },
           "rows": {
@@ -1633,7 +1756,7 @@
           },
           "visible": {
             "type": "boolean",
-            "description": "False when the tile does not fit in rows × columns."
+            "description": "False when the tile does not fit in rows × columns; the service reports every tile visible."
           }
         },
         "required": [
@@ -1716,12 +1839,12 @@
           },
           "width": {
             "type": "number",
-            "description": "0 together with height 0 means the full screen work area.",
+            "description": "0 for width or height means the full screen work area.",
             "minimum": 0
           },
           "height": {
             "type": "number",
-            "description": "0 together with width 0 means the full screen work area.",
+            "description": "0 for width or height means the full screen work area.",
             "minimum": 0
           },
           "rows": {
@@ -1770,11 +1893,11 @@
         "properties": {
           "rows": {
             "type": "number",
-            "description": "Saved layout value; 0 means the wall picks it from its own viewport, unlike the mpv grid."
+            "description": "0 means chosen from the shop count."
           },
           "columns": {
             "type": "number",
-            "description": "Saved layout value; 0 means the wall picks it from its own viewport, unlike the mpv grid."
+            "description": "0 means chosen from the shop count."
           },
           "gap": {
             "type": "number"
@@ -1814,7 +1937,7 @@
           },
           "visible": {
             "type": "boolean",
-            "description": "False when the tile does not fit in rows × columns."
+            "description": "False when the tile does not fit in rows × columns; the service reports every tile visible."
           },
           "url": {
             "type": "string",

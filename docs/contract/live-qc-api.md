@@ -55,9 +55,11 @@ Every non-2xx response has the same envelope as livestream-backend, so `getDetai
 | `BACKEND_NOT_CONNECTED` | 400 | The service has no backend login |
 | `BACKEND_LOGIN_FAILED` | 400 | Wrong credentials, or the account is not admin/super_admin |
 | `STREAM_UNAVAILABLE` | 502 | A fresh stream URL could not be resolved |
+| `SHOPS_FILE_UNREADABLE` | 500 | `shops.json` is locked, not valid JSON, or its `shops` value is not a list; every route that reads shops lists it (`/shops*`, `detection/start`, `detection/stop`, `frame`, `/settings/layout`, `/wall*`), and nothing is overwritten |
+| `COOKIES_FILE_UNREADABLE` | 500 | `shopee_cookies.json` is locked or not valid JSON; `POST`/`PUT /shops` for a Shopee shop refuse to write (nothing is overwritten) and list it, while reads show `cookie_set: false` and `DELETE` still succeeds |
 | `HOST_NOT_ALLOWED` | 403 | The `Host` header is not a loopback name |
 | `ORIGIN_NOT_ALLOWED` | 403 | A write came from an origin outside `ALLOWED_ORIGINS` |
-| `BAD_REQUEST` | 400 | The request body failed validation: a wrong type, a value outside an enum, a missing required field, or a field the endpoint does not accept. `detail` lists every problem, joined with `, `. Also a value only the service can check, with one Vietnamese message in `detail`: a field the shop's platform does not use, a TikTok username that is only `@`, a Shopee cookie without `SPC_SC_SESSION`, one Seller Center rejects or cannot check right now, or a Shopee edit that the stored cookie cannot cover |
+| `BAD_REQUEST` | 400 | The request body failed validation: a wrong type, a value outside an enum, a missing required field, or a field the endpoint does not accept. `detail` lists every problem, joined with `, `. Also a value only the service can check, with one Vietnamese message in `detail`: a field the shop's platform does not use, a TikTok username that is only `@`, a Shopee `live_url` that is not an https `shopee.vn` / `shp.ee` address, a Shopee cookie without `SPC_SC_SESSION` or whose value has characters outside printable ASCII (`detail` never repeats the value), one Seller Center rejects (`detail` says the cookie was refused) or cannot check right now (`detail` says Seller Center is unreachable: network failure, timeout, 5xx, 429 or a 200 whose body is not JSON), or a Shopee edit that the stored cookie cannot cover |
 | `NOT_FOUND`, `INTERNAL_SERVER_ERROR`, … | as named | Other generic errors use the HTTP status name |
 
 ## Enums
@@ -91,8 +93,8 @@ Every non-2xx response has the same envelope as livestream-backend, so `getDetai
 | `POST /backend/login` | `{email, password}` | `BackendStatus` | stub |
 | `POST /backend/logout` | — | `BackendStatus` | stub |
 | `POST /backend/sync` | — | `BackendStatus` | stub |
-| `GET /settings/layout` | — | `LayoutSnapshot` | stub |
-| `PUT /settings/layout` | partial `LayoutSettings` | `LayoutSnapshot` | stub |
+| `GET /settings/layout` | — | `LayoutSnapshot` | stub (settings are sample values; `tiles` come from the local shops) |
+| `PUT /settings/layout` | partial `LayoutSettings` | `LayoutSnapshot` | stub (settings are kept in memory; `tiles` come from the local shops) |
 | `GET /wall` | — | `Wall` | stub |
 | `POST /wall/:key/refresh` | — | `{url}` or `502 STREAM_UNAVAILABLE` | stub |
 
@@ -124,6 +126,8 @@ CreateShop = { platform; username?; name?; user_id?; shop_id?; live_url?; cookie
 // tiktok: username required. shopee: cookie required (raw `cookie` header of a banhang.shopee.vn request).
 // Each platform takes only its own fields; another platform's field with a non-null value is 400 BAD_REQUEST:
 //   tiktok: username (leading @ dropped), live_url     shopee: name, user_id, shop_id, live_url, cookie
+// live_url: TikTok takes any http(s) URL; Shopee takes only an https URL on shopee.vn or shp.ee (or a subdomain), the
+//   same allow-list the stream resolver applies, so a link the resolver would refuse is refused on save. The rule applies to a `live_url` the request sends; a value already stored is kept when other fields are edited.
 // Strings are trimmed. The key comes from username (TikTok) or name (Shopee), so a rename changes the key;
 // a key another shop already has is 409 SHOP_ALREADY_EXISTS. Fields shops.json holds beyond these are kept.
 // Shopee: only SPC_SC_SESSION is kept from the pasted cookie, and it is checked with Seller Center
@@ -131,10 +135,12 @@ CreateShop = { platform; username?; name?; user_id?; shop_id?; live_url?; cookie
 //   (a typed user_id must match it); name defaults to the Seller Center username, else the user_id.
 //   The cookie is stored per user_id and is never returned; cookie_set tells whether one is stored.
 //   PUT without cookie needs a stored cookie for the shop's user_id and cannot change user_id; a cleared name
-//   then falls back to the user_id. To move a shop to another Seller Center account, send its cookie with
+//   then falls back to the user_id. Without a cookie `user_id: null` is ignored (the stored user_id stays,
+//   as in the Python tool). To move a shop to another Seller Center account, send its cookie with
 //   user_id: null. A cookie no remaining shop uses is dropped.
 UpdateShop = CreateShop without platform. An omitted field stays unchanged; `null` clears an optional field
-// (`name`, `user_id`, `shop_id`, `live_url`); `''` is rejected with 400. `username` and `cookie` cannot be null;
+// (`name`, `shop_id`, `live_url`); `user_id: null` only takes effect with a Shopee `cookie`, which then
+// sets it from the login (without one the stored user_id stays); `''` is rejected with 400. `username` and `cookie` cannot be null;
 // omit `cookie` to keep the stored one.
 
 DetectionState = { key: string; state: JobState; message: string | null }
@@ -146,7 +152,7 @@ BackendStatus = { connected; backend /* masked host */; email /* masked */; name
                   synced_at: string | null; error: string | null; brands: number; schedules: number;
                   api_calls_5m: number }
 
-LayoutSettings = { enabled; x; y; width; height /* 0,0 = full work area */; rows; columns /* 0 = auto */;
+LayoutSettings = { enabled; x; y; width; height /* either 0 = full work area */; rows; columns /* 0 = auto */;
                    gap; aspect: Aspect; live_only; ontop; detector: Detector; show_mpv }
 LayoutSnapshot = { settings: LayoutSettings; screen: Area; area: Area; aspects: Aspect[];
                    detectors: Detector[]; rows; columns; tiles: { key; label; live; visible }[] }
@@ -187,8 +193,11 @@ All pages sit under one parent nav item, "Live QC", and are open to any logged-i
 - v1 + monitor platforms: `MonitorState` gains `platforms: Platform[]` (`[]` while stopped). Regenerate the consumer types.
 - v1 + access model: the service takes no bearer token, so the document no longer declares a security scheme; the admin app defaults to `http://127.0.0.1:8765`. Response shapes are unchanged.
 - v1 + same-origin writes: writes from the service's own origin (Swagger UI) are accepted. Response shapes are unchanged.
-- v1 + null clears: in `PUT /shops/:key`, `null` clears `name`, `user_id`, `shop_id` or `live_url`, an omitted field stays unchanged, and `''` is rejected (`name: ''` was accepted before). `UpdateShopDto` marks those four fields nullable. Regenerate the consumer types.
+- v1 + null clears: in `PUT /shops/:key`, `null` clears `name`, `shop_id` or `live_url` (`user_id: null` only with a Shopee cookie, see the shape note), an omitted field stays unchanged, and `''` is rejected (`name: ''` was accepted before). `UpdateShopDto` marks those four fields nullable. Regenerate the consumer types.
 - v1 + local shops: `GET /shops` and `GET /shops/:key` read local channels from `shops.json` in the data folder, with the same keys and labels as the Python tool. Backend channels stay sample data. Response shapes are unchanged.
 - v1 + TikTok writes: `POST /shops`, `PUT /shops/:key` and `DELETE /shops/:key` write `shops.json` for TikTok shops (delete works for every local shop). A field of the other platform is rejected with `400 BAD_REQUEST`. Response shapes are unchanged.
 - v1 + Shopee writes: `POST /shops` and `PUT /shops/:key` handle Shopee shops with a Seller Center cookie; `DELETE` drops a cookie no remaining shop uses. Cookie problems are `400 BAD_REQUEST` with a Vietnamese `detail`. Response shapes are unchanged.
 - v1 + Vietnamese errors: every domain error and the `403` refusals carry a Vietnamese `detail` / `error.message`; codes are unchanged. Response shapes are unchanged.
+- v1 + unreadable data files: a `shops.json` or `shopee_cookies.json` that cannot be read answers `500 SHOPS_FILE_UNREADABLE` / `500 COOKIES_FILE_UNREADABLE` with a Vietnamese `detail`, and the file is never overwritten. `PUT /shops/:key` documents `409 SHOP_ALREADY_EXISTS` (a rename onto a key another shop has). `PUT /settings/layout` rejects `null` for any field with `400 BAD_REQUEST`. Seller Center outages (5xx, 429, a 200 whose body is not JSON) are reported as unreachable instead of a rejected cookie; both stay `400 BAD_REQUEST`. Response shapes are unchanged.
+- v1 + unreadable shops list: a `shops.json` whose `shops` value is present but not a list also answers `500 SHOPS_FILE_UNREADABLE` and is never overwritten; only a missing key or file reads as no shops. A Shopee `PUT` without `cookie` ignores `user_id: null` and keeps the stored user_id (Python tool behavior); clearing it needs a `cookie`. Response shapes are unchanged.
+- v1 + Shopee link rules: a Shopee `live_url` must be an https address on `shopee.vn` or `shp.ee` (`400 BAD_REQUEST` otherwise, on `POST` and `PUT`; TikTok unchanged). A Shopee cookie value outside printable ASCII is `400 BAD_REQUEST` instead of being reported as an unreachable Seller Center. Routes that read `shops.json` list `500 SHOPS_FILE_UNREADABLE`, and `POST`/`PUT /shops` also list `500 COOKIES_FILE_UNREADABLE`, in the OpenAPI document. Response shapes are unchanged.
