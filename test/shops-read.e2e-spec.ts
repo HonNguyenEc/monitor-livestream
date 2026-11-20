@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 
@@ -98,7 +98,43 @@ describe('Shops read from shops.json (e2e)', () => {
     await writeFile(join(dataDir, 'shops.json'), '{"shops": [', 'utf8');
     app = await createTestApp({ dataDir });
 
-    expectError(await callApi(app, 'GET', '/shops'), 500, 'INTERNAL_SERVER_ERROR');
+    const response = await callApi(app, 'GET', '/shops');
+
+    expectError(response, 500, 'SHOPS_FILE_UNREADABLE');
+    expect(response.json().detail).toContain('shops.json');
+  });
+
+  it('fails without guessing when shops.json holds a list instead of an object', async () => {
+    const dataDir = await createDataDir({ 'shops.json': [] });
+    dirs.push(dataDir);
+    app = await createTestApp({ dataDir });
+
+    expectError(await callApi(app, 'GET', '/shops'), 500, 'SHOPS_FILE_UNREADABLE');
+  });
+
+  it.each([
+    ['an object', {}],
+    ['null', null],
+    ['a string', 'x'],
+  ])('fails without guessing when shops is %s instead of a list', async (_case, shops) => {
+    const dataDir = await createDataDir({ 'shops.json': { capture_seconds: 5, shops } });
+    dirs.push(dataDir);
+    app = await createTestApp({ dataDir });
+    const before = await readFile(join(dataDir, 'shops.json'), 'utf8');
+
+    expectError(await callApi(app, 'GET', '/shops'), 500, 'SHOPS_FILE_UNREADABLE');
+    expectError(
+      await callApi(app, 'POST', '/shops', { platform: 'tiktok', username: 'x' }),
+      500,
+      'SHOPS_FILE_UNREADABLE',
+    );
+    expect(await readFile(join(dataDir, 'shops.json'), 'utf8')).toBe(before);
+  });
+
+  it('treats a file without a shops key as no shops', async () => {
+    await start({ 'shops.json': { capture_seconds: 5 } });
+
+    expect((await callApi(app, 'GET', '/shops')).json().items).toEqual([SAMPLE_BACKEND_ROW]);
   });
 
   it('returns SHOP_NOT_FOUND for an entry it skips', async () => {

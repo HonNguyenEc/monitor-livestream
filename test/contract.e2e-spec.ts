@@ -7,7 +7,13 @@ import { createDataDir, removeDataDir } from './helpers/data-dir';
 import { callApi, expectError, Method } from './helpers/http';
 
 const KNOWN_SHOP = 'tiktok_sample_shop';
-const SHOPS_JSON = { shops: [{ platform: 'tiktok', username: 'sample_shop' }] };
+const DELETABLE_SHOP = 'tiktok_to_delete';
+const SHOPS_JSON = {
+  shops: [
+    { platform: 'tiktok', username: 'sample_shop' },
+    { platform: 'tiktok', username: 'to_delete' },
+  ],
+};
 const BACKEND_SHOP = SAMPLE_BACKEND_ROW.key;
 const UNKNOWN_SHOP = 'nope';
 const LOGIN = { email: 'admin@example.com', password: 'secret' };
@@ -107,7 +113,7 @@ describe('Live QC contract v1 (e2e)', () => {
     });
 
     it('DELETE /shops/:key answers 204 with no body', async () => {
-      const response = await call('DELETE', '/shops/tiktok_x');
+      const response = await call('DELETE', `/shops/${DELETABLE_SHOP}`);
 
       expect(response.statusCode).toBe(204);
       expect(response.body).toBe('');
@@ -303,9 +309,20 @@ describe('Live QC contract v1 (e2e)', () => {
       ['a negative size', { rows: -1 }],
       ['a negative gap', { gap: -4 }],
       ['a non-boolean flag', { live_only: 'yes' }],
+      ['a null flag', { enabled: null }],
+      ['a null number', { rows: null }],
       ['an unknown field', { evil: 1 }],
     ])('PUT /settings/layout rejects %s', async (_case, body) => {
       expectError(await call('PUT', '/settings/layout', body), 400, 'BAD_REQUEST');
+    });
+
+    it('PUT /settings/layout without a body changes nothing', async () => {
+      const before = (await call('GET', '/settings/layout')).json().settings;
+
+      const response = await call('PUT', '/settings/layout');
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().settings).toEqual(before);
     });
   });
 

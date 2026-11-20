@@ -2,7 +2,9 @@ import { readdir } from 'node:fs/promises';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { LightMyRequestResponse as Response } from 'fastify';
 
+import { Platform } from '../src/common/enums/platform.enum';
 import { SAMPLE_BACKEND_ROW } from '../src/modules/shops/fixtures/shop.fixtures';
+import { shopKey } from '../src/modules/shops/utils/shop-identity';
 import { createTestApp } from './helpers/create-test-app';
 import {
   createDataDir,
@@ -203,5 +205,97 @@ describe('Shops written to shops.json (e2e)', () => {
         'BACKEND_SHOP_READ_ONLY',
       );
     });
+  });
+
+  describe('a backend entry stored in shops.json', () => {
+    const BRAND_SHOP = { platform: 'shopee', brand_id: 5, name: 'B' };
+    const BRAND_KEY = shopKey(Platform.SHOPEE, BRAND_SHOP);
+
+    beforeEach(async () => {
+      await app.close();
+      await removeDataDir(dataDir);
+      dataDir = await createDataDir({ 'shops.json': { shops: [BRAND_SHOP] } });
+      app = await createTestApp({ dataDir });
+    });
+
+    it('is shown as read-only config and refuses edits and deletes', async () => {
+      const detail = (await call('GET', `/shops/${BRAND_KEY}`)).json();
+      const before = await readDataFile(dataDir, 'shops.json');
+
+      expect(detail).toMatchObject({
+        source: 'backend',
+        config: { platform: 'shopee', name: 'B' },
+      });
+      expect(detail.config).not.toHaveProperty('brand_id');
+      for (const method of ['PUT', 'DELETE'] as const) {
+        expectError(
+          await call(method, `/shops/${BRAND_KEY}`, method === 'PUT' ? { name: 'x' } : undefined),
+          409,
+          'BACKEND_SHOP_READ_ONLY',
+        );
+      }
+      expect(await readDataFile(dataDir, 'shops.json')).toBe(before);
+    });
+  });
+
+  describe('concurrent writes', () => {
+    it('keeps the file whole when two edits of one shop race', async () => {
+      const [first, second] = await Promise.all([
+        call('PUT', '/shops/tiktok_first', { live_url: 'https://x.test/a' }),
+        call('PUT', '/shops/tiktok_first', { live_url: 'https://x.test/b' }),
+      ]);
+
+      expect([first.statusCode, second.statusCode]).toEqual([200, 200]);
+      const { shops } = await shopsFile();
+      expect(shops).toHaveLength(SHOPS_JSON.shops.length);
+      expect(['https://x.test/a', 'https://x.test/b']).toContain(
+        (shops[0] as { live_url: string }).live_url,
+      );
+    });
+
+    it('applies a mix of create, edit and delete without losing or duplicating a shop', async () => {
+      const responses = await Promise.all([
+        call('POST', '/shops', { platform: 'tiktok', username: 'added' }),
+        call('PUT', '/shops/tiktok_second', { live_url: 'https://x.test/b' }),
+        call('DELETE', '/shops/tiktok_first'),
+        call('POST', '/shops', { platform: 'tiktok', username: 'added_too' }),
+      ]);
+
+      expect(responses.map((response) => response.statusCode)).toEqual([201, 200, 204, 201]);
+      const { shops } = await shopsFile();
+      expect(shops.map((shop) => (shop as { username?: string }).username)).toEqual([
+        'second',
+        undefined,
+        'added',
+        'added_too',
+      ]);
+      expect(shops[0]).toMatchObject({ live_url: 'https://x.test/b' });
+    });
+
+    it('keeps every shop of simultaneous creates, and a failed create blocks nobody', async () => {
+      const names = ['a', 'b', 'c', 'd'];
+      const duplicate = call('POST', '/shops', { platform: 'tiktok', username: 'first' });
+      const creates = names.map((username) =>
+        call('POST', '/shops', { platform: 'tiktok', username }),
+      );
+
+      expectError(await duplicate, 409, 'SHOP_ALREADY_EXISTS');
+      expect((await Promise.all(creates)).map((response) => response.statusCode)).toEqual(
+        names.map(() => 201),
+      );
+      expect((await shopsFile()).shops).toHaveLength(SHOPS_JSON.shops.length + names.length);
+    });
+  });
+
+  it('DELETE removes every entry that shares the key, as the Python tool does', async () => {
+    await app.close();
+    await removeDataDir(dataDir);
+    const twin = { platform: 'tiktok', username: 'twin' };
+    dataDir = await createDataDir({ 'shops.json': { shops: [twin, { ...twin, note: 1 }] } });
+    app = await createTestApp({ dataDir });
+
+    expect((await call('DELETE', '/shops/tiktok_twin')).statusCode).toBe(204);
+
+    expect((await shopsFile()).shops).toEqual([]);
   });
 });

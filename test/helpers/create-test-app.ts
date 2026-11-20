@@ -8,7 +8,7 @@ import { SellerCenterLoginClient } from '../../src/modules/shops/clients/seller-
 import { missingDataDir } from './data-dir';
 
 export interface TestAppOptions {
-  /** Defaults to a folder that does not exist, so a test never reads or writes the repo's shops.json. */
+  /** Defaults to a temp folder that does not exist yet, so a test that passes none reads no shops.json and any write lands in the temp folder, never the repo. */
   dataDir?: string;
   /** Replaces the Seller Center calls, so tests never reach Shopee. */
   sellerCenter?: Pick<SellerCenterLoginClient, 'account'>;

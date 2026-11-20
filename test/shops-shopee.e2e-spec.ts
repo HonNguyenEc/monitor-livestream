@@ -1,6 +1,10 @@
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { LightMyRequestResponse as Response } from 'fastify';
 
+import { SellerCenterUnavailableError } from '../src/modules/shops/errors/seller-center-unavailable.error';
+import { ShopRepository } from '../src/modules/shops/repositories/shop.repository';
 import { SellerAccount } from '../src/modules/shops/models/seller-account.model';
 import { createTestApp } from './helpers/create-test-app';
 import { createDataDir, pythonJsonText, readDataFile, removeDataDir } from './helpers/data-dir';
@@ -31,7 +35,7 @@ describe('Shopee shops with a Seller Center cookie (e2e)', () => {
   let dataDir: string;
   const account = jest.fn(async (cookie: string): Promise<SellerAccount | null> => {
     if (!(cookie in ACCOUNTS)) {
-      throw new TypeError('fetch failed');
+      throw new SellerCenterUnavailableError('fetch failed');
     }
     return ACCOUNTS[cookie];
   });
@@ -91,6 +95,12 @@ describe('Shopee shops with a Seller Center cookie (e2e)', () => {
       ['an unreachable Seller Center', { cookie: 'SPC_SC_SESSION=down' }],
       ['a typed user_id of another account', { cookie: 'SPC_SC_SESSION=good', user_id: 7 }],
       ['a TikTok field', { cookie: 'SPC_SC_SESSION=good', username: 'x' }],
+      ['a cookie value outside printable ASCII', { cookie: 'SPC_SC_SESSION=aĀb' }],
+      ['an http live_url', { cookie: 'SPC_SC_SESSION=good', live_url: 'http://live.shopee.vn/x' }],
+      [
+        'a live_url on another host',
+        { cookie: 'SPC_SC_SESSION=good', live_url: 'https://evil.com/' },
+      ],
     ])('rejects %s with BAD_REQUEST and writes nothing', async (_case, body) => {
       expectError(
         await call('POST', '/shops', { platform: 'shopee', ...body }),
@@ -117,13 +127,58 @@ describe('Shopee shops with a Seller Center cookie (e2e)', () => {
   describe('PUT /shops/:key', () => {
     beforeEach(() => start());
 
+    it('renames a shop whose stored live_url predates the allow-list', async () => {
+      const stale = { ...NIVEA, live_url: 'http://x.test/live' };
+      await app.close();
+      await removeDataDir(dataDir);
+      await start([stale, NO_COOKIE]);
+
+      const response = await call('PUT', '/shops/shopee_nivea', { name: 'nivea2' });
+
+      expect(response.statusCode).toBe(200);
+      expect((await shops())[0]).toEqual({ ...stale, name: 'nivea2' });
+    });
+
+    it('rejects a bad live_url before calling Seller Center', async () => {
+      expectError(
+        await call('PUT', '/shops/shopee_nivea', {
+          cookie: 'SPC_SC_SESSION=nivea',
+          live_url: 'http://x.test/live',
+        }),
+        400,
+        'BAD_REQUEST',
+      );
+      expect(account).not.toHaveBeenCalled();
+    });
+
+    it('accepts a shp.ee live_url', async () => {
+      const response = await call('PUT', '/shops/shopee_nivea', { live_url: 'https://shp.ee/abc' });
+
+      expect(response.statusCode).toBe(200);
+    });
+
+    it.each(['http://live.shopee.vn/share', 'https://evil.com/live'])(
+      'rejects the live_url %s and writes nothing',
+      async (liveUrl) => {
+        expectError(
+          await call('PUT', '/shops/shopee_nivea', { live_url: liveUrl }),
+          400,
+          'BAD_REQUEST',
+        );
+        expect(await shops()).toEqual([NIVEA, NO_COOKIE]);
+      },
+    );
+
     it('keeps the stored account and cookie when no cookie is sent', async () => {
       const response = await call('PUT', '/shops/shopee_nivea', {
-        live_url: 'https://x.test/live',
+        live_url: 'https://live.shopee.vn/share?session=1',
       });
 
       expect(response.statusCode).toBe(200);
-      expect((await shops())[0]).toEqual({ ...NIVEA, live_url: 'https://x.test/live' });
+      expect((await shops())[0]).toEqual({
+        ...NIVEA,
+        live_url: 'https://live.shopee.vn/share?session=1',
+      });
       expect(await readJson('shopee_cookies.json')).toEqual(COOKIES);
       expect(account).not.toHaveBeenCalled();
     });
@@ -168,6 +223,92 @@ describe('Shopee shops with a Seller Center cookie (e2e)', () => {
       await call('PUT', '/shops/shopee_nivea', { cookie: 'SPC_SC_SESSION=nivea' });
 
       expect(await readJson('shopee_cookies.json')).toEqual({ '61924024': 'SPC_SC_SESSION=nivea' });
+    });
+
+    it('keeps the old account cookie while another shop still uses it', async () => {
+      await app.close();
+      await removeDataDir(dataDir);
+      await start([NIVEA, SHARED]);
+
+      await call('PUT', '/shops/shopee_nivea', { cookie: 'SPC_SC_SESSION=good', user_id: null });
+
+      expect(await readJson('shopee_cookies.json')).toEqual({
+        ...COOKIES,
+        '500': 'SPC_SC_SESSION=good',
+      });
+    });
+
+    it('ignores user_id: null without a cookie and keeps the stored account', async () => {
+      const response = await call('PUT', '/shops/shopee_nivea', { user_id: null, name: 'nivea' });
+
+      expect(response.statusCode).toBe(200);
+      expect((await shops())[0]).toMatchObject({ user_id: 61924024 });
+    });
+
+    it('puts the previous cookie back when shops.json cannot be written', async () => {
+      jest.spyOn(app.get(ShopRepository), 'save').mockRejectedValueOnce(new Error('disk full'));
+
+      const response = await call('PUT', '/shops/shopee_nivea', {
+        cookie: 'SPC_SC_SESSION=nivea',
+      });
+
+      expect(response.statusCode).toBe(500);
+      expect(await readJson('shopee_cookies.json')).toEqual(COOKIES);
+      expect(await shops()).toEqual([NIVEA, NO_COOKIE]);
+    });
+
+    it('answers SHOP_NOT_FOUND when the shop is deleted during the Seller Center check', async () => {
+      let release: (value: SellerAccount) => void = () => undefined;
+      account.mockImplementationOnce(() => new Promise((resolve) => (release = resolve)));
+
+      const pending = call('PUT', '/shops/shopee_nivea', { cookie: 'SPC_SC_SESSION=nivea' });
+      while (account.mock.calls.length === 0) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      await call('DELETE', '/shops/shopee_nivea');
+      release(ACCOUNTS['SPC_SC_SESSION=nivea'] as SellerAccount);
+
+      expectError(await pending, 404, 'SHOP_NOT_FOUND');
+    });
+  });
+
+  describe('a cookie file that cannot be read', () => {
+    const BROKEN = '{"61924024": ';
+
+    beforeEach(async () => {
+      await start();
+      await writeFile(join(dataDir, 'shopee_cookies.json'), BROKEN, 'utf8');
+    });
+
+    const expectUntouched = async (): Promise<void> => {
+      expect(await readDataFile(dataDir, 'shopee_cookies.json')).toBe(BROKEN);
+      expect(await shops()).toEqual([NIVEA, NO_COOKIE]);
+    };
+
+    it('lists shops without a stored cookie instead of failing', async () => {
+      const response = await call('GET', '/shops/shopee_nivea');
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().cookie_set).toBe(false);
+    });
+
+    it.each([
+      ['POST', '/shops', { platform: 'shopee', cookie: 'SPC_SC_SESSION=good' }],
+      ['PUT', '/shops/shopee_nivea', { cookie: 'SPC_SC_SESSION=nivea' }],
+      ['PUT', '/shops/shopee_nivea', { live_url: 'https://live.shopee.vn/share?session=1' }],
+    ] as const)('refuses %s %s and overwrites nothing', async (method, path, body) => {
+      const response = await call(method, path, body);
+
+      expectError(response, 500, 'COOKIES_FILE_UNREADABLE');
+      expect(response.json().detail).toContain('shopee_cookies.json');
+      await expectUntouched();
+    });
+
+    it('still deletes the shop and leaves the cookie file alone', async () => {
+      expect((await call('DELETE', '/shops/shopee_nivea')).statusCode).toBe(204);
+
+      expect(await readDataFile(dataDir, 'shopee_cookies.json')).toBe(BROKEN);
+      expect(await shops()).toEqual([NO_COOKIE]);
     });
   });
 
