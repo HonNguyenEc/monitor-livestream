@@ -3,6 +3,8 @@ import { LiveStatus } from '../../../common/enums/live-status.enum';
 import { Platform } from '../../../common/enums/platform.enum';
 import { ShopSource } from '../../../common/enums/shop-source.enum';
 import { ShopField } from '../constants/shop-fields.constants';
+import { ScheduleDto } from '../dtos/schedule.dto';
+import { SessionInfoDto } from '../dtos/session-info.dto';
 import { ShopConfigDto } from '../dtos/shop-config.dto';
 import { ShopDetailDto } from '../dtos/shop-detail.dto';
 import { ShopRowDto } from '../dtos/shop-row.dto';
@@ -12,7 +14,7 @@ import { isPythonTruthy, pythonStr } from './python-values';
 import { optionalInteger, optionalString } from './record-values';
 import { shopLabel } from './shop-identity';
 
-/** A local row carries no detection state: not checked, job stopped. */
+/** The row of a local or a backend channel; both report the idle detection state: not checked, job stopped. */
 export function toShopRow(shop: StoredShop, cookies: CookieStore): ShopRowDto {
   return {
     key: shop.key,
@@ -30,13 +32,24 @@ export function toShopRow(shop: StoredShop, cookies: CookieStore): ShopRowDto {
   };
 }
 
-export function toShopDetail(shop: StoredShop, cookies: CookieStore): ShopDetailDto {
+/** What a backend channel adds to its row; local channels have none. */
+export interface BackendDetailParts {
+  session: SessionInfoDto | null;
+  schedules: ScheduleDto[];
+  onAirScheduleId: string | null;
+}
+
+export function toShopDetail(
+  shop: StoredShop,
+  cookies: CookieStore,
+  backend?: BackendDetailParts,
+): ShopDetailDto {
   return {
     ...toShopRow(shop, cookies),
     config: toShopConfig(shop),
-    session: null,
-    schedules: [],
-    on_air_schedule_id: null,
+    session: backend?.session ?? null,
+    schedules: backend?.schedules ?? [],
+    on_air_schedule_id: backend?.onAirScheduleId ?? null,
   };
 }
 
@@ -47,7 +60,7 @@ export function hasStoredCookie(record: ShopRecord, cookies: CookieStore): boole
   );
 }
 
-/** The editable fields only; unknown fields stay in shops.json but are not exposed. */
+/** The editable fields of a local shop, platform and name of a backend one; unknown fields stay in shops.json but are not exposed. */
 function toShopConfig({ platform, source, record }: StoredShop): ShopConfigDto {
   if (source === ShopSource.BACKEND) {
     return withoutUndefined({ platform, name: optionalString(record[ShopField.NAME]) });

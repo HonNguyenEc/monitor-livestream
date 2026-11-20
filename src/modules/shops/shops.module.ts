@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { BackendModule } from '../backend/backend.module';
 import { ShopsController } from './controllers/shops.controller';
 import { SellerCenterLoginClient } from './clients/seller-center-login.client';
 import { CookieRepository } from './repositories/cookie.repository';
@@ -10,6 +11,7 @@ import { ShopFieldsValidator } from './services/shop-fields.validator';
 import { ShopsService } from './services/shops.service';
 
 @Module({
+  imports: [BackendModule],
   controllers: [ShopsController],
   providers: [
     ShopsService,

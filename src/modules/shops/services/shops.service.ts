@@ -11,11 +11,12 @@ import { CreateShopDto } from '../dtos/create-shop.dto';
 import { ShopDetailDto } from '../dtos/shop-detail.dto';
 import { ShopListResponseDto } from '../dtos/shop-list-response.dto';
 import { UpdateShopDto } from '../dtos/update-shop.dto';
-import { SAMPLE_BACKEND_DETAILS, SAMPLE_BACKEND_ROWS } from '../fixtures/shop.fixtures';
 import { VerifiedCookie } from '../models/seller-account.model';
 import { ShopRecord, ShopsDocument } from '../models/shop-record.model';
 import { StoredShop } from '../models/stored-shop.model';
+import { BackendSyncStore } from '../../backend/services/backend-sync-store.service';
 import { ShopRepository } from '../repositories/shop.repository';
+import { backendDetailParts, backendShops } from '../utils/backend-shops';
 import { inputFromCreate, inputFromUpdate, withUnknownFields } from '../utils/shop-input';
 import { shopKey } from '../utils/shop-identity';
 import { toShopDetail, toShopRow } from '../utils/shop-view';
@@ -34,6 +35,7 @@ export class ShopsService {
     private readonly validator: ShopFieldsValidator,
     private readonly sellerAccounts: SellerAccountService,
     private readonly shopCookies: ShopCookieService,
+    private readonly backendStore: BackendSyncStore,
   ) {}
 
   async list(): Promise<ShopListResponseDto> {
@@ -42,7 +44,8 @@ export class ShopsService {
       this.shopCookies.peek(),
     ]);
     const local = storedShops(document).map((shop) => toShopRow(shop, cookies));
-    return { items: [...local, ...SAMPLE_BACKEND_ROWS] };
+    const backend = backendShops(this.backendStore).map((shop) => toShopRow(shop, cookies));
+    return { items: [...local, ...backend] };
   }
 
   async get(key: string): Promise<ShopDetailDto> {
@@ -54,16 +57,16 @@ export class ShopsService {
     if (local) {
       return toShopDetail(local, cookies);
     }
-    const backend = SAMPLE_BACKEND_DETAILS.find((detail) => detail.key === key);
+    const backend = findStoredShop(backendShops(this.backendStore), key);
     if (!backend) {
       throw notFound(key);
     }
-    return backend;
+    return toShopDetail(backend, cookies, backendDetailParts(this.backendStore, backend));
   }
 
   async assertExists(key: string): Promise<void> {
     const document = await this.shopRepository.load();
-    if (!findStoredShop(storedShops(document), key) && !isSampleBackend(key)) {
+    if (!findStoredShop(this.shopsOf(document), key)) {
       throw notFound(key);
     }
   }
@@ -86,14 +89,14 @@ export class ShopsService {
   }
 
   async update(key: string, body: UpdateShopDto): Promise<ShopDetailDto> {
-    const before = editableShop(storedShops(await this.shopRepository.load()), key);
+    const before = editableShop(this.shopsOf(await this.shopRepository.load()), key);
     this.validator.rejectForeignFields(before.platform, body);
     this.validator.assertSuppliedLiveUrl(before.platform, body.live_url);
     const verified =
       body.cookie === undefined ? null : await this.sellerAccounts.verify(body.cookie);
     return this.writeLock.run(async () => {
       const document = await this.shopRepository.load();
-      const current = editableShop(storedShops(document), key);
+      const current = editableShop(this.shopsOf(document), key);
       this.validator.rejectForeignFields(current.platform, body);
       const input = inputFromUpdate(current.platform, current.record, body);
       const shop = withUnknownFields(this.validator.clean(current.platform, input), current.record);
@@ -112,7 +115,7 @@ export class ShopsService {
     await this.writeLock.run(async () => {
       const document = await this.shopRepository.load();
       const shops = storedShops(document);
-      const shop = editableShop(shops, key);
+      const shop = editableShop(this.shopsOf(document), key);
       // Like the Python tool, entries that share the key go together.
       const removed = new Set(
         shops.filter((other) => other.key === key).map((other) => other.index),
@@ -121,6 +124,11 @@ export class ShopsService {
       await this.shopRepository.save(document);
       await this.shopCookies.forgetUnused(shop.record[ShopField.USER_ID], document.shops);
     });
+  }
+
+  /** Every channel by key: the entries of shops.json, then the synced backend ones. */
+  private shopsOf(document: ShopsDocument): StoredShop[] {
+    return [...storedShops(document), ...backendShops(this.backendStore)];
   }
 
   /**
@@ -154,7 +162,7 @@ export class ShopsService {
     const key = shopKey(platform, shop);
     const taken =
       storedShops(document).some((other) => other.key === key && other.index !== current?.index) ||
-      isSampleBackend(key);
+      backendShops(this.backendStore).some((other) => other.key === key);
     if (taken) {
       throw new DomainException(ErrorCode.SHOP_ALREADY_EXISTS, ErrorMessage.shopAlreadyExists(key));
     }
@@ -166,17 +174,13 @@ export class ShopsService {
 
 function editableShop(shops: StoredShop[], key: string): StoredShop {
   const local = findStoredShop(shops, key);
-  if (local?.source === ShopSource.BACKEND || (!local && isSampleBackend(key))) {
+  if (local?.source === ShopSource.BACKEND) {
     throw new DomainException(ErrorCode.BACKEND_SHOP_READ_ONLY, ErrorMessage.backendReadOnly);
   }
   if (!local) {
     throw notFound(key);
   }
   return local;
-}
-
-function isSampleBackend(key: string): boolean {
-  return SAMPLE_BACKEND_ROWS.some((row) => row.key === key);
 }
 
 function notFound(key: string): DomainException {

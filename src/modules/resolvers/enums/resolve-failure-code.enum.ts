@@ -11,5 +11,7 @@ export enum ResolveFailureCode {
   SELLER_CENTER_NO_ACCESS = 'seller_center_no_access',
   SHOPEE_REQUEST_FAILED = 'shopee_request_failed',
   YTDLP_FAILED = 'ytdlp_failed',
+  BACKEND_NOT_CONNECTED = 'backend_not_connected',
+  BACKEND_ERROR = 'backend_error',
   UNSUPPORTED = 'unsupported',
 }

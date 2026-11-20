@@ -27,10 +27,13 @@ export async function getJson(
   return { status: response.status, data: {}, invalidBody: true };
 }
 
-/** The body as text, or null once it exceeds the cap; the rest of the stream is never read. */
-async function readCapped(response: Response): Promise<string | null> {
+/** The body as text, or null once it exceeds `maxBytes`; the rest of the stream is never read. */
+export async function readCapped(
+  response: Response,
+  maxBytes = MAX_JSON_RESPONSE_BYTES,
+): Promise<string | null> {
   const declared = Number(response.headers.get('content-length'));
-  if (declared > MAX_JSON_RESPONSE_BYTES) {
+  if (declared > maxBytes) {
     await response.body?.cancel();
     return null;
   }
@@ -41,7 +44,7 @@ async function readCapped(response: Response): Promise<string | null> {
   let received = 0;
   for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
     received += chunk.value.byteLength;
-    if (received > MAX_JSON_RESPONSE_BYTES) {
+    if (received > maxBytes) {
       await reader.cancel();
       return null;
     }

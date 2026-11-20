@@ -1,4 +1,6 @@
+import { tmpdir } from 'node:os';
 import { Test } from '@nestjs/testing';
+import { DATA_DIR, DataDirModule } from '../../config/data-dir.module';
 import { Platform } from '../../common/enums/platform.enum';
 import { ResolveFailureCode } from './enums/resolve-failure-code.enum';
 import { ResolversModule } from './resolvers.module';
@@ -8,7 +10,12 @@ describe('ResolversModule', () => {
   afterEach(() => jest.restoreAllMocks());
 
   async function service(): Promise<ResolverService> {
-    const moduleRef = await Test.createTestingModule({ imports: [ResolversModule] }).compile();
+    const moduleRef = await Test.createTestingModule({
+      imports: [DataDirModule, ResolversModule],
+    })
+      .overrideProvider(DATA_DIR)
+      .useValue(tmpdir())
+      .compile();
     return moduleRef.get(ResolverService);
   }
 

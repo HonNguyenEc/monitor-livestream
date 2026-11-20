@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { BackendModule } from '../backend/backend.module';
+import { BackendPlayUrlResolver } from './backend/backend-play-url.resolver';
 import { PLATFORM_RESOLVERS, PlatformResolver } from './interfaces/platform-resolver.interface';
 import { ResolverService } from './services/resolver.service';
 import { ShopeeSellerCenterResolver } from './shopee/shopee-seller-center.resolver';
@@ -10,7 +12,9 @@ import { YtDlpFallback } from './ytdlp/ytdlp-fallback.service';
 import { YTDLP_RUNNER } from './ytdlp/ytdlp-runner';
 
 @Module({
+  imports: [BackendModule],
   providers: [
+    BackendPlayUrlResolver,
     TikTokRoomClient,
     SellerCenterSessionClient,
     YtDlpFallback,

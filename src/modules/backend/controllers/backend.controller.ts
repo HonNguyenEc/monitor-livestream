@@ -20,20 +20,20 @@ export class BackendController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiDomainErrors(ErrorCode.BACKEND_LOGIN_FAILED)
-  login(@Body() body: BackendLoginDto): BackendStatusDto {
+  login(@Body() body: BackendLoginDto): Promise<BackendStatusDto> {
     return this.connection.login(body);
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  logout(): BackendStatusDto {
+  logout(): Promise<BackendStatusDto> {
     return this.connection.logout();
   }
 
   @Post('sync')
   @HttpCode(HttpStatus.OK)
   @ApiDomainErrors(ErrorCode.BACKEND_NOT_CONNECTED)
-  sync(): BackendStatusDto {
-    return this.connection.sync();
+  sync(): Promise<BackendStatusDto> {
+    return this.connection.syncNow();
   }
 }

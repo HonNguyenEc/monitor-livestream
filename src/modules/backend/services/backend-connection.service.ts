@@ -1,55 +1,59 @@
 import { Injectable } from '@nestjs/common';
 
+import { ErrorCode } from '../../../common/constants/error-codes.constants';
+import { ErrorMessage } from '../../../common/constants/error-messages.constants';
+import { DomainException } from '../../../common/exceptions/domain.exception';
+import { maskEmail, maskUrl } from '../../../common/utils/mask';
 import { BackendLoginDto } from '../dtos/backend-login.dto';
 import { BackendStatusDto } from '../dtos/backend-status.dto';
-
-const SAMPLE_BACKEND_HOST = 'http://loc•••';
-
-const DISCONNECTED: BackendStatusDto = {
-  connected: false,
-  backend: SAMPLE_BACKEND_HOST,
-  email: '',
-  name: '',
-  role: '',
-  synced_at: null,
-  error: null,
-  brands: 0,
-  schedules: 0,
-  api_calls_5m: 0,
-};
-
-const SAMPLE_CONNECTED: BackendStatusDto = {
-  connected: true,
-  backend: SAMPLE_BACKEND_HOST,
-  email: 'ad•••@example.com',
-  name: 'Sample Admin',
-  role: 'admin',
-  synced_at: '2026-01-01T08:00:00+00:00',
-  error: null,
-  brands: 1,
-  schedules: 1,
-  api_calls_5m: 2,
-};
+import { BackendSessionService } from './backend-session.service';
+import { BackendSyncService } from './backend-sync.service';
+import { BackendSyncStore } from './backend-sync-store.service';
 
 @Injectable()
 export class BackendConnectionService {
-  private current: BackendStatusDto = DISCONNECTED;
+  constructor(
+    private readonly session: BackendSessionService,
+    private readonly sync: BackendSyncService,
+    private readonly store: BackendSyncStore,
+  ) {}
 
   status(): BackendStatusDto {
-    return this.current;
+    const user = this.session.user;
+    const { syncedAt, error, brands, schedules } = this.store.status;
+    return {
+      connected: this.session.connected,
+      backend: maskUrl(this.session.backendUrl),
+      email: maskEmail(user?.email ?? ''),
+      name: user?.name ?? '',
+      role: user?.role ?? '',
+      synced_at: syncedAt,
+      error,
+      brands,
+      schedules,
+      api_calls_5m: this.session.recentCallCount(),
+    };
   }
 
-  login(_body: BackendLoginDto): BackendStatusDto {
-    this.current = SAMPLE_CONNECTED;
-    return this.current;
+  async login(body: BackendLoginDto): Promise<BackendStatusDto> {
+    await this.session.login(body.email, body.password);
+    // A login to another backend or account must not show the lists of the previous one.
+    this.sync.reset();
+    await this.sync.syncNow();
+    return this.status();
   }
 
-  logout(): BackendStatusDto {
-    this.current = DISCONNECTED;
-    return this.current;
+  async logout(): Promise<BackendStatusDto> {
+    await this.session.logout();
+    this.sync.reset();
+    return this.status();
   }
 
-  sync(): BackendStatusDto {
-    return this.current;
+  async syncNow(): Promise<BackendStatusDto> {
+    if (!this.session.connected) {
+      throw new DomainException(ErrorCode.BACKEND_NOT_CONNECTED, ErrorMessage.backendNotConnected);
+    }
+    await this.sync.syncNow();
+    return this.status();
   }
 }

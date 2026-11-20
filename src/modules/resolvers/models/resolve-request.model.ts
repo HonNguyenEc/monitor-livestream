@@ -8,6 +8,8 @@ export interface ResolveRequest {
   username?: string;
   userId?: number;
   liveUrl?: string;
+  /** livestream-backend brand id of a `source: backend` channel; its stream comes from the backend, whatever the platform. */
+  brandId?: string;
   /** Seller Center cookie as the stored `SPC_SC_SESSION=<value>` pair; a bare value is prefixed. */
   cookie?: string;
   /** Limit of each HTTP request or yt-dlp run, not of the whole resolve; defaults to DEFAULT_RESOLVE_TIMEOUT_MS. */
