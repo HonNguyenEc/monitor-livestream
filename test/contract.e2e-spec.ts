@@ -1,11 +1,13 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { LightMyRequestResponse as Response } from 'fastify';
 
-import { SAMPLE_BACKEND_ROW, SAMPLE_TIKTOK_ROW } from '../src/modules/shops/fixtures/shop.fixtures';
+import { SAMPLE_BACKEND_ROW } from '../src/modules/shops/fixtures/shop.fixtures';
 import { createTestApp } from './helpers/create-test-app';
+import { createDataDir, removeDataDir } from './helpers/data-dir';
 import { callApi, expectError, Method } from './helpers/http';
 
-const KNOWN_SHOP = SAMPLE_TIKTOK_ROW.key;
+const KNOWN_SHOP = 'tiktok_sample_shop';
+const SHOPS_JSON = { shops: [{ platform: 'tiktok', username: 'sample_shop' }] };
 const BACKEND_SHOP = SAMPLE_BACKEND_ROW.key;
 const UNKNOWN_SHOP = 'nope';
 const LOGIN = { email: 'admin@example.com', password: 'secret' };
@@ -34,20 +36,23 @@ const BACKEND_STATUS_SHAPE = {
 
 describe('Live QC contract v1 (e2e)', () => {
   let app: NestFastifyApplication;
+  let dataDir: string;
 
   beforeAll(async () => {
-    app = await createTestApp();
+    dataDir = await createDataDir({ 'shops.json': SHOPS_JSON });
+    app = await createTestApp({ dataDir });
   });
 
   afterAll(async () => {
     await app.close();
+    await removeDataDir(dataDir);
   });
 
   // Monitor, backend and layout services keep in-memory state; their tests start from a fresh app.
   const useFreshApp = (): void => {
     beforeEach(async () => {
       await app.close();
-      app = await createTestApp();
+      app = await createTestApp({ dataDir });
     });
   };
 
@@ -102,7 +107,7 @@ describe('Live QC contract v1 (e2e)', () => {
     });
 
     it('DELETE /shops/:key answers 204 with no body', async () => {
-      const response = await call('DELETE', `/shops/${KNOWN_SHOP}`);
+      const response = await call('DELETE', '/shops/tiktok_x');
 
       expect(response.statusCode).toBe(204);
       expect(response.body).toBe('');
@@ -124,6 +129,7 @@ describe('Live QC contract v1 (e2e)', () => {
       ['an unknown platform', { platform: 'youtube', username: 'x' }],
       ['a TikTok shop without username', { platform: 'tiktok' }],
       ['a Shopee shop without cookie', { platform: 'shopee', name: 'x' }],
+      ['an empty name', { platform: 'shopee', name: '', cookie: 'SPC_SC_SESSION=x' }],
       ['a non-integer user_id', { platform: 'tiktok', username: 'x', user_id: 'abc' }],
       [
         'a live_url that is not http(s)',
@@ -132,6 +138,27 @@ describe('Live QC contract v1 (e2e)', () => {
       ['an unknown field', { platform: 'tiktok', username: 'x', brand_id: 1 }],
     ])('POST /shops rejects %s', async (_case, body) => {
       expectError(await call('POST', '/shops', body), 400, 'BAD_REQUEST');
+    });
+
+    it('PUT /shops/:key accepts null for the optional fields', async () => {
+      const response = await call('PUT', `/shops/${KNOWN_SHOP}`, {
+        name: null,
+        user_id: null,
+        shop_id: null,
+        live_url: null,
+      });
+
+      expect(response.statusCode).toBe(200);
+    });
+
+    it.each([
+      ['an empty name', { name: '' }],
+      ['a null username', { username: null }],
+      ['an empty username', { username: '' }],
+      ['a null cookie', { cookie: null }],
+      ['an empty live_url', { live_url: '' }],
+    ])('PUT /shops/:key rejects %s', async (_case, body) => {
+      expectError(await call('PUT', `/shops/${KNOWN_SHOP}`, body), 400, 'BAD_REQUEST');
     });
 
     it('PUT /shops/:key rejects platform, which cannot change', async () => {
@@ -157,22 +184,15 @@ describe('Live QC contract v1 (e2e)', () => {
       expect(stop.json()).toEqual({ key: KNOWN_SHOP, state: 'stopped', message: null });
     });
 
-    it('GET /shops/:key/frame returns a JPEG for a shop whose frame_url is set', async () => {
-      const shop = (await call('GET', `/shops/${KNOWN_SHOP}`)).json();
-      const response = await call('GET', `/shops/${KNOWN_SHOP}/frame`);
+    it.each([KNOWN_SHOP, BACKEND_SHOP])(
+      'GET /shops/:key/frame of %s returns FRAME_NOT_FOUND while frame_url is null',
+      async (key) => {
+        const shop = (await call('GET', `/shops/${key}`)).json();
 
-      expect(shop.frame_url).not.toBeNull();
-      expect(response.statusCode).toBe(200);
-      expect(response.headers['content-type']).toBe('image/jpeg');
-      expect(response.rawPayload.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));
-    });
-
-    it('GET /shops/:key/frame returns FRAME_NOT_FOUND for a shop whose frame_url is null', async () => {
-      const shop = (await call('GET', `/shops/${BACKEND_SHOP}`)).json();
-
-      expect(shop.frame_url).toBeNull();
-      expectError(await call('GET', `/shops/${BACKEND_SHOP}/frame`), 404, 'FRAME_NOT_FOUND');
-    });
+        expect(shop.frame_url).toBeNull();
+        expectError(await call('GET', `/shops/${key}/frame`), 404, 'FRAME_NOT_FOUND');
+      },
+    );
 
     it.each([
       ['POST', `/shops/${UNKNOWN_SHOP}/detection/start`],

@@ -1,7 +1,7 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 
 import { DEFAULT_ALLOWED_ORIGINS } from '../src/common/constants/app.constants';
-import { SAMPLE_TIKTOK_ROW } from '../src/modules/shops/fixtures/shop.fixtures';
+import { ErrorMessage } from '../src/common/constants/error-messages.constants';
 import { createTestApp } from './helpers/create-test-app';
 import { callApi, expectError } from './helpers/http';
 
@@ -35,6 +35,7 @@ describe('Local request hook (e2e)', () => {
     });
 
     expectError(response, 403, 'HOST_NOT_ALLOWED');
+    expect(response.json().detail).toBe(ErrorMessage.hostNotAllowed);
   });
 
   it.each(['attacker.example:8766', 'localhost.evil.example', '127.0.0.1.nip.io:8766'])(
@@ -51,7 +52,7 @@ describe('Local request hook (e2e)', () => {
   it.each([
     ['POST', '/monitor/stop', FOREIGN_ORIGIN],
     ['PUT', '/settings/layout', FOREIGN_ORIGIN],
-    ['DELETE', `/shops/${SAMPLE_TIKTOK_ROW.key}`, FOREIGN_ORIGIN],
+    ['DELETE', '/shops/tiktok_any', FOREIGN_ORIGIN],
     ['POST', '/monitor/stop', 'null'],
   ] as const)('rejects %s %s from Origin %s', async (method, path, origin) => {
     expectError(await callApi(app, method, path, {}, { origin }), 403, 'ORIGIN_NOT_ALLOWED');
