@@ -351,6 +351,160 @@
         ]
       }
     },
+    "/api/v1/backend/status": {
+      "get": {
+        "operationId": "BackendController_status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendStatusDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "backend"
+        ]
+      }
+    },
+    "/api/v1/backend/login": {
+      "post": {
+        "operationId": "BackendController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackendLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendStatusDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST or BACKEND_LOGIN_FAILED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "backend"
+        ]
+      }
+    },
+    "/api/v1/backend/logout": {
+      "post": {
+        "operationId": "BackendController_logout",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendStatusDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "backend"
+        ]
+      }
+    },
+    "/api/v1/backend/sync": {
+      "post": {
+        "operationId": "BackendController_sync",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendStatusDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BACKEND_NOT_CONNECTED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "backend"
+        ]
+      }
+    },
     "/api/v1/shops/{key}/detection/start": {
       "post": {
         "operationId": "DetectionController_start",
@@ -437,26 +591,6 @@
           },
           "403": {
             "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "SHOP_NOT_FOUND",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "SHOPS_FILE_UNREADABLE",
             "content": {
               "application/json": {
                 "schema": {
@@ -645,160 +779,6 @@
         ]
       }
     },
-    "/api/v1/backend/status": {
-      "get": {
-        "operationId": "BackendController_status",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackendStatusDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "backend"
-        ]
-      }
-    },
-    "/api/v1/backend/login": {
-      "post": {
-        "operationId": "BackendController_login",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BackendLoginDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackendStatusDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "BAD_REQUEST or BACKEND_LOGIN_FAILED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "backend"
-        ]
-      }
-    },
-    "/api/v1/backend/logout": {
-      "post": {
-        "operationId": "BackendController_logout",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackendStatusDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "backend"
-        ]
-      }
-    },
-    "/api/v1/backend/sync": {
-      "post": {
-        "operationId": "BackendController_sync",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackendStatusDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "BACKEND_NOT_CONNECTED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "backend"
-        ]
-      }
-    },
     "/api/v1/settings/layout": {
       "get": {
         "operationId": "LayoutController_snapshot",
@@ -884,7 +864,7 @@
             }
           },
           "500": {
-            "description": "SHOPS_FILE_UNREADABLE",
+            "description": "SHOPS_FILE_UNREADABLE or LAYOUT_FILE_UNREADABLE",
             "content": {
               "application/json": {
                 "schema": {
@@ -1024,6 +1004,10 @@
       "HealthResponseDto": {
         "type": "object",
         "properties": {
+          "product": {
+            "type": "string",
+            "description": "Always `live-qc`: tells this service from another program that holds the port."
+          },
           "status": {
             "type": "string"
           },
@@ -1032,13 +1016,44 @@
           }
         },
         "required": [
+          "product",
           "status",
           "version"
+        ]
+      },
+      "ReasonCode": {
+        "type": "string",
+        "enum": [
+          "not_live",
+          "no_stream_url",
+          "cookie_missing",
+          "cookie_invalid",
+          "cookie_store_unreadable",
+          "seller_center_no_access",
+          "invalid_live_url",
+          "missing_user_id",
+          "lookup_failed",
+          "platform_unreachable",
+          "backend_not_connected",
+          "backend_error",
+          "unsupported",
+          "tool_missing",
+          "player_failed",
+          "no_frames",
+          "internal_error"
         ]
       },
       "ShopRowDto": {
         "type": "object",
         "properties": {
+          "reason_code": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReasonCode"
+              }
+            ]
+          },
           "key": {
             "type": "string"
           },
@@ -1099,13 +1114,14 @@
           "frame_url": {
             "type": "string",
             "nullable": true,
-            "description": "Always null for local shops until detection captures frames."
+            "description": "Null until the first frame of this channel is captured; the same rule for local and backend channels."
           },
           "cookie_set": {
             "type": "boolean"
           }
         },
         "required": [
+          "reason_code",
           "key",
           "platform",
           "label",
@@ -1134,12 +1150,69 @@
           "items"
         ]
       },
+      "ErrorCode": {
+        "type": "string",
+        "enum": [
+          "SHOP_NOT_FOUND",
+          "SHOP_ALREADY_EXISTS",
+          "BACKEND_SHOP_READ_ONLY",
+          "FRAME_NOT_FOUND",
+          "NO_PLATFORM_SELECTED",
+          "BACKEND_NOT_CONNECTED",
+          "BACKEND_LOGIN_FAILED",
+          "STREAM_UNAVAILABLE",
+          "SHOPS_FILE_UNREADABLE",
+          "COOKIES_FILE_UNREADABLE",
+          "LAYOUT_FILE_UNREADABLE",
+          "HOST_NOT_ALLOWED",
+          "ORIGIN_NOT_ALLOWED",
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "PAYMENT_REQUIRED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "METHOD_NOT_ALLOWED",
+          "NOT_ACCEPTABLE",
+          "PROXY_AUTHENTICATION_REQUIRED",
+          "REQUEST_TIMEOUT",
+          "CONFLICT",
+          "GONE",
+          "LENGTH_REQUIRED",
+          "PRECONDITION_FAILED",
+          "PAYLOAD_TOO_LARGE",
+          "URI_TOO_LONG",
+          "UNSUPPORTED_MEDIA_TYPE",
+          "REQUESTED_RANGE_NOT_SATISFIABLE",
+          "EXPECTATION_FAILED",
+          "I_AM_A_TEAPOT",
+          "MISDIRECTED",
+          "UNPROCESSABLE_ENTITY",
+          "LOCKED",
+          "FAILED_DEPENDENCY",
+          "PRECONDITION_REQUIRED",
+          "TOO_MANY_REQUESTS",
+          "UNRECOVERABLE_ERROR",
+          "INTERNAL_SERVER_ERROR",
+          "NOT_IMPLEMENTED",
+          "BAD_GATEWAY",
+          "SERVICE_UNAVAILABLE",
+          "GATEWAY_TIMEOUT",
+          "HTTP_VERSION_NOT_SUPPORTED",
+          "INSUFFICIENT_STORAGE",
+          "LOOP_DETECTED"
+        ],
+        "description": "Stable machine-readable code, e.g. SHOP_NOT_FOUND."
+      },
       "ErrorBodyDto": {
         "type": "object",
         "properties": {
           "code": {
-            "type": "string",
-            "description": "Stable machine-readable code, e.g. SHOP_NOT_FOUND."
+            "description": "Stable machine-readable code, e.g. SHOP_NOT_FOUND.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ErrorCode"
+              }
+            ]
           },
           "message": {
             "type": "string"
@@ -1303,6 +1376,14 @@
       "ShopDetailDto": {
         "type": "object",
         "properties": {
+          "reason_code": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReasonCode"
+              }
+            ]
+          },
           "key": {
             "type": "string"
           },
@@ -1363,7 +1444,7 @@
           "frame_url": {
             "type": "string",
             "nullable": true,
-            "description": "Always null for local shops until detection captures frames."
+            "description": "Null until the first frame of this channel is captured; the same rule for local and backend channels."
           },
           "cookie_set": {
             "type": "boolean"
@@ -1398,6 +1479,7 @@
           }
         },
         "required": [
+          "reason_code",
           "key",
           "platform",
           "label",
@@ -1488,91 +1570,6 @@
           }
         }
       },
-      "DetectionStateDto": {
-        "type": "object",
-        "properties": {
-          "key": {
-            "type": "string"
-          },
-          "state": {
-            "enum": [
-              "stopped",
-              "retrying",
-              "checking_image",
-              "playing",
-              "stopping",
-              "error"
-            ],
-            "type": "string"
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "required": [
-          "key",
-          "state",
-          "message"
-        ]
-      },
-      "MonitorStateDto": {
-        "type": "object",
-        "properties": {
-          "running": {
-            "type": "boolean"
-          },
-          "platforms": {
-            "description": "Platforms selected by the last start; empty while stopped.",
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": [
-                "tiktok",
-                "shopee"
-              ]
-            }
-          },
-          "keys": {
-            "nullable": true,
-            "description": "Monitored shop keys, or null when every shop of `platforms` is monitored.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "running",
-          "platforms",
-          "keys"
-        ]
-      },
-      "StartMonitorDto": {
-        "type": "object",
-        "properties": {
-          "platforms": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": [
-                "tiktok",
-                "shopee"
-              ]
-            }
-          },
-          "keys": {
-            "description": "Limit monitoring to these shops. Every start replaces the monitored set; omitting keys means every shop of `platforms`, while `[]` monitors none.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "platforms"
-        ]
-      },
       "BackendStatusDto": {
         "type": "object",
         "properties": {
@@ -1638,6 +1635,101 @@
         "required": [
           "email",
           "password"
+        ]
+      },
+      "DetectionStateDto": {
+        "type": "object",
+        "properties": {
+          "reason_code": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReasonCode"
+              }
+            ]
+          },
+          "key": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "stopped",
+              "retrying",
+              "checking_image",
+              "playing",
+              "stopping",
+              "error"
+            ],
+            "type": "string"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "reason_code",
+          "key",
+          "state",
+          "message"
+        ]
+      },
+      "MonitorStateDto": {
+        "type": "object",
+        "properties": {
+          "running": {
+            "type": "boolean"
+          },
+          "platforms": {
+            "description": "Platforms selected by the last start; empty while stopped.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "tiktok",
+                "shopee"
+              ]
+            }
+          },
+          "keys": {
+            "nullable": true,
+            "description": "Monitored shop keys, or null when every shop of `platforms` is monitored.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "running",
+          "platforms",
+          "keys"
+        ]
+      },
+      "StartMonitorDto": {
+        "type": "object",
+        "properties": {
+          "platforms": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "tiktok",
+                "shopee"
+              ]
+            }
+          },
+          "keys": {
+            "nullable": true,
+            "description": "Limit monitoring to these shops. Every start replaces the monitored set; omitting keys, or `null` as the Python tool allows, means every shop of `platforms`, while `[]` monitors none.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "platforms"
         ]
       },
       "LayoutSettingsDto": {

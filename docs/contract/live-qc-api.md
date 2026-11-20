@@ -20,7 +20,7 @@ Every endpoint below exists. **Until a row says `real`, it returns fixed sample 
 - **Base URL:** `http://127.0.0.1:<QC_PORT>/api/v1` (default port 8765; `localhost` works too). The service runs on the operator's own machine, installed from a Windows installer, so the admin app uses `http://127.0.0.1:8765` as its default in code; `VITE_LIVE_QC_URL` in a local `.env` only overrides it.
 - **Auth:** none. Do not send the admin `Authorization` header. Any logged-in admin user may call the service on their own machine. Brand access is enforced by livestream-backend through the account the operator logs the service in with (`POST /backend/login`, admin accounts only).
 - **CORS:** only origins in the service's `ALLOWED_ORIGINS` (dev default `http://localhost:3004`).
-- **Local-only requests:** the `Host` header must name `127.0.0.1`, `localhost` or `[::1]` (any port, any letter case), otherwise `403 HOST_NOT_ALLOWED`. A write (anything but GET/HEAD/OPTIONS) whose `Origin` header is neither in `ALLOWED_ORIGINS` nor the service's own origin (Swagger UI at `/docs`) gets `403 ORIGIN_NOT_ALLOWED`. `ALLOWED_ORIGINS` lists the pages that call the service, such as the admin dev server, not the service's own address. A dev proxy that keeps the browser `Host` and `Origin` passes both checks. **A proxy must not rewrite `Host` to a loopback name** (e.g. Vite `changeOrigin: true`): that lets any host the proxy serves, such as a public tunnel, reach the service.
+- **Local-only requests:** the `Host` header must name `127.0.0.1`, `localhost` or `[::1]` (any port, any letter case), otherwise `403 HOST_NOT_ALLOWED`. A write (anything but GET/HEAD/OPTIONS) whose `Origin` header is neither in `ALLOWED_ORIGINS` nor the service's own origin (Swagger UI at `/docs`) gets `403 ORIGIN_NOT_ALLOWED`. Any request, a read included, that the browser marks `Sec-Fetch-Site: cross-site` is refused with `403 ORIGIN_NOT_ALLOWED` unless its `Origin` is in `ALLOWED_ORIGINS` (a page of another site cannot read the service by an image, script or form request). Same-origin, same-site and user-typed requests (`same-origin`, `same-site`, `none`) and clients that send no `Sec-Fetch-Site` header (curl, the Python tool) are not affected. `ALLOWED_ORIGINS` lists the pages that call the service, such as the admin dev server, not the service's own address. A dev proxy that keeps the browser `Host` and `Origin` passes both checks. **A proxy must not rewrite `Host` to a loopback name** (e.g. Vite `changeOrigin: true`): that lets any host the proxy serves, such as a public tunnel, reach the service.
 - **JSON:** field names are `snake_case`.
   - Timestamps are ISO-8601 strings with an offset.
   - Nullable fields are always present and set to `null`; they are never omitted.
@@ -43,10 +43,12 @@ Every non-2xx response has the same envelope as livestream-backend, so `getDetai
 
 ```json
 {
-  "detail": "Không tìm thấy shop x.",
-  "error": { "code": "SHOP_NOT_FOUND", "message": "Không tìm thấy shop x.", "request_id": "uuid" }
+  "detail": "Không tìm thấy kênh x.",
+  "error": { "code": "SHOP_NOT_FOUND", "message": "Không tìm thấy kênh x.", "request_id": "uuid" }
 }
 ```
+
+`error.code` is published in `docs/openapi/live-qc.json` as the enum `ErrorCode`: every code of this table plus the HTTP status names of other errors, so the consumer generates its type instead of listing codes by hand.
 
 `detail` and `error.message` are Vietnamese text the page may show as is, for every domain error and both `403` refusals. Branch on `error.code`, never on the text. Request validation (`BAD_REQUEST` from the validation pipe) and unexpected `500` errors still answer in English.
 
@@ -60,12 +62,13 @@ Every non-2xx response has the same envelope as livestream-backend, so `getDetai
 | `BACKEND_NOT_CONNECTED`                 | 400      | The service has no backend login                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `BACKEND_LOGIN_FAILED`                  | 400      | The login was refused; `detail` says why: wrong credentials, an account that is not admin/super_admin, an `AUTO_LIVES_BACKEND_URL` that is not an http(s) URL, livestream-backend not answering, an answer without a token pair, or another refusal from it (its HTTP status and message)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `STREAM_UNAVAILABLE`                    | 502      | A fresh stream URL could not be resolved                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `SHOPS_FILE_UNREADABLE`                 | 500      | `shops.json` is locked, not valid JSON, or its `shops` value is not a list; every route that reads shops lists it (`/shops*`, `detection/start`, `detection/stop`, `frame`, `/settings/layout`, `/wall*`), and nothing is overwritten                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `SHOPS_FILE_UNREADABLE`                 | 500      | `shops.json` is locked, not valid JSON, or its `shops` value is not a list; every route that reads shops lists it (`/shops*`, `detection/start`, `frame`, `/settings/layout`, `/wall*`), and nothing is overwritten                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `COOKIES_FILE_UNREADABLE`               | 500      | `shopee_cookies.json` is locked or not valid JSON; `POST`/`PUT /shops` for a Shopee shop refuse to write (nothing is overwritten) and list it, while reads show `cookie_set: false` and `DELETE` still succeeds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `LAYOUT_FILE_UNREADABLE` | 500 | `mpv_layout.json` is locked or not a JSON object; `PUT /settings/layout` refuses to write (nothing is overwritten) and lists it, while `GET /settings/layout` shows the defaults |
 | `HOST_NOT_ALLOWED`                      | 403      | The `Host` header is not a loopback name                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `ORIGIN_NOT_ALLOWED`                    | 403      | A write came from an origin outside `ALLOWED_ORIGINS`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `ORIGIN_NOT_ALLOWED`                    | 403      | A write came from an origin outside `ALLOWED_ORIGINS`, or a request the browser marks cross-site came without an allowed `Origin`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `BAD_REQUEST`                           | 400      | The request body failed validation: a wrong type, a value outside an enum, a missing required field, or a field the endpoint does not accept. `detail` lists every problem, joined with `, `. Also a value only the service can check, with one Vietnamese message in `detail`: a field the shop's platform does not use, a TikTok username that is only `@`, a Shopee `live_url` that is not an https `shopee.vn` / `shp.ee` address, a Shopee cookie without `SPC_SC_SESSION` or whose value has characters outside printable ASCII (`detail` never repeats the value), one Seller Center rejects (`detail` says the cookie was refused) or cannot check right now (`detail` says Seller Center is unreachable: network failure, timeout, 5xx, 429 or a 200 whose body is not JSON), or a Shopee edit that the stored cookie cannot cover |
-| `NOT_FOUND`, `INTERNAL_SERVER_ERROR`, … | as named | Other generic errors use the HTTP status name                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `NOT_FOUND`, `INTERNAL_SERVER_ERROR`, … | as named | Other generic errors use the HTTP status name (`HttpStatus` of NestJS: every 4xx and 5xx name)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 ## Enums
 
@@ -75,6 +78,7 @@ Every non-2xx response has the same envelope as livestream-backend, so `getDetai
 | `source`    | `local` (stored in this service), `backend` (Shopee Open API brand synced from livestream-backend)                                                                                  |
 | `status`    | `live`, `offline` (platform says not live), `unknown` (could not tell), `no_signal` (stream opened but no frames), `checking` (job running, no verdict yet), `not_checked` (no job) |
 | `job_state` | `stopped`, `retrying`, `checking_image`, `playing`, `stopping`, `error`                                                                                                             |
+| `reason_code` | `not_live`, `no_stream_url`, `cookie_missing`, `cookie_invalid`, `cookie_store_unreadable`, `seller_center_no_access`, `invalid_live_url`, `missing_user_id`, `lookup_failed`, `platform_unreachable`, `backend_not_connected`, `backend_error`, `unsupported`, `tool_missing`, `player_failed`, `no_frames`, `internal_error` (see Detection behaviour) |
 | `detector`  | `mpv`, `ffmpeg`                                                                                                                                                                     |
 | `aspect`    | `9:16`, `16:9`, `3:4`, `1:1`                                                                                                                                                        |
 
@@ -82,7 +86,7 @@ Every non-2xx response has the same envelope as livestream-backend, so `getDetai
 
 | Method & path                      | Request                                    | Response                                                                                                                                     | Status                                                                |
 | ---------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `GET /health`                      | —                                          | `{status: "ok", version}`                                                                                                                    | real                                                                  |
+| `GET /health`                      | —                                          | `{product: "live-qc", status: "ok", version}`                                                                                                                    | real                                                                  |
 | `GET /shops`                       | —                                          | `{items: ShopRow[]}`: local channels in `shops.json` order, then backend channels                                                            | real (local + backend)                                                |
 | `GET /shops/:key`                  | —                                          | `ShopDetail`                                                                                                                                 | real (local + backend)                                                |
 | `POST /shops`                      | `CreateShop`                               | `201 ShopDetail`                                                                                                                             | real                                                                  |
@@ -98,8 +102,8 @@ Every non-2xx response has the same envelope as livestream-backend, so `getDetai
 | `POST /backend/login`              | `{email, password}`                        | `BackendStatus` (after a first sync, whose failure shows in `error`), or `400 BACKEND_LOGIN_FAILED`                                          | real (backend)                                                        |
 | `POST /backend/logout`             | —                                          | `BackendStatus`                                                                                                                              | real (backend)                                                        |
 | `POST /backend/sync`               | —                                          | `BackendStatus` after reading brands and board now (a failed read is `200` with `error` set), or `400 BACKEND_NOT_CONNECTED` without a login | real (backend)                                                        |
-| `GET /settings/layout`             | —                                          | `LayoutSnapshot`                                                                                                                             | stub (settings are sample values; `tiles` come from the local shops)  |
-| `PUT /settings/layout`             | partial `LayoutSettings`                   | `LayoutSnapshot`                                                                                                                             | stub (settings are kept in memory; `tiles` come from the local shops) |
+| `GET /settings/layout`             | —                                          | `LayoutSnapshot`                                                                                                                             | real (settings in `mpv_layout.json`; `tiles` come from the channels) |
+| `PUT /settings/layout`             | partial `LayoutSettings`                   | `LayoutSnapshot`                                                                                                                             | real (saved to `mpv_layout.json`) |
 | `GET /wall`                        | —                                          | `Wall`                                                                                                                                       | stub                                                                  |
 | `POST /wall/:key/refresh`          | —                                          | `{url}` or `502 STREAM_UNAVAILABLE`                                                                                                          | stub                                                                  |
 
@@ -111,6 +115,7 @@ Request bodies are validated even while an endpoint is a stub. A field the reque
 ShopRow = {
   key: string; platform: Platform; label: string; source: 'local' | 'backend';
   status: Status; job_state: JobState; attempts: number; message: string | null;
+  reason_code: ReasonCode | null;   // why the channel is not live; null when there is nothing to explain (always null until detection is real)
   checked_at: string | null; live_since: string | null;
   frame_url: string | null;   // path from the host root, e.g. /api/v1/shops/<key>/frame?t=<ms>; null until the first frame
   cookie_set: boolean;        // local Shopee shops: a Seller Center cookie is stored
@@ -148,10 +153,10 @@ UpdateShop = CreateShop without platform. An omitted field stays unchanged; `nul
 // sets it from the login (without one the stored user_id stays); `''` is rejected with 400. `username` and `cookie` cannot be null;
 // omit `cookie` to keep the stored one.
 
-DetectionState = { key: string; state: JobState; message: string | null }
+DetectionState = { key: string; state: JobState; message: string | null; reason_code: ReasonCode | null }
 MonitorState = { running: boolean; platforms: Platform[]; keys: string[] | null }
 // platforms: what POST /monitor/start selected, [] while stopped. keys: null = every shop of those platforms.
-// A start without keys monitors every shop of its platforms, even when an earlier start listed keys.
+// A start without keys, or with `keys: null`, monitors every shop of its platforms, even when an earlier start listed keys; `keys: []` monitors none.
 
 BackendStatus = { connected; backend /* masked host */; email /* masked */; name; role;
                   synced_at: string | null; error: string | null; brands: number; schedules: number;
@@ -166,12 +171,132 @@ BackendStatus = { connected; backend /* masked host */; email /* masked */; name
 
 LayoutSettings = { enabled; x; y; width; height /* either 0 = full work area */; rows; columns /* 0 = auto */;
                    gap; aspect: Aspect; live_only; ontop; detector: Detector; show_mpv }
+// Settings live in mpv_layout.json in the data folder, with the keys and defaults of the Python tool, and are re-read on every call.
+// A saved value is clamped like the Python tool does: x, y -20000..20000; width, height 0..20000 (either under 200 x 150 resets both to 0);
+// rows, columns 0..12; gap 0..100. A missing file reads as the defaults; a file the service cannot read is never overwritten (LAYOUT_FILE_UNREADABLE).
+// A successful PUT restarts running detection jobs only when `detector` or `show_mpv` changed (as the Python tool does), so they pick up the new detector or window mode.
 LayoutSnapshot = { settings: LayoutSettings; screen: Area; area: Area; aspects: Aspect[];
                    detectors: Detector[]; rows; columns; tiles: { key; label; live; visible }[] }
 
 Wall = { settings: { rows; columns; gap; aspect; live_only }; detector: Detector;
          tiles: { key; label; live; visible; url: string | null }[] }  // url: signed HTTP-FLV, expires
 ```
+
+## Detection behaviour
+
+This section is the target behaviour of real detection. It matches the Python tool (`livestream_qc/mpv_retry.py`) unless it says otherwise. Until detection is real, every row reports the idle state with `reason_code: null`.
+
+### Job lifecycle
+
+- One job per channel key. `POST /shops/:key/detection/start` creates it (`job_state: retrying`, `attempts: 0`) or, when one is already running, answers its current state without starting a second job.
+- Each attempt resolves a stream URL, then checks that real frames arrive. A new attempt rebuilds the resolve request, so a cookie saved after the job started is used by the next attempt.
+- `job_state` moves `retrying` (resolving) -> `checking_image` (player or FFmpeg opened the stream, waiting for frames, at most 20 s) -> `playing` (frames seen; frames are checked again every 30 s). A stream that stalls, a closed player or an expired URL goes back to `retrying`, so the next live is caught.
+- `POST /shops/:key/detection/stop` ends the job (`stopping`, then `stopped`) and kills the player or FFmpeg it started. It works by key even when the shop no longer exists, and answers `stopped` for a key without a job; it never answers `404 SHOP_NOT_FOUND`.
+- A job that cannot start its tool (player or FFmpeg not found, player failed to launch) ends in `job_state: error` with a `reason_code` (`tool_missing`, `player_failed`) and stops retrying; starting it again retries.
+- The player is mpv.exe, or mpvnet.exe when only that is installed. A launched mpvnet needs `--process-instance=multi`, or it hands the URL to a window that already exists and the channel's own window never opens; every player gets its own `--config-dir` under the service's `runtime` folder.
+- A job ending on its own releases its wall tile. `attempts` counts resolve attempts since the job started.
+
+### Verdict rules
+
+An attempt that resolves or opens a stream ends in a verdict, the channel `status`:
+
+- `live`: real frames were seen.
+- `offline`: the platform says the channel is not live (a `not_live` resolve failure, or yt-dlp's "not currently live").
+- `no_signal`: the stream URL opened but no frames arrived within the 20 s check.
+- `unknown`: any other failed resolve (no play URL, cookie, backend, network or tool problem).
+
+Some outcomes record **no verdict**, as in the Python tool: a playing stream that stalls (no new frames for 30 s), a player window that was closed, and FFmpeg losing frames it had seen. The job goes back to `retrying` and the next attempt's outcome is the one that counts, so a live channel with one hiccup stays `live`.
+
+Every verdict except `live` counts as a miss, failed resolves included. A channel that was `live` keeps reporting `live` until it has 2 consecutive misses; the 2nd miss reports the new verdict. A `live` verdict resets the miss count. `live_since` is set when the status becomes `live` and cleared when it leaves it.
+
+While no job runs, `status` is `not_checked` and `checked_at`, `live_since` and `message` are null. While a job runs and has no verdict yet, `status` is `checking`. A job in `error` reports `not_checked`.
+
+### Unlike the Python tool
+
+These choices are deliberate; everything else in this section is Python behaviour.
+
+- FFmpeg or mpv missing is a job in `error` with `reason_code: tool_missing`. In Python a missing FFmpeg makes every grab fail and the job loops on `no_signal`.
+- A job in `error` has `message: null`. Python keeps a Vietnamese text there; here the admin writes the text from `job_state` and `reason_code`, and the service never sends operator prose in `message` (the stub's `Connecting…` is a placeholder).
+- An unexpected exception in one attempt is `unknown` / `internal_error` and the job keeps retrying after its normal delay. In Python the job's thread dies.
+- `reason_code` itself, and the `cancelled` outcome, do not exist in Python.
+
+Wait before the next attempt, by platform (a backend channel counts as `shopee`):
+
+| After                                      | tiktok | shopee |
+| ------------------------------------------ | ------ | ------ |
+| `offline` verdict (platform says not live) | 20 s   | 60 s   |
+| any other failed resolve                   | 5 s    | 15 s   |
+| `no_signal` (opened, no frames)            | 3 s    | 3 s    |
+
+### Resolve budget
+
+- One resolve has one budget (25 s unless a caller sets another). Every HTTP request of it shares that budget: each hop of a redirect chain, and for a backend channel the first try, the wait for a 401 token refresh and the retry together. A job that is stopped aborts all of them at once.
+- TikTok is the exception, as in the Python tool: when the room API fails, yt-dlp gets a whole budget of its own, so a TikTok resolve can take up to two budgets. A room API that used up its time never starves the fallback.
+- A resolve the caller aborted ends as `cancelled`. It says nothing about the channel: no verdict, no log, and the backend play URL answer is neither cached nor counted in a failure streak.
+- A yt-dlp run killed at its timeout is reported as `yt-dlp timed out`.
+
+### Reason codes and the verdict table
+
+`reason_code` says why a row is not live (`null` when there is nothing to explain). The service exposes codes only; the admin owns the operator text and the next step (for `cookie_missing` and `cookie_invalid`: update the cookie).
+
+| `reason_code`             | Meaning                                                              |
+| ------------------------- | -------------------------------------------------------------------- |
+| `not_live`                | The platform says the channel is not live                            |
+| `no_stream_url`           | Live, but no playable stream URL was found                           |
+| `cookie_missing`          | The Shopee channel has no stored Seller Center cookie                |
+| `cookie_invalid`          | Seller Center refused the stored cookie; the operator must update it |
+| `cookie_store_unreadable` | `shopee_cookies.json` cannot be read; updating a cookie would fail the same way, so the operator is not asked to |
+| `seller_center_no_access` | The Seller Center account cannot reach this channel                  |
+| `invalid_live_url`        | The channel's `live_url` is not accepted                             |
+| `missing_user_id`         | A Shopee channel has no `user_id`                                    |
+| `lookup_failed`           | The ongoing-session lookup failed                                    |
+| `platform_unreachable`    | The platform or yt-dlp could not be reached or answered badly        |
+| `backend_not_connected`   | A backend channel, and the service has no backend login              |
+| `backend_error`           | livestream-backend refused or failed the play URL request            |
+| `unsupported`             | No resolver for this channel                                         |
+| `tool_missing`            | mpv, FFmpeg or yt-dlp is not installed                               |
+| `player_failed`           | The player could not be launched                                     |
+| `no_frames`               | The stream opened but showed no frames                               |
+| `internal_error`          | An unexpected error ended the attempt                                |
+
+Failed resolve (`ResolveFailureCode`) to `status` / `reason_code`:
+
+| Resolve failure                                | `status`  | `reason_code`             |
+| ---------------------------------------------- | --------- | ------------------------- |
+| `not_live`                                     | `offline` | `not_live`                |
+| `no_play_url`                                  | `unknown` | `no_stream_url`           |
+| `missing_cookie`                               | `unknown` | `cookie_missing`          |
+| `invalid_cookie`                               | `unknown` | `cookie_invalid`          |
+| `seller_center_auth_failed`                    | `unknown` | `cookie_invalid`          |
+| `seller_center_no_access`                      | `unknown` | `seller_center_no_access` |
+| `invalid_live_url`                             | `unknown` | `invalid_live_url`        |
+| `missing_user_id`                              | `unknown` | `missing_user_id`         |
+| `ongoing_lookup_failed`                        | `unknown` | `lookup_failed`           |
+| `shopee_request_failed`                        | `unknown` | `platform_unreachable`    |
+| `ytdlp_failed`, text says "not currently live" | `offline` | `not_live`                |
+| `ytdlp_failed`, yt-dlp not installed           | `unknown` | `tool_missing`            |
+| `ytdlp_failed`, anything else                  | `unknown` | `platform_unreachable`    |
+| `backend_not_connected`                        | `unknown` | `backend_not_connected`   |
+| `backend_error`                                | `unknown` | `backend_error`           |
+| `unsupported`                                  | `unknown` | `unsupported`             |
+| `cancelled`                                    | none      | none (the job was stopped; never shown) |
+
+Other outcomes: a `shopee_cookies.json` that cannot be read (`COOKIES_FILE_UNREADABLE` while the job builds its request) is `unknown` / `cookie_store_unreadable`, never `cookie_missing`; no frames in the 20 s check is `no_signal` / `no_frames`; a missing player or FFmpeg is `job_state: error` / `tool_missing`; a launch failure is `job_state: error` / `player_failed`; an unexpected exception is `unknown` / `internal_error` and the job keeps retrying after its normal delay.
+
+### Lifecycle rules
+
+- Deleting a local channel or renaming it (its key changes) stops the job of the old key and kills its player before the request answers (Shops calls a stop port that Detection implements; nothing reads back). A renamed channel starts idle under its new key; the old key reports nothing.
+- A backend channel has no edit to hook: its job ends when the login epoch it started under changes (`POST /backend/logout`, a new login, a refused refresh), and when the channel disappears from a sync. Every job checks both on each attempt and on each 30 s watch tick, so such a job ends within 30 s.
+- A job rebuilds its resolve request on every attempt from the channel as it is then; when the channel no longer exists the job stops.
+- `stop` works by key, whether or not the shop still exists.
+
+### Wall tile rule
+
+As in the Python tool, a channel has a wall tile only while its job runs (`retrying`, `checking_image` or `playing`). A channel without a running job is not in `tiles` of `GET /settings/layout` or `GET /wall`. Live channels come first, then the others in the order their jobs started; with `live_only`, only live ones are listed. Until detection is real, `tiles` still lists every channel.
+
+### Reads have no side effects
+
+No `GET` makes a network call or starts a process. `GET /shops`, `GET /shops/:key`, `GET /shops/:key/frame`, `GET /settings/layout`, `GET /wall`, `GET /monitor` and `GET /backend/status` only read what the service already holds (files, the backend sync it did on its own schedule, the detection state in memory). Work that reaches outside the service happens only on a write (`POST` / `PUT` / `DELETE`), from a job, or from the sync loop.
 
 ## Pages and the APIs they need (consumer side)
 
@@ -191,7 +316,7 @@ Frontend setup the consumer adds:
 - the default base URL `http://127.0.0.1:8765` in code; `VITE_LIVE_QC_URL` in a local `.env` only overrides it. No Dockerfile, CI workflow or deployment changes.
 - a dev proxy entry in `vite.config.mts` that keeps the browser `Host` (`changeOrigin: false`)
 - a second axios instance without the bearer-token interceptor
-- an install/update banner on every Live QC page: `GET /health` failing means the service is not running (show the installer download link); `version` below the admin's minimum service version means it must be updated
+- an install/update banner on every Live QC page: `GET /health` failing, or answering without `product: "live-qc"` (another program holds the port), means the service is not running (show the installer download link); `version` below the admin's minimum service version means it must be updated
 - a `src/modules/live-qc` module
 - the `mpegts.js` dependency
 
@@ -216,3 +341,11 @@ All pages sit under one parent nav item, "Live QC", and are open to any logged-i
 - v1 + Shopee link rules: a Shopee `live_url` must be an https address on `shopee.vn` or `shp.ee` (`400 BAD_REQUEST` otherwise, on `POST` and `PUT`; TikTok unchanged). A Shopee cookie value outside printable ASCII is `400 BAD_REQUEST` instead of being reported as an unreachable Seller Center. Routes that read `shops.json` list `500 SHOPS_FILE_UNREADABLE`, and `POST`/`PUT /shops` also list `500 COOKIES_FILE_UNREADABLE`, in the OpenAPI document. Response shapes are unchanged.
 - v1 + backend login: `POST /backend/login` logs in to livestream-backend for real and refuses non-admin accounts with `400 BACKEND_LOGIN_FAILED`; `GET /backend/status` reports the masked backend and email; `POST /backend/logout` deletes the stored login; `POST /backend/sync` answers `400 BACKEND_NOT_CONNECTED` without a login. Response shapes are unchanged.
 - v1 + backend sync: `GET /shops` and `GET /shops/:key` list the synced backend channels in place of the sample row, with today's schedules, `on_air_schedule_id` and `session`; `GET /backend/status` and `POST /backend/sync` report `synced_at`, `error`, `brands` and `schedules`; `POST /backend/login` syncs once before answering. Response shapes are unchanged.
+- v1 + detection behaviour: documents the target job lifecycle, verdict rules, the reason code table, lifecycle rules, the wall tile rule and side-effect-free reads (Detection behaviour). `ShopRow` (so `ShopDetail`) and `DetectionState` gain a nullable `reason_code` (`ReasonCode` enum, always `null` for now). Regenerate the consumer types.
+- v1 + stop by key: `POST /shops/:key/detection/stop` no longer reads shops and never answers `404 SHOP_NOT_FOUND` or `500 SHOPS_FILE_UNREADABLE`: it answers `stopped` for any key, so the job of a deleted channel can still be stopped. Response shapes are unchanged.
+- v1 + persisted layout: `GET`/`PUT /settings/layout` read and write `mpv_layout.json` (Python-compatible keys, defaults and clamping). `PUT /settings/layout` documents `500 LAYOUT_FILE_UNREADABLE`; `GET` shows the defaults for an unreadable file. Regenerate the consumer types.
+- v1 + error code enum: `error.code` is documented as the enum `ErrorCode` (the codes above plus the HTTP status names of 4xx and 5xx), so the admin can generate its error code type. Values are unchanged. Regenerate the consumer types.
+- v1 + health product: `GET /health` answers `{product: "live-qc", status, version}`. `product` is new and constant, so the admin can tell this service from another program on port 8765. Regenerate the consumer types.
+- v1 + cross-site guard: a request with `Sec-Fetch-Site: cross-site` and no allowed `Origin` is `403 ORIGIN_NOT_ALLOWED`, reads included. Response shapes are unchanged.
+- v1 + operator wording: the Vietnamese `detail` texts say "kênh" instead of "shop", and a backend that is unreachable or has an invalid address no longer tells the operator to edit a `.env` file (it says to check the network, then contact the administrator). Codes and shapes are unchanged.
+- v1 + review fixes: `reason_code` is the named schema `ReasonCode` (and gains `cookie_store_unreadable`); `POST /monitor/start` documents `keys: null` as every shop of the platforms (`keys` becomes nullable); the verdict rules, the resolve budget, the lifecycle and the deviations from Python are written out in Detection behaviour. Regenerate the consumer types.
