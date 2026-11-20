@@ -1,0 +1,11 @@
+export const API_PREFIX = 'api/v1';
+export const LISTEN_HOST = '127.0.0.1';
+export const LOCAL_HOSTNAMES = ['127.0.0.1', 'localhost', '[::1]'];
+export const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'];
+export const DEFAULT_QC_PORT = 8765;
+export const MIN_PORT = 1;
+export const MAX_PORT = 65535;
+export const DEFAULT_ALLOWED_ORIGINS = 'http://localhost:3004';
+export const PACKAGE_JSON_FILE = 'package.json';
+export const UNKNOWN_VERSION = '0.0.0';
+export const CORS_METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];

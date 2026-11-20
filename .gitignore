@@ -13,3 +13,7 @@ shopee_cookies.json
 backend_session.json
 .env
 mpv_layout.json
+/.understand-anything
+node_modules/
+dist/
+coverage/
