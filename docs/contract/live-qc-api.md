@@ -1,9 +1,9 @@
-# Live QC API contract (v1)
+# Monitor Livestream API contract (v1)
 
 |                 |                                                                        |
 | --------------- | ---------------------------------------------------------------------- |
 | Provider        | `monitor-livestream` (this repo, NestJS service)                       |
-| Consumer        | `livestream-admin` (Live QC pages)                                     |
+| Consumer        | `livestream-admin` (Monitor Livestream pages)                                     |
 | Source of truth | this document + `docs/openapi/live-qc.json`                            |
 | Change rule     | shape changes land here first, then in code; never the other way round |
 
@@ -353,11 +353,11 @@ Frontend setup the consumer adds:
 - the default base URL `http://127.0.0.1:8765` in code; `VITE_LIVE_QC_URL` in a local `.env` only overrides it. No Dockerfile, CI workflow or deployment changes.
 - a dev proxy entry in `vite.config.mts` that keeps the browser `Host` (`changeOrigin: false`)
 - a second axios instance without the bearer-token interceptor
-- an install/update banner on every Live QC page: `GET /health` failing, or answering without `product: "live-qc"` (another program holds the port), means the service is not running (show the installer download link); `version` below the admin's minimum service version means it must be updated
+- an install/update banner on every Monitor Livestream page: `GET /health` failing, or answering without `product: "live-qc"` (another program holds the port), means the service is not running (show the installer download link); `version` below the admin's minimum service version means it must be updated
 - a `src/modules/live-qc` module
 - the `mpegts.js` dependency
 
-All pages sit under one parent nav item, "Live QC", and are open to any logged-in user (not `superAdminRoute`).
+All pages sit under one parent nav item, "Monitor Livestream", and are open to any logged-in user (not `superAdminRoute`).
 
 ## Changelog
 
@@ -393,3 +393,4 @@ All pages sit under one parent nav item, "Live QC", and are open to any logged-i
 - v1 + show_mpv default: `show_mpv` defaults to `false` (a file that already holds the key keeps its value). Frames lost or a player that exits wait 3 s before the next attempt. Response shapes are unchanged.
 - v1 + detection fixes: the tool of the selected detector is checked before every attempt; a stop waits at most 5 s; `restartActive` restarts jobs side by side and a stop during it wins; the monitor stops deselected jobs side by side. Response shapes are unchanged.
 - v1 + sample layout geometry: the table now says that `screen`, `area`, `rows` and `columns` of `LayoutSnapshot` are sample values until the grid layout exists. The mpv first-frame wait ends at 20 s even while a pipe answer is pending. Response shapes are unchanged.
+- v1 + product name: the service is called Monitor Livestream in every text (OpenAPI title and description, logs, installer, docs). Identifiers stay: `product: "live-qc"`, the `LiveQC` data folder, the executable and installer file names, the pipe prefix and the admin routes. Response shapes are unchanged.

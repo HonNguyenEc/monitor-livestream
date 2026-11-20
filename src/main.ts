@@ -49,7 +49,7 @@ async function bootstrap(): Promise<void> {
   logFile?.enableRotation();
   const baseUrl = `http://${LISTEN_HOST}:${config.port}`;
   Logger.log(
-    `Live QC service on ${baseUrl}, Swagger at ${baseUrl}/${SWAGGER_PATH}`,
+    `Monitor Livestream service on ${baseUrl}, Swagger at ${baseUrl}/${SWAGGER_PATH}`,
     BOOTSTRAP_LOG_CONTEXT,
   );
 }

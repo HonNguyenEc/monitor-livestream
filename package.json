@@ -1,7 +1,7 @@
 {
   "name": "monitor-livestream",
   "version": "0.1.0",
-  "description": "Live QC service: resolves TikTok/Shopee live streams, detects real frames with mpv or FFmpeg, and serves the livestream-admin Live QC pages",
+  "description": "Monitor Livestream service: resolves TikTok/Shopee live streams, detects real frames with mpv or FFmpeg, and serves the livestream-admin Monitor Livestream pages",
   "private": true,
   "license": "UNLICENSED",
   "engines": {

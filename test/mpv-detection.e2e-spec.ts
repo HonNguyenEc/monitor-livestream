@@ -27,7 +27,7 @@ class FakeMpv extends EventEmitter {
   signalCode: string | null = null;
 }
 
-describe('Live QC mpv detection (e2e)', () => {
+describe('Monitor Livestream mpv detection (e2e)', () => {
   let app: NestFastifyApplication;
   let dataDir: string;
   let launched: Array<{ file: string; args: string[] }>;

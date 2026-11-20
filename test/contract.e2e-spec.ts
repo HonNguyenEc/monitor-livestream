@@ -53,7 +53,7 @@ const BACKEND_STATUS_SHAPE = {
   api_calls_5m: expect.any(Number),
 };
 
-describe('Live QC contract v1 (e2e)', () => {
+describe('Monitor Livestream contract v1 (e2e)', () => {
   let app: NestFastifyApplication;
   let dataDir: string;
 

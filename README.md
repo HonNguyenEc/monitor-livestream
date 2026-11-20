@@ -1,8 +1,8 @@
 # Livestream QC
 
-## Live QC service (TypeScript)
+## Monitor Livestream service (TypeScript)
 
-The NestJS service in `src/` is the product: it serves the livestream-admin Live QC pages on `http://127.0.0.1:8765` and ships as a Windows installer.
+The NestJS service in `src/` is the product: it serves the livestream-admin Monitor Livestream pages on `http://127.0.0.1:8765` and ships as a Windows installer.
 
 Requirements: Node 24.
 

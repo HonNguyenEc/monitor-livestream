@@ -24,7 +24,7 @@ async function until<T>(read: () => Promise<T>, done: (value: T) => boolean): Pr
   }
 }
 
-describe('Live QC detection (e2e)', () => {
+describe('Monitor Livestream detection (e2e)', () => {
   let app: NestFastifyApplication;
   let dataDir: string;
 

@@ -14,7 +14,7 @@ const STREAM_RUN = {
 const WAIT_STEP_MS = 20;
 const WAIT_LIMIT_MS = 8_000;
 
-describe('Live QC monitor (e2e)', () => {
+describe('Monitor Livestream monitor (e2e)', () => {
   let app: NestFastifyApplication;
   let dataDir: string;
 

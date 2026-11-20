@@ -15,7 +15,7 @@
   #error OutputBaseFilename is required
 #endif
 
-#define AppName "Live QC"
+#define AppName "Monitor Livestream"
 #define AppPublisher "eCentric"
 #define AppFolder "LiveQC"
 #define RunValueName "LiveQC"
@@ -47,8 +47,8 @@ UninstallDisplayName={#AppName}
 CloseApplications=no
 
 [CustomMessages]
-ServiceStillRunning=Không dừng được Live QC đang chạy ({#ExeName}). Hãy tắt nó trong Task Manager rồi chạy lại Setup.
-DeleteDataPrompt=Xóa luôn dữ liệu Live QC trên máy này (danh sách kênh, đăng nhập backend, log)?
+ServiceStillRunning=Không dừng được Monitor Livestream đang chạy ({#ExeName}). Hãy tắt nó trong Task Manager rồi chạy lại Setup.
+DeleteDataPrompt=Xóa luôn dữ liệu Monitor Livestream trên máy này (danh sách kênh, đăng nhập backend, log)?
 
 [InstallDelete]
 Type: filesandordirs; Name: "{app}\swagger-ui"

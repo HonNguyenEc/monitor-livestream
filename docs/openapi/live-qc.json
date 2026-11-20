@@ -992,8 +992,8 @@
     }
   },
   "info": {
-    "title": "Live QC API",
-    "description": "Live QC service for the livestream-admin Live QC pages. Contract: docs/contract/live-qc-api.md.",
+    "title": "Monitor Livestream API",
+    "description": "Monitor Livestream service for the livestream-admin Monitor Livestream pages. Contract: docs/contract/live-qc-api.md.",
     "version": "0.1.0",
     "contact": {}
   },
