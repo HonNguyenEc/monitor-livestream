@@ -9,11 +9,11 @@
 
 ## Implementation status
 
-Every endpoint below exists. **Until a row says `real`, it returns fixed sample data** with the documented shape, so the frontend can build against it now. The status column is updated in the same commit that makes an endpoint real.
+Every endpoint below exists and is `real`. A change that makes an endpoint return sample data again must say so in this column and in the changelog.
 
 `real (backend)` means the backend login and sync are real. The login is stored in `backend_session.json` and refreshed when the backend answers 401. Once logged in, the service reads `/brands` (every 10 minutes) and today's `/live-monitor/board` (every 2 minutes, and when the local date changes) from livestream-backend, and `POST /backend/sync` reads both now. Without a login the service makes no backend call and lists no backend channel. After a failed read the last good lists stay, `error` carries the masked reason and the next try waits 60 s, doubling to at most 600 s (the backend's `Retry-After` replaces the 60 s when sent, still capped at 600 s; a `Retry-After` of 0 is ignored). A logout, a login that ends, or a new login clears everything synced. A `POST /backend/sync` or login that arrives while a full sync of the same login is running shares its result instead of reading again. The login email is trimmed before it is checked.
 
-`real (local)` means local channels come from the service's own `shops.json`. Until detection is real, every local row reports `status: "not_checked"`, `job_state: "stopped"`, `attempts: 0` and null `message`, `checked_at`, `live_since` and `frame_url`. Backend channels (`source: "backend"`) are the connected Shopee Open API brands that the logged-in account can see (livestream-backend scopes `/brands`); they report the same idle detection fields. Their `key` is `shopee_api_<first 10 hex of sha1(brand id)>` and their `label` is the brand name. `GET /shops/:key` of a backend channel adds today's `schedules` (session ids masked, no account id), `on_air_schedule_id` (the schedule whose session was last found live, else the likeliest one from 15 minutes before its start to 30 minutes after its planned end) and `session` (what the last play URL lookup answered, `null` until one ran; it never holds the URL).
+`real (local)` means local channels come from the service's own `shops.json`. A channel without a detection job reports `status: "not_checked"`, `job_state: "stopped"`, `attempts: 0` and null `message`, `checked_at`, `live_since` and `frame_url`; one with a job reports what its job found (Detection behaviour). Backend channels (`source: "backend"`) are the connected Shopee Open API brands that the logged-in account can see (livestream-backend scopes `/brands`); they report detection the same way. Their `key` is `shopee_api_<first 10 hex of sha1(brand id)>` and their `label` is the brand name. `GET /shops/:key` of a backend channel adds today's `schedules` (session ids masked, no account id), `on_air_schedule_id` (the schedule whose session was last found live, else the likeliest one from 15 minutes before its start to 30 minutes after its planned end) and `session` (what the last play URL lookup answered, `null` until one ran; it never holds the URL).
 
 ## Basics
 
@@ -92,22 +92,22 @@ Every non-2xx response has the same envelope as livestream-backend, so `getDetai
 | `POST /shops`                      | `CreateShop`                               | `201 ShopDetail`                                                                                                                             | real                                                                  |
 | `PUT /shops/:key`                  | `UpdateShop`                               | `ShopDetail`, under the shop's new key when the change renames it                                                                            | real                                                                  |
 | `DELETE /shops/:key`               | —                                          | `204`                                                                                                                                        | real                                                                  |
-| `POST /shops/:key/detection/start` | —                                          | `DetectionState`                                                                                                                             | stub                                                                  |
-| `POST /shops/:key/detection/stop`  | —                                          | `DetectionState`                                                                                                                             | stub                                                                  |
-| `GET /shops/:key/frame`            | —                                          | `image/jpeg`, or `404 FRAME_NOT_FOUND` while no frame exists                                                                                 | stub                                                                  |
-| `GET /monitor`                     | —                                          | `MonitorState`                                                                                                                               | stub                                                                  |
-| `POST /monitor/start`              | `{platforms: platform[], keys?: string[]}` | `MonitorState`                                                                                                                               | stub                                                                  |
-| `POST /monitor/stop`               | —                                          | `MonitorState`                                                                                                                               | stub                                                                  |
+| `POST /shops/:key/detection/start` | —                                          | `DetectionState`                                                                                                                             | real                                                                  |
+| `POST /shops/:key/detection/stop`  | —                                          | `DetectionState`                                                                                                                             | real                                                                  |
+| `GET /shops/:key/frame`            | —                                          | `image/jpeg`, or `404 FRAME_NOT_FOUND` while no frame exists                                                                                 | real                                                                  |
+| `GET /monitor`                     | —                                          | `MonitorState`                                                                                                                               | real                                                                  |
+| `POST /monitor/start`              | `{platforms: platform[], keys?: string[]}` | `MonitorState`                                                                                                                               | real                                                                  |
+| `POST /monitor/stop`               | —                                          | `MonitorState`                                                                                                                               | real                                                                  |
 | `GET /backend/status`              | —                                          | `BackendStatus`                                                                                                                              | real (backend)                                                        |
 | `POST /backend/login`              | `{email, password}`                        | `BackendStatus` (after a first sync, whose failure shows in `error`), or `400 BACKEND_LOGIN_FAILED`                                          | real (backend)                                                        |
 | `POST /backend/logout`             | —                                          | `BackendStatus`                                                                                                                              | real (backend)                                                        |
 | `POST /backend/sync`               | —                                          | `BackendStatus` after reading brands and board now (a failed read is `200` with `error` set), or `400 BACKEND_NOT_CONNECTED` without a login | real (backend)                                                        |
-| `GET /settings/layout`             | —                                          | `LayoutSnapshot`                                                                                                                             | real (settings in `mpv_layout.json`; `tiles` come from the channels) |
-| `PUT /settings/layout`             | partial `LayoutSettings`                   | `LayoutSnapshot`                                                                                                                             | real (saved to `mpv_layout.json`) |
-| `GET /wall`                        | —                                          | `Wall`                                                                                                                                       | stub                                                                  |
-| `POST /wall/:key/refresh`          | —                                          | `{url}` or `502 STREAM_UNAVAILABLE`                                                                                                          | stub                                                                  |
+| `GET /settings/layout`             | —                                          | `LayoutSnapshot`                                                                                                                             | real (settings in `mpv_layout.json`; `tiles` come from the channels); `screen`, `area`, `rows` and `columns` are sample until the grid layout (Phase 4b) |
+| `PUT /settings/layout`             | partial `LayoutSettings`                   | `LayoutSnapshot`                                                                                                                             | real (saved to `mpv_layout.json`); `screen`, `area`, `rows` and `columns` are sample, as in `GET` |
+| `GET /wall`                        | —                                          | `Wall`                                                                                                                                       | real                                                                  |
+| `POST /wall/:key/refresh`          | —                                          | `{url}` or `502 STREAM_UNAVAILABLE`                                                                                                          | real                                                                  |
 
-Request bodies are validated even while an endpoint is a stub. A field the request shape does not list is rejected with `400 BAD_REQUEST`.
+Request bodies are validated. A field the request shape does not list is rejected with `400 BAD_REQUEST`.
 
 ### Shapes
 
@@ -115,7 +115,7 @@ Request bodies are validated even while an endpoint is a stub. A field the reque
 ShopRow = {
   key: string; platform: Platform; label: string; source: 'local' | 'backend';
   status: Status; job_state: JobState; attempts: number; message: string | null;
-  reason_code: ReasonCode | null;   // why the channel is not live; null when there is nothing to explain (always null until detection is real)
+  reason_code: ReasonCode | null;   // why the channel is not live; null when there is nothing to explain (set by detection while a job runs or ended in error)
   checked_at: string | null; live_since: string | null;
   frame_url: string | null;   // path from the host root, e.g. /api/v1/shops/<key>/frame?t=<ms>; null until the first frame
   cookie_set: boolean;        // local Shopee shops: a Seller Center cookie is stored
@@ -171,7 +171,7 @@ BackendStatus = { connected; backend /* masked host */; email /* masked */; name
 
 LayoutSettings = { enabled; x; y; width; height /* either 0 = full work area */; rows; columns /* 0 = auto */;
                    gap; aspect: Aspect; live_only; ontop; detector: Detector; show_mpv }
-// Settings live in mpv_layout.json in the data folder, with the keys and defaults of the Python tool, and are re-read on every call.
+// Settings live in mpv_layout.json in the data folder, with the keys and defaults of the Python tool (except `show_mpv`, which defaults to `false`), and are re-read on every call.
 // A saved value is clamped like the Python tool does: x, y -20000..20000; width, height 0..20000 (either under 200 x 150 resets both to 0);
 // rows, columns 0..12; gap 0..100. A missing file reads as the defaults; a file the service cannot read is never overwritten (LAYOUT_FILE_UNREADABLE).
 // A successful PUT restarts running detection jobs only when `detector` or `show_mpv` changed (as the Python tool does), so they pick up the new detector or window mode.
@@ -184,7 +184,7 @@ Wall = { settings: { rows; columns; gap; aspect; live_only }; detector: Detector
 
 ## Detection behaviour
 
-This section is the target behaviour of real detection. It matches the Python tool (`livestream_qc/mpv_retry.py`) unless it says otherwise. Until detection is real, every row reports the idle state with `reason_code: null`.
+This section is the target behaviour of real detection. It matches the Python tool (`livestream_qc/mpv_retry.py`) unless it says otherwise.
 
 ### Job lifecycle
 
@@ -215,9 +215,17 @@ While no job runs, `status` is `not_checked` and `checked_at`, `live_since` and 
 
 These choices are deliberate; everything else in this section is Python behaviour.
 
-- FFmpeg or mpv missing is a job in `error` with `reason_code: tool_missing`. In Python a missing FFmpeg makes every grab fail and the job loops on `no_signal`.
-- A job in `error` has `message: null`. Python keeps a Vietnamese text there; here the admin writes the text from `job_state` and `reason_code`, and the service never sends operator prose in `message` (the stub's `Connecting…` is a placeholder).
-- An unexpected exception in one attempt is `unknown` / `internal_error` and the job keeps retrying after its normal delay. In Python the job's thread dies.
+- FFmpeg or mpv missing is a job in `error` with `reason_code: tool_missing`. In Python a missing FFmpeg makes every grab fail and the job loops on `no_signal`. The tool of the selected detector is checked before every attempt, so a missing one ends the job before any resolve (Python checks mpv once, when the job starts).
+- A job in `error` has `message: null`. Python keeps a Vietnamese text there; here the admin writes the text from `job_state` and `reason_code`, and the service never sends operator prose in `message`: `message` is `null` in every state.
+- An unexpected exception in one attempt is `unknown` / `internal_error` and the job keeps retrying after its normal delay; when it repeats, the wait grows to 30 s, then 60 s, and returns to normal after an attempt that does not fail. In Python the job's thread dies.
+- A Shopee channel whose cookie failed (`cookie_missing`, `cookie_invalid`, `cookie_store_unreadable`) twice in a row with the same stored cookie stops retrying and waits, checking the stored cookie every 5 s, until it changes; the 2 misses are the ones the live grace rule needs. Python retries every 15 s.
+- Stopping a job forgets its frame: `frame_url` is `null` and `GET /shops/:key/frame` is `404 FRAME_NOT_FOUND` until the next start finds one.
+- A `shops.json` that cannot be read while a job runs is no verdict: the attempt is skipped and tried again after the normal wait, so a live channel does not drift to `unknown`.
+- The monitor starts its jobs with the 2 s pause between starts only, not after the last one, and it follows a rename of a channel its keyed selection names (Monitor).
+- `live_only` lists only live tiles; Python also lists the others with `visible: false`. `visible` is always `true` until the grid layout exists (Python hides what does not fit `rows` x `columns`).
+- A stop waits at most 5 s for the processes of a job to end before it answers (`POST /shops/:key/detection/stop`, `POST /monitor/stop`, a delete or rename); a process still running after that is left to the kill already asked for. Python does not wait.
+- After frames are lost or the player exits, the next attempt waits 3 s. Python resolves again at once, so a player window the operator closes would reopen with no pause.
+- `show_mpv` defaults to `false`: with it on, every channel opens its own free-floating window until the desktop grid window exists (Python embedded them in one window).
 - `reason_code` itself, and the `cancelled` outcome, do not exist in Python.
 
 Wait before the next attempt, by platform (a backend channel counts as `shopee`):
@@ -227,6 +235,7 @@ Wait before the next attempt, by platform (a backend channel counts as `shopee`)
 | `offline` verdict (platform says not live) | 20 s   | 60 s   |
 | any other failed resolve                   | 5 s    | 15 s   |
 | `no_signal` (opened, no frames)            | 3 s    | 3 s    |
+| frames lost or the player exited           | 3 s    | 3 s    |
 
 ### Resolve budget
 
@@ -234,6 +243,7 @@ Wait before the next attempt, by platform (a backend channel counts as `shopee`)
 - TikTok is the exception, as in the Python tool: when the room API fails, yt-dlp gets a whole budget of its own, so a TikTok resolve can take up to two budgets. A room API that used up its time never starves the fallback.
 - A resolve the caller aborted ends as `cancelled`. It says nothing about the channel: no verdict, no log, and the backend play URL answer is neither cached nor counted in a failure streak.
 - A yt-dlp run killed at its timeout is reported as `yt-dlp timed out`.
+- yt-dlp is looked up in the `tools` folder of the data folder, then on PATH; none found is `tool_missing`. At most 2 yt-dlp processes run at once, and a run that waits for a free slot spends its budget while it waits.
 
 ### Reason codes and the verdict table
 
@@ -285,14 +295,41 @@ Other outcomes: a `shopee_cookies.json` that cannot be read (`COOKIES_FILE_UNREA
 
 ### Lifecycle rules
 
-- Deleting a local channel or renaming it (its key changes) stops the job of the old key and kills its player before the request answers (Shops calls a stop port that Detection implements; nothing reads back). A renamed channel starts idle under its new key; the old key reports nothing.
+- Deleting a local channel or renaming it (its key changes) stops the job of the old key and kills its player before the request answers (Shops calls a stop port that Detection implements; nothing reads back). A renamed channel starts idle under its new key (a running monitor that selected the old key starts it from its next pass, see Monitor); the old key reports nothing.
 - A backend channel has no edit to hook: its job ends when the login epoch it started under changes (`POST /backend/logout`, a new login, a refused refresh), and when the channel disappears from a sync. Every job checks both on each attempt and on each 30 s watch tick, so such a job ends within 30 s.
 - A job rebuilds its resolve request on every attempt from the channel as it is then; when the channel no longer exists the job stops.
 - `stop` works by key, whether or not the shop still exists.
 
+### Detectors
+
+The `detector` setting picks how a job tells that a stream shows real frames; a change restarts the running jobs (`PUT /settings/layout`). `mpv` is the default.
+
+- **mpv**: keeps a player on the stream and asks it over its IPC pipe how many video frames it has shown (`estimated-frame-number`). The first frame must come within 20 s (asked once a second; a slow pipe answer does not stretch the window); then every 30 s the count must have grown, or it is a stall. A stall, or a player that exited, records no verdict and the job resolves again. A frame picture is saved with `screenshot-to-file` at the first frame and every 30 s, to a temp file and then renamed. An IPC error or timeout counts as 0 frames. A player that exits is noticed at once (Python: at the next 30 s check): before its first frame that is `no_signal` without waiting out the 20 s, later it is lost frames. While it plays, every 30 s check that finds growth reports live again, which moves `checked_at` and `frame_url` (Python reports live once, at the first frame, and only refreshes the picture after). The service logs why a player ended without a frame (its exit code or the IPC failure).
+- mpv command line: `--config-dir` (a folder per channel under `runtime`), `--no-terminal`, `--input-ipc-server` (a new pipe name per launch), `--keep-open=no`, `--title`, then the URL. With `show_mpv` off the player has no window: `--vo=null --ao=null`, plus `--media-controls=no` when it is the bundled mpv or reports version 0.42 or later (older builds refuse the option). With `show_mpv` on it opens its own window with `--force-window=yes`; placing windows on the wall grid comes with the layout work, so until then they are free-floating. mpv.net is launched with `--process-instance=multi`; it ignores `--vo=null`, so hidden it is muted and still opens its window (as in Python).
+- The player is looked up once and remembered (a missing one is looked for again after 30 s, and after a failed launch). No mpv is `job_state: error` / `tool_missing`; a launch that fails is `error` / `player_failed`. Stopping a job closes its IPC and kills the player with its process tree before the stop answers.
+- **ffmpeg**: grabs a frame every 30 s, no player stays connected.
+
+### Monitor
+
+`POST /monitor/start` keeps one detection job per selected channel, as `monitor.py` does. The selection (platforms, and keys unless `null`) lives in memory, so a service restart ends monitoring, as in Python.
+
+- A pass runs at once and then 5 s after the previous one ended; passes never overlap. It starts a job for every selected channel the monitor has not started yet, 2 s apart, and stops the job of a channel the monitor started that is no longer selected or no longer listed.
+- A second `POST /monitor/start` replaces the selection and applies at once; it cuts a start queue short.
+- A job already running for a selected channel (started by hand) is adopted: it is kept, and stops with the monitor or when its channel leaves the selection. A job of a channel outside the selection is never touched.
+- A job that ends on its own (`error`) or that the operator stops by hand is not started again by the monitor until its channel leaves the selection and comes back, or the monitor is started again, as in Python.
+- `POST /monitor/stop` stops every job the monitor started or adopted before it answers.
+- A `shops.json` that cannot be read skips the pass: nothing is stopped, the next pass tries again.
+- `keys` in `MonitorState` come sorted.
+- Unlike Python, renaming a channel that a keyed selection names moves the selection to the new key, so the channel is monitored under it from the next pass. A selection with `keys: null` already includes it.
+
 ### Wall tile rule
 
-As in the Python tool, a channel has a wall tile only while its job runs (`retrying`, `checking_image` or `playing`). A channel without a running job is not in `tiles` of `GET /settings/layout` or `GET /wall`. Live channels come first, then the others in the order their jobs started; with `live_only`, only live ones are listed. Until detection is real, `tiles` still lists every channel.
+As in the Python tool, a channel has a wall tile only while its job runs (`retrying`, `checking_image` or `playing`). A channel without a running job is not in `tiles` of `GET /settings/layout` or `GET /wall`. Live channels come first, then the others in the order their jobs started; with `live_only`, only live ones are listed. A tile of a channel that no longer exists is not listed.
+
+### Wall
+
+- `GET /wall` and `GET /settings/layout` list tiles by the wall tile rule above. A live tile's `url` is the stream URL its job resolved last; the read never resolves. A tile that is not live has `url: null`.
+- `POST /wall/:key/refresh` resolves a new URL now, for any existing channel, with or without a job. Callers that arrive while a resolve of the same key runs share it. A running job keeps the new URL for the next viewers. When nothing resolves (not live, a failed lookup, an unreadable cookie file), the answer is `502 STREAM_UNAVAILABLE`.
 
 ### Reads have no side effects
 
@@ -349,3 +386,10 @@ All pages sit under one parent nav item, "Live QC", and are open to any logged-i
 - v1 + cross-site guard: a request with `Sec-Fetch-Site: cross-site` and no allowed `Origin` is `403 ORIGIN_NOT_ALLOWED`, reads included. Response shapes are unchanged.
 - v1 + operator wording: the Vietnamese `detail` texts say "kênh" instead of "shop", and a backend that is unreachable or has an invalid address no longer tells the operator to edit a `.env` file (it says to check the network, then contact the administrator). Codes and shapes are unchanged.
 - v1 + review fixes: `reason_code` is the named schema `ReasonCode` (and gains `cookie_store_unreadable`); `POST /monitor/start` documents `keys: null` as every shop of the platforms (`keys` becomes nullable); the verdict rules, the resolve budget, the lifecycle and the deviations from Python are written out in Detection behaviour. Regenerate the consumer types.
+- v1 + FFmpeg detection: `POST /shops/:key/detection/start|stop` and `GET /shops/:key/frame` are real with the FFmpeg detector. A job resolves, grabs a frame every 30 s while it plays, and writes the verdict, `reason_code`, `checked_at`, `live_since`, `attempts` and `frame_url` of its channel row. `message` is `null` in every state. Response shapes are unchanged.
+- v1 + monitor: `GET /monitor`, `POST /monitor/start` and `POST /monitor/stop` are real: a supervisor keeps one job per selected channel (Monitor). `MonitorState.keys` comes sorted. Response shapes are unchanged.
+- v1 + wall: `GET /wall` and `POST /wall/:key/refresh` are real, and `tiles` of `GET /settings/layout` and `GET /wall` follow the wall tile rule (running jobs only, live first). Response shapes are unchanged.
+- v1 + mpv detection: the `mpv` detector (the default) is real, so jobs of the default settings show frames through a player started by the service. Response shapes are unchanged.
+- v1 + show_mpv default: `show_mpv` defaults to `false` (a file that already holds the key keeps its value). Frames lost or a player that exits wait 3 s before the next attempt. Response shapes are unchanged.
+- v1 + detection fixes: the tool of the selected detector is checked before every attempt; a stop waits at most 5 s; `restartActive` restarts jobs side by side and a stop during it wins; the monitor stops deselected jobs side by side. Response shapes are unchanged.
+- v1 + sample layout geometry: the table now says that `screen`, `area`, `rows` and `columns` of `LayoutSnapshot` are sample values until the grid layout exists. The mpv first-frame wait ends at 20 s even while a pipe answer is pending. Response shapes are unchanged.
