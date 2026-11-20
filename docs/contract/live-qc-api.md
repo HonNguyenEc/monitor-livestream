@@ -11,6 +11,8 @@
 
 Every endpoint below exists. **Until a row says `real`, it returns fixed sample data** with the documented shape, so the frontend can build against it now. The status column is updated in the same commit that makes an endpoint real.
 
+`real (local)` means local channels come from the service's own `shops.json` while backend channels (`source: "backend"`) are still one sample row until the livestream-backend sync lands. Until detection is real, every local row reports `status: "not_checked"`, `job_state: "stopped"`, `attempts: 0` and null `message`, `checked_at`, `live_since` and `frame_url`.
+
 ## Basics
 
 - **Base URL:** `http://127.0.0.1:<QC_PORT>/api/v1` (default port 8765; `localhost` works too). The service runs on the operator's own machine, installed from a Windows installer, so the admin app uses `http://127.0.0.1:8765` as its default in code; `VITE_LIVE_QC_URL` in a local `.env` only overrides it.
@@ -38,8 +40,10 @@ Every endpoint below exists. **Until a row says `real`, it returns fixed sample 
 Every non-2xx response has the same envelope as livestream-backend, so `getDetailMsg` / `getErrorCode` / `getRequestId` in `src/common/utils/apiError.ts` work unchanged:
 
 ```json
-{ "detail": "Shop x not found", "error": { "code": "SHOP_NOT_FOUND", "message": "Shop x not found", "request_id": "uuid" } }
+{ "detail": "Không tìm thấy shop x.", "error": { "code": "SHOP_NOT_FOUND", "message": "Không tìm thấy shop x.", "request_id": "uuid" } }
 ```
+
+`detail` and `error.message` are Vietnamese text the page may show as is, for every domain error and both `403` refusals. Branch on `error.code`, never on the text. Request validation (`BAD_REQUEST` from the validation pipe) and unexpected `500` errors still answer in English.
 
 | `error.code` | HTTP | Meaning |
 |---|---|---|
@@ -53,7 +57,7 @@ Every non-2xx response has the same envelope as livestream-backend, so `getDetai
 | `STREAM_UNAVAILABLE` | 502 | A fresh stream URL could not be resolved |
 | `HOST_NOT_ALLOWED` | 403 | The `Host` header is not a loopback name |
 | `ORIGIN_NOT_ALLOWED` | 403 | A write came from an origin outside `ALLOWED_ORIGINS` |
-| `BAD_REQUEST` | 400 | The request body failed validation: a wrong type, a value outside an enum, a missing required field, or a field the endpoint does not accept. `detail` lists every problem, joined with `, ` |
+| `BAD_REQUEST` | 400 | The request body failed validation: a wrong type, a value outside an enum, a missing required field, or a field the endpoint does not accept. `detail` lists every problem, joined with `, `. Also a value only the service can check, with one Vietnamese message in `detail`: a field the shop's platform does not use, a TikTok username that is only `@`, a Shopee cookie without `SPC_SC_SESSION`, one Seller Center rejects or cannot check right now, or a Shopee edit that the stored cookie cannot cover |
 | `NOT_FOUND`, `INTERNAL_SERVER_ERROR`, … | as named | Other generic errors use the HTTP status name |
 
 ## Enums
@@ -72,11 +76,11 @@ Every non-2xx response has the same envelope as livestream-backend, so `getDetai
 | Method & path | Request | Response | Status |
 |---|---|---|---|
 | `GET /health` | — | `{status: "ok", version}` | real |
-| `GET /shops` | — | `{items: ShopRow[]}` | stub |
-| `GET /shops/:key` | — | `ShopDetail` | stub |
-| `POST /shops` | `CreateShop` | `201 ShopDetail` | stub |
-| `PUT /shops/:key` | `UpdateShop` | `ShopDetail` | stub |
-| `DELETE /shops/:key` | — | `204` | stub |
+| `GET /shops` | — | `{items: ShopRow[]}`: local channels in `shops.json` order, then backend channels | real (local) |
+| `GET /shops/:key` | — | `ShopDetail` | real (local) |
+| `POST /shops` | `CreateShop` | `201 ShopDetail` | real |
+| `PUT /shops/:key` | `UpdateShop` | `ShopDetail`, under the shop's new key when the change renames it | real |
+| `DELETE /shops/:key` | — | `204` | real |
 | `POST /shops/:key/detection/start` | — | `DetectionState` | stub |
 | `POST /shops/:key/detection/stop` | — | `DetectionState` | stub |
 | `GET /shops/:key/frame` | — | `image/jpeg`, or `404 FRAME_NOT_FOUND` while no frame exists | stub |
@@ -118,7 +122,20 @@ ShopDetail = ShopRow & {
 
 CreateShop = { platform; username?; name?; user_id?; shop_id?; live_url?; cookie? }
 // tiktok: username required. shopee: cookie required (raw `cookie` header of a banhang.shopee.vn request).
-UpdateShop = CreateShop without platform; omit cookie to keep the stored one.
+// Each platform takes only its own fields; another platform's field with a non-null value is 400 BAD_REQUEST:
+//   tiktok: username (leading @ dropped), live_url     shopee: name, user_id, shop_id, live_url, cookie
+// Strings are trimmed. The key comes from username (TikTok) or name (Shopee), so a rename changes the key;
+// a key another shop already has is 409 SHOP_ALREADY_EXISTS. Fields shops.json holds beyond these are kept.
+// Shopee: only SPC_SC_SESSION is kept from the pasted cookie, and it is checked with Seller Center
+//   (GET banhang.shopee.vn/api/v2/login/) before anything is saved. user_id and shop_id come from that login
+//   (a typed user_id must match it); name defaults to the Seller Center username, else the user_id.
+//   The cookie is stored per user_id and is never returned; cookie_set tells whether one is stored.
+//   PUT without cookie needs a stored cookie for the shop's user_id and cannot change user_id; a cleared name
+//   then falls back to the user_id. To move a shop to another Seller Center account, send its cookie with
+//   user_id: null. A cookie no remaining shop uses is dropped.
+UpdateShop = CreateShop without platform. An omitted field stays unchanged; `null` clears an optional field
+// (`name`, `user_id`, `shop_id`, `live_url`); `''` is rejected with 400. `username` and `cookie` cannot be null;
+// omit `cookie` to keep the stored one.
 
 DetectionState = { key: string; state: JobState; message: string | null }
 MonitorState = { running: boolean; platforms: Platform[]; keys: string[] | null }
@@ -170,3 +187,8 @@ All pages sit under one parent nav item, "Live QC", and are open to any logged-i
 - v1 + monitor platforms: `MonitorState` gains `platforms: Platform[]` (`[]` while stopped). Regenerate the consumer types.
 - v1 + access model: the service takes no bearer token, so the document no longer declares a security scheme; the admin app defaults to `http://127.0.0.1:8765`. Response shapes are unchanged.
 - v1 + same-origin writes: writes from the service's own origin (Swagger UI) are accepted. Response shapes are unchanged.
+- v1 + null clears: in `PUT /shops/:key`, `null` clears `name`, `user_id`, `shop_id` or `live_url`, an omitted field stays unchanged, and `''` is rejected (`name: ''` was accepted before). `UpdateShopDto` marks those four fields nullable. Regenerate the consumer types.
+- v1 + local shops: `GET /shops` and `GET /shops/:key` read local channels from `shops.json` in the data folder, with the same keys and labels as the Python tool. Backend channels stay sample data. Response shapes are unchanged.
+- v1 + TikTok writes: `POST /shops`, `PUT /shops/:key` and `DELETE /shops/:key` write `shops.json` for TikTok shops (delete works for every local shop). A field of the other platform is rejected with `400 BAD_REQUEST`. Response shapes are unchanged.
+- v1 + Shopee writes: `POST /shops` and `PUT /shops/:key` handle Shopee shops with a Seller Center cookie; `DELETE` drops a cookie no remaining shop uses. Cookie problems are `400 BAD_REQUEST` with a Vietnamese `detail`. Response shapes are unchanged.
+- v1 + Vietnamese errors: every domain error and the `403` refusals carry a Vietnamese `detail` / `error.message`; codes are unchanged. Response shapes are unchanged.

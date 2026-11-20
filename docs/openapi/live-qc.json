@@ -1338,26 +1338,30 @@
         "properties": {
           "username": {
             "type": "string",
-            "description": "Required for TikTok shops."
+            "description": "TikTok shops only. Cannot be cleared."
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "user_id": {
             "type": "number",
+            "nullable": true,
             "minimum": 1
           },
           "shop_id": {
             "type": "number",
+            "nullable": true,
             "minimum": 1
           },
           "live_url": {
             "type": "string",
+            "nullable": true,
             "format": "uri"
           },
           "cookie": {
             "type": "string",
-            "description": "Raw `cookie` header of a banhang.shopee.vn request, required for Shopee shops. On update, omit it to keep the stored cookie."
+            "description": "Raw `cookie` header of a banhang.shopee.vn request, Shopee shops only. Omit it to keep the stored cookie."
           }
         }
       },
