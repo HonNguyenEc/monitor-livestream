@@ -67,7 +67,7 @@ describe('Layout settings persistence (e2e)', () => {
 
     await callApi(app, 'PUT', '/settings/layout', { detector: 'ffmpeg' });
     await callApi(app, 'PUT', '/settings/layout', { detector: 'ffmpeg', gap: 3 });
-    await callApi(app, 'PUT', '/settings/layout', { show_mpv: false });
+    await callApi(app, 'PUT', '/settings/layout', { show_mpv: true });
     await app.close();
 
     expect(restart).toHaveBeenCalledTimes(2);

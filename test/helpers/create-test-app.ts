@@ -7,6 +7,9 @@ import { DATA_DIR } from '../../src/config/data-dir.module';
 import { BackendHttpClient } from '../../src/modules/backend/clients/backend-http.client';
 import { backendConfig, toBackendConfig } from '../../src/modules/backend/config/backend.config';
 import { DEFAULT_BACKEND_URL } from '../../src/modules/backend/constants/backend.constants';
+import { FfmpegFrameGrabber } from '../../src/modules/detection/detectors/ffmpeg-frame-grabber';
+import { MPV_IPC_CLIENT_FACTORY } from '../../src/modules/players/services/mpv-ipc-client.factory';
+import { MpvPlayerProvider } from '../../src/modules/players/services/mpv-player.provider';
 import { PlayerLocator } from '../../src/modules/players/services/player-locator.service';
 import { ChildProcessRegistry } from '../../src/modules/processes/services/child-process-registry.service';
 import { TikTokRoomClient } from '../../src/modules/resolvers/tiktok/tiktok-room.client';
@@ -15,6 +18,9 @@ import { SellerCenterClient } from '../../src/modules/shopee/clients/seller-cent
 import { missingDataDir } from './data-dir';
 import {
   fakeChildProcessRegistry,
+  fakeFrameGrabber,
+  fakeMpvIpcFactory,
+  fakeMpvPlayerProvider,
   fakePlayerLocator,
   fakeSellerCenterClient,
   fakeTikTokRoomClient,
@@ -37,6 +43,12 @@ export interface TestAppOptions {
   ytdlpRunner?: { run: (...args: never[]) => Promise<unknown> };
   /** Replaces the player lookup; by default a call fails. */
   playerLocator?: Pick<PlayerLocator, 'find'>;
+  /** Replaces the located mpv player; by default the lookup finds none. */
+  mpvPlayer?: Pick<MpvPlayerProvider, 'get' | 'forget'>;
+  /** Replaces the IPC client of a launched mpv; by default building one fails. */
+  mpvIpc?: (pipePath: string) => unknown;
+  /** Replaces the FFmpeg frame grab; by default a grab fails. */
+  frameGrabber?: Pick<FfmpegFrameGrabber, 'grab'> & Partial<Pick<FfmpegFrameGrabber, 'available'>>;
   /** Replaces the child process registry; by default a launch fails and nothing is swept. */
   childProcesses?: Partial<Record<keyof ChildProcessRegistry, unknown>>;
 }
@@ -55,6 +67,12 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<NestF
     .useValue(options.ytdlpRunner ?? fakeYtDlpRunner)
     .overrideProvider(PlayerLocator)
     .useValue(options.playerLocator ?? fakePlayerLocator)
+    .overrideProvider(MpvPlayerProvider)
+    .useValue(options.mpvPlayer ?? fakeMpvPlayerProvider)
+    .overrideProvider(MPV_IPC_CLIENT_FACTORY)
+    .useValue(options.mpvIpc ?? fakeMpvIpcFactory)
+    .overrideProvider(FfmpegFrameGrabber)
+    .useValue({ ...fakeFrameGrabber, ...options.frameGrabber })
     .overrideProvider(ChildProcessRegistry)
     .useValue(options.childProcesses ?? fakeChildProcessRegistry)
     .overrideProvider(backendConfig.KEY)

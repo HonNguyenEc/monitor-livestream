@@ -1,3 +1,5 @@
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { LightMyRequestResponse as Response } from 'fastify';
 
@@ -197,7 +199,7 @@ describe('Live QC contract v1 (e2e)', () => {
       expect(start.json()).toEqual({
         key: KNOWN_SHOP,
         state: 'retrying',
-        message: expect.any(String),
+        message: null,
         reason_code: null,
       });
       expect(stop.json()).toEqual({
@@ -414,7 +416,8 @@ describe('Live QC contract v1 (e2e)', () => {
   describe('a channel with a running job', () => {
     useFreshApp();
 
-    const startJob = (): void => {
+    const startJob = async (): Promise<void> => {
+      await writeFile(join(dataDir, 'frame.jpg'), Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
       app.get(DetectionStateStore, { strict: false }).update(KNOWN_SHOP, {
         status: LiveStatus.LIVE,
         jobState: JobState.PLAYING,
@@ -422,13 +425,13 @@ describe('Live QC contract v1 (e2e)', () => {
         message: null,
         checkedAt: '2026-01-01T00:00:00.000Z',
         liveSince: '2026-01-01T00:00:00.000Z',
-        framePath: 'frame.jpg',
+        framePath: join(dataDir, 'frame.jpg'),
         frameAtMs: 1700000000000,
       });
     };
 
     it('shows its detection state in the row and the detail', async () => {
-      startJob();
+      await startJob();
 
       const row = (await call('GET', '/shops'))
         .json()
@@ -448,7 +451,7 @@ describe('Live QC contract v1 (e2e)', () => {
     });
 
     it('serves its frame as a JPEG', async () => {
-      startJob();
+      await startJob();
 
       const response = await app.inject({
         method: 'GET',
@@ -460,23 +463,20 @@ describe('Live QC contract v1 (e2e)', () => {
       expect(response.rawPayload.subarray(0, 2).toString('hex')).toBe('ffd8');
     });
 
-    it('is a live tile with a stream URL on the layout and the wall', async () => {
-      startJob();
+    it('is a live tile on the layout and the wall, with no URL before its job resolved one', async () => {
+      await startJob();
 
       const layout = (await call('GET', '/settings/layout')).json();
       const wall = (await call('GET', '/wall')).json();
 
-      expect(layout.tiles.find((tile: { key: string }) => tile.key === KNOWN_SHOP)).toMatchObject({
-        live: true,
-      });
-      expect(wall.tiles.find((tile: { key: string }) => tile.key === KNOWN_SHOP)).toMatchObject({
-        live: true,
-        url: expect.stringMatching(/^https:/),
-      });
+      expect(layout.tiles).toEqual([
+        { key: KNOWN_SHOP, label: expect.any(String), live: true, visible: true },
+      ]);
+      expect(wall.tiles).toEqual([{ ...layout.tiles[0], url: null }]);
     });
 
     it('goes back to idle once it is stopped', async () => {
-      startJob();
+      await startJob();
 
       await call('POST', `/shops/${KNOWN_SHOP}/detection/stop`);
 
@@ -492,16 +492,13 @@ describe('Live QC contract v1 (e2e)', () => {
   describe('wall', () => {
     useFreshApp();
 
-    it('GET /wall follows the saved layout settings and the shop list', async () => {
+    it('GET /wall follows the saved layout settings, and has no tile without a running job', async () => {
       await call('PUT', '/settings/layout', { detector: 'ffmpeg', gap: 8, live_only: true });
-      const shops = (await call('GET', '/shops')).json().items;
       const wall = (await call('GET', '/wall')).json();
 
       expect(wall.detector).toBe('ffmpeg');
       expect(wall.settings).toMatchObject({ gap: 8, live_only: true });
-      expect(wall.tiles.map((tile: { key: string }) => tile.key)).toEqual(
-        shops.map((shop: { key: string }) => shop.key),
-      );
+      expect(wall.tiles).toEqual([]);
     });
 
     it('GET /wall tiles are the layout tiles plus a URL for live ones', async () => {
@@ -523,11 +520,8 @@ describe('Live QC contract v1 (e2e)', () => {
       }
     });
 
-    it('POST /wall/:key/refresh returns a stream URL', async () => {
-      const response = await call('POST', `/wall/${KNOWN_SHOP}/refresh`);
-
-      expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ url: expect.any(String) });
+    it('POST /wall/:key/refresh is STREAM_UNAVAILABLE when no stream can be resolved', async () => {
+      expectError(await call('POST', `/wall/${KNOWN_SHOP}/refresh`), 502, 'STREAM_UNAVAILABLE');
     });
 
     it('POST /wall/:key/refresh of an unknown shop returns SHOP_NOT_FOUND', async () => {
