@@ -13,14 +13,14 @@ export class WallController {
   constructor(private readonly wallService: WallService) {}
 
   @Get()
-  wall(): WallResponseDto {
+  wall(): Promise<WallResponseDto> {
     return this.wallService.wall();
   }
 
   @Post(':key/refresh')
   @HttpCode(HttpStatus.OK)
   @ApiDomainErrors(ErrorCode.SHOP_NOT_FOUND, ErrorCode.STREAM_UNAVAILABLE)
-  refresh(@Param('key') key: string): WallRefreshResponseDto {
+  refresh(@Param('key') key: string): Promise<WallRefreshResponseDto> {
     return this.wallService.refresh(key);
   }
 }

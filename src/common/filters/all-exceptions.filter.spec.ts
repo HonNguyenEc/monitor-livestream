@@ -47,6 +47,7 @@ describe('AllExceptionsFilter', () => {
     STREAM_UNAVAILABLE: HttpStatus.BAD_GATEWAY,
     HOST_NOT_ALLOWED: HttpStatus.FORBIDDEN,
     ORIGIN_NOT_ALLOWED: HttpStatus.FORBIDDEN,
+    BAD_REQUEST: HttpStatus.BAD_REQUEST,
   };
 
   it.each(Object.entries(CONTRACT_STATUS))('maps %s to %i', (code, status) => {

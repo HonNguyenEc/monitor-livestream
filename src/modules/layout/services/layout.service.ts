@@ -15,7 +15,8 @@ export class LayoutService {
 
   constructor(private readonly shopsService: ShopsService) {}
 
-  snapshot(): LayoutSnapshotDto {
+  async snapshot(): Promise<LayoutSnapshotDto> {
+    const { items } = await this.shopsService.list();
     return {
       settings: this.settings,
       screen: SAMPLE_SCREEN,
@@ -23,7 +24,7 @@ export class LayoutService {
       aspects: Object.values(AspectRatio),
       detectors: Object.values(Detector),
       ...SAMPLE_GRID,
-      tiles: this.shopsService.list().items.map((shop) => ({
+      tiles: items.map((shop) => ({
         key: shop.key,
         label: shop.label,
         live: shop.status === LiveStatus.LIVE,
@@ -32,7 +33,7 @@ export class LayoutService {
     };
   }
 
-  update(body: UpdateLayoutDto): LayoutSnapshotDto {
+  update(body: UpdateLayoutDto): Promise<LayoutSnapshotDto> {
     this.settings = { ...this.settings, ...body };
     return this.snapshot();
   }

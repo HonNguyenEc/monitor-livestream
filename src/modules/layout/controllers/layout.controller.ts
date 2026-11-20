@@ -11,12 +11,12 @@ export class LayoutController {
   constructor(private readonly layoutService: LayoutService) {}
 
   @Get()
-  snapshot(): LayoutSnapshotDto {
+  snapshot(): Promise<LayoutSnapshotDto> {
     return this.layoutService.snapshot();
   }
 
   @Put()
-  update(@Body() body: UpdateLayoutDto): LayoutSnapshotDto {
+  update(@Body() body: UpdateLayoutDto): Promise<LayoutSnapshotDto> {
     return this.layoutService.update(body);
   }
 }

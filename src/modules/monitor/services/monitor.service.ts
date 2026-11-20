@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { ErrorCode } from '../../../common/constants/error-codes.constants';
+import { ErrorMessage } from '../../../common/constants/error-messages.constants';
 import { DomainException } from '../../../common/exceptions/domain.exception';
 import { MonitorStateDto } from '../dtos/monitor-state.dto';
 import { StartMonitorDto } from '../dtos/start-monitor.dto';
@@ -17,10 +18,7 @@ export class MonitorService {
 
   start(body: StartMonitorDto): MonitorStateDto {
     if (body.platforms.length === 0) {
-      throw new DomainException(
-        ErrorCode.NO_PLATFORM_SELECTED,
-        'Select at least one platform to monitor',
-      );
+      throw new DomainException(ErrorCode.NO_PLATFORM_SELECTED, ErrorMessage.noPlatformSelected);
     }
     this.state = {
       running: true,

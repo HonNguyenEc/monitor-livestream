@@ -16,14 +16,14 @@ export class DetectionController {
   @Post('detection/start')
   @ApiDomainErrors(ErrorCode.SHOP_NOT_FOUND)
   @HttpCode(HttpStatus.OK)
-  start(@Param('key') key: string): DetectionStateDto {
+  start(@Param('key') key: string): Promise<DetectionStateDto> {
     return this.detectionService.start(key);
   }
 
   @Post('detection/stop')
   @ApiDomainErrors(ErrorCode.SHOP_NOT_FOUND)
   @HttpCode(HttpStatus.OK)
-  stop(@Param('key') key: string): DetectionStateDto {
+  stop(@Param('key') key: string): Promise<DetectionStateDto> {
     return this.detectionService.stop(key);
   }
 

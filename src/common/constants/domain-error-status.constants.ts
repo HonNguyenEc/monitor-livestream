@@ -14,4 +14,5 @@ export const DOMAIN_ERROR_STATUS: Record<ErrorCode, HttpStatus> = {
   [ErrorCode.STREAM_UNAVAILABLE]: HttpStatus.BAD_GATEWAY,
   [ErrorCode.HOST_NOT_ALLOWED]: HttpStatus.FORBIDDEN,
   [ErrorCode.ORIGIN_NOT_ALLOWED]: HttpStatus.FORBIDDEN,
+  [ErrorCode.BAD_REQUEST]: HttpStatus.BAD_REQUEST,
 };

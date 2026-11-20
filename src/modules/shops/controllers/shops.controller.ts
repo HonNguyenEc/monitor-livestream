@@ -25,25 +25,25 @@ export class ShopsController {
   constructor(private readonly shopsService: ShopsService) {}
 
   @Get()
-  list(): ShopListResponseDto {
+  list(): Promise<ShopListResponseDto> {
     return this.shopsService.list();
   }
 
   @Get(':key')
   @ApiDomainErrors(ErrorCode.SHOP_NOT_FOUND)
-  get(@Param('key') key: string): ShopDetailDto {
+  get(@Param('key') key: string): Promise<ShopDetailDto> {
     return this.shopsService.get(key);
   }
 
   @Post()
   @ApiDomainErrors(ErrorCode.SHOP_ALREADY_EXISTS)
-  create(@Body() body: CreateShopDto): ShopDetailDto {
+  create(@Body() body: CreateShopDto): Promise<ShopDetailDto> {
     return this.shopsService.create(body);
   }
 
   @Put(':key')
   @ApiDomainErrors(ErrorCode.SHOP_NOT_FOUND, ErrorCode.BACKEND_SHOP_READ_ONLY)
-  update(@Param('key') key: string, @Body() body: UpdateShopDto): ShopDetailDto {
+  update(@Param('key') key: string, @Body() body: UpdateShopDto): Promise<ShopDetailDto> {
     return this.shopsService.update(key, body);
   }
 
@@ -51,7 +51,7 @@ export class ShopsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
   @ApiDomainErrors(ErrorCode.SHOP_NOT_FOUND, ErrorCode.BACKEND_SHOP_READ_ONLY)
-  remove(@Param('key') key: string): void {
-    this.shopsService.remove(key);
+  remove(@Param('key') key: string): Promise<void> {
+    return this.shopsService.remove(key);
   }
 }

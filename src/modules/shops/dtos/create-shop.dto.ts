@@ -26,6 +26,7 @@ export class CreateShopDto {
 
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   name?: string;
 
   @IsOptional()

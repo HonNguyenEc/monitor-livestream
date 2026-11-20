@@ -3,6 +3,7 @@ import type { FastifyReply, FastifyRequest, onRequestHookHandler } from 'fastify
 import { LOCAL_HOSTNAMES, SAFE_METHODS } from '../constants/app.constants';
 import { DOMAIN_ERROR_STATUS } from '../constants/domain-error-status.constants';
 import { ErrorCode } from '../constants/error-codes.constants';
+import { ErrorMessage } from '../constants/error-messages.constants';
 import { errorResponse } from '../filters/error-response';
 
 /**
@@ -26,7 +27,7 @@ export function localRequestHook(allowedOrigins: string[]): onRequestHookHandler
 
 function refuse(request: FastifyRequest, allowedOrigins: string[]): [ErrorCode, string] | null {
   if (!LOCAL_HOSTNAMES.includes(request.hostname.toLowerCase())) {
-    return [ErrorCode.HOST_NOT_ALLOWED, 'Requests must target localhost'];
+    return [ErrorCode.HOST_NOT_ALLOWED, ErrorMessage.hostNotAllowed];
   }
   const origin = request.headers.origin?.toLowerCase();
   if (
@@ -35,7 +36,7 @@ function refuse(request: FastifyRequest, allowedOrigins: string[]): [ErrorCode, 
     !allowedOrigins.includes(origin) &&
     !isSameOrigin(request, origin)
   ) {
-    return [ErrorCode.ORIGIN_NOT_ALLOWED, `Origin ${origin} is not allowed`];
+    return [ErrorCode.ORIGIN_NOT_ALLOWED, ErrorMessage.originNotAllowed(origin)];
   }
   return null;
 }

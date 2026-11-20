@@ -14,8 +14,8 @@ export class WallService {
     private readonly layoutService: LayoutService,
   ) {}
 
-  wall(): WallResponseDto {
-    const { settings, tiles } = this.layoutService.snapshot();
+  async wall(): Promise<WallResponseDto> {
+    const { settings, tiles } = await this.layoutService.snapshot();
     const { rows, columns, gap, aspect, live_only, detector } = settings;
     return {
       settings: { rows, columns, gap, aspect, live_only },
@@ -24,8 +24,8 @@ export class WallService {
     };
   }
 
-  refresh(key: string): WallRefreshResponseDto {
-    this.shopsService.get(key);
+  async refresh(key: string): Promise<WallRefreshResponseDto> {
+    await this.shopsService.get(key);
     return { url: SAMPLE_STREAM_URL };
   }
 }

@@ -9,6 +9,8 @@ export const ErrorCode = {
   STREAM_UNAVAILABLE: 'STREAM_UNAVAILABLE',
   HOST_NOT_ALLOWED: 'HOST_NOT_ALLOWED',
   ORIGIN_NOT_ALLOWED: 'ORIGIN_NOT_ALLOWED',
+  // Same code the validation pipe sends; for values only the service can check.
+  BAD_REQUEST: 'BAD_REQUEST',
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
