@@ -1,18 +1,18 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { delimiter, join } from 'node:path';
 
 import { ExternalTool, toolFileName } from './external-tool';
 import { findTool } from './find-tool';
+import { createDataDir, removeDataDir } from '../../../test/helpers/data-dir';
 
 describe('findTool', () => {
   let root: string;
   const file = toolFileName(ExternalTool.FFMPEG);
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), 'live-qc-tool-'));
+    root = await createDataDir({});
   });
-  afterEach(() => rm(root, { recursive: true, force: true }));
+  afterEach(() => removeDataDir(root));
 
   async function place(...folders: string[]): Promise<string> {
     const dir = join(root, ...folders);

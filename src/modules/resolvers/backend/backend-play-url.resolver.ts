@@ -3,13 +3,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AsyncLock } from '../../../common/concurrency/async-lock';
 import { MS_PER_SECOND } from '../../../common/constants/time.constants';
 import { maskId } from '../../../common/utils/mask';
+import { safeErrorMessage } from '../../../common/utils/safe-error-message';
 import {
   BackendAuthError,
   BackendPlayUrlGateway,
   BackendRequestError,
   BackendSchedule,
   PlayUrlLookup,
-  backendErrorDetail,
   backendErrorText,
 } from '../../backend';
 import { PlatformResolver } from '../interfaces/platform-resolver.interface';
@@ -48,9 +48,6 @@ interface CacheEntry {
 interface Fetched {
   result: ResolveResult;
   ttlMs: number;
-  failed: boolean;
-  /** Not an answer of the backend (the resolve was cancelled): neither cached nor counted as a failure. */
-  transient?: boolean;
 }
 
 /**
@@ -134,7 +131,8 @@ export class BackendPlayUrlResolver implements PlatformResolver {
     const failures = cached?.failures ?? 0;
     const epoch = this.backend.epoch;
     const fetched = await this.fetch(brandId, schedule, sessionId, deadline, failures);
-    if (!fetched.transient && this.backend.epoch === epoch) {
+    // A cancel is not an answer of the backend: neither cached nor counted as a failure.
+    if (!hasCode(fetched.result, ResolveFailureCode.CANCELLED) && this.backend.epoch === epoch) {
       this.remember(key, fetched, failures);
     }
     return fetched.result;
@@ -148,11 +146,11 @@ export class BackendPlayUrlResolver implements PlatformResolver {
     this.cache.set(key, {
       untilMs: now + fetched.ttlMs,
       result: fetched.result,
-      failures: fetched.failed ? failures + 1 : 0,
+      failures: hasCode(fetched.result, ResolveFailureCode.BACKEND_ERROR) ? failures + 1 : 0,
     });
   }
 
-  /** Asks the backend once; says how long to reuse the answer and whether it was a failure. */
+  /** Asks the backend once; says how long to reuse the answer. */
   private async fetch(
     brandId: string,
     schedule: BackendSchedule | null,
@@ -171,28 +169,23 @@ export class BackendPlayUrlResolver implements PlatformResolver {
         deadline.signal,
       );
     } catch (error) {
-      if (deadline.signal?.aborted) return { ...TRANSIENT_FETCH, result: cancelled() };
+      if (deadline.signal?.aborted) return { result: cancelled(), ttlMs: 0 };
       return this.failure(error, offTtl, failures);
     }
     const { answer, source: where } = lookup;
     const shownId = maskId(answer.sessionId);
     if (!answer.isLive) {
       const detail = msgNotLive(shownId, where, answer.shopeeStatus);
-      return { result: failed(ResolveFailureCode.NOT_LIVE, detail), ttlMs: offTtl, failed: false };
+      return { result: failed(ResolveFailureCode.NOT_LIVE, detail), ttlMs: offTtl };
     }
     if (!answer.playUrl) {
       const detail = msgNoPlayUrl(shownId);
-      return {
-        result: failed(ResolveFailureCode.NO_PLAY_URL, detail),
-        ttlMs: offTtl,
-        failed: false,
-      };
+      return { result: failed(ResolveFailureCode.NO_PLAY_URL, detail), ttlMs: offTtl };
     }
     this.logger.log(`Play URL of ${shownId} (${where})`);
     return {
       result: resolved([answer.playUrl], msgResolved(shownId, answer.title ?? '')),
       ttlMs: liveTtlMs(answer.expiresAt, Date.now()),
-      failed: false,
     };
   }
 
@@ -201,20 +194,19 @@ export class BackendPlayUrlResolver implements PlatformResolver {
       return {
         result: failed(ResolveFailureCode.BACKEND_NOT_CONNECTED, backendErrorText(error)),
         ttlMs: 0,
-        failed: false,
       };
     }
     if (error instanceof BackendRequestError && error.status === NO_API_SESSION_STATUS) {
       const detail = msgNoApiSession(error.remoteMessage);
-      return { result: failed(ResolveFailureCode.NOT_LIVE, detail), ttlMs: offTtl, failed: false };
+      return { result: failed(ResolveFailureCode.NOT_LIVE, detail), ttlMs: offTtl };
     }
     const retryAfter = error instanceof BackendRequestError ? error.retryAfterSeconds : null;
     const ttlMs = errorBackoffMs(failures + 1, retryAfter);
     const reason = backendErrorText(error);
     this.logger.warn(
-      `play_url failed: ${reason} [${backendErrorDetail(error)}]; retrying in ${Math.floor(ttlMs / MS_PER_SECOND)}s`,
+      `play_url failed: ${reason} [${safeErrorMessage(error)}]; retrying in ${Math.floor(ttlMs / MS_PER_SECOND)}s`,
     );
-    return { result: failed(ResolveFailureCode.BACKEND_ERROR, reason), ttlMs, failed: true };
+    return { result: failed(ResolveFailureCode.BACKEND_ERROR, reason), ttlMs };
   }
 }
 
@@ -229,7 +221,10 @@ function stopsSessionSearch(code: ResolveFailureCode): boolean {
 
 // A timeout of the resolve itself, not an answer of the backend: never cached.
 const BUDGET_SPENT = failed(ResolveFailureCode.BACKEND_ERROR, MSG_BUDGET_SPENT);
-const TRANSIENT_FETCH = { ttlMs: 0, failed: false, transient: true };
+
+function hasCode(result: ResolveResult, code: ResolveFailureCode): boolean {
+  return !result.ok && result.code === code;
+}
 
 function withCacheNote(result: ResolveResult, seconds: number): ResolveResult {
   const note = msgCached(seconds);

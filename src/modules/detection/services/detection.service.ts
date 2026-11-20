@@ -88,7 +88,7 @@ function toState(key: string, snapshot: DetectionSnapshot): DetectionStateDto {
   return {
     key,
     state: snapshot.jobState,
-    message: snapshot.message,
+    message: null,
     reason_code: snapshot.reasonCode,
   };
 }

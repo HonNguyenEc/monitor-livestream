@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 
@@ -58,8 +58,7 @@ function optionalHeaderOffset(image, exePath) {
 
 // Injecting into node.exe breaks its Authenticode signature, and a broken signature looks worse
 // to antivirus than none at all.
-function stripSignature(exePath) {
-  const image = readFileSync(exePath);
+function stripSignature(image, exePath) {
   const header = optionalHeaderOffset(image, exePath);
   const directories =
     header +
@@ -70,21 +69,19 @@ function stripSignature(exePath) {
   const certificateOffset = image.readUInt32LE(entry);
   const certificateSize = image.readUInt32LE(entry + DATA_DIRECTORY_SIZE_OFFSET);
   if (certificateSize === 0) {
-    return;
+    return image;
   }
   if (certificateOffset + certificateSize !== image.length) {
     throw new Error(`${exePath} has data after its signature; refusing to strip it`);
   }
   image.writeUInt32LE(0, entry);
   image.writeUInt32LE(0, entry + DATA_DIRECTORY_SIZE_OFFSET);
-  writeFileSync(exePath, image.subarray(0, certificateOffset));
+  return image.subarray(0, certificateOffset);
 }
 
 // A console-subsystem executable opens a console window when started at login.
-function setGuiSubsystem(exePath) {
-  const image = readFileSync(exePath);
+function setGuiSubsystem(image, exePath) {
   image.writeUInt16LE(PE_SUBSYSTEM_GUI, optionalHeaderOffset(image, exePath) + SUBSYSTEM_OFFSET);
-  writeFileSync(exePath, image);
 }
 
 rmSync(SEA_WORK_DIR, { recursive: true, force: true });
@@ -116,10 +113,11 @@ writeFileSync(
 execFileSync(process.execPath, ['--experimental-sea-config', seaConfigPath], { stdio: 'inherit' });
 
 const exePath = join(EXE_DIR, EXE_NAME);
-copyFileSync(process.execPath, exePath);
-stripSignature(exePath);
+// postject keeps the subsystem, so both patches go into the one in-memory copy of node.exe.
+const image = readFileSync(process.execPath);
+setGuiSubsystem(image, exePath);
+writeFileSync(exePath, stripSignature(image, exePath));
 await inject(exePath, SEA_RESOURCE, readFileSync(blobPath), { sentinelFuse: SEA_FUSE });
-setGuiSubsystem(exePath);
 
 // swagger-ui-dist is @nestjs/swagger's dependency, not ours; resolve it the way that package does.
 const requireFromSwagger = createRequire(require.resolve('@nestjs/swagger'));

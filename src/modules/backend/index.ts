@@ -7,4 +7,4 @@ export { BackendSchedule } from './models/backend-schedule.model';
 export { BackendSessionInfo } from './models/backend-session-info.model';
 export { BackendPlayUrlGateway, PlayUrlLookup } from './services/backend-play-url.gateway';
 export { BackendSyncStore } from './services/backend-sync-store.service';
-export { backendErrorDetail, backendErrorText } from './utils/backend-error-text';
+export { backendErrorText } from './utils/backend-error-text';

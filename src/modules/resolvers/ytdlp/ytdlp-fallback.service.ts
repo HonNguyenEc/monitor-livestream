@@ -1,12 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { errorMessage } from '../../../common/utils/error-message';
+import { safeErrorMessage } from '../../../common/utils/safe-error-message';
 import { safeError } from '../../../common/utils/safe-error';
 import { PROCESS_SUCCESS_EXIT_CODE } from '../../../common/process/process.constants';
 import { ResolveFailureCode } from '../enums/resolve-failure-code.enum';
 import { cancelled, failedRaw, resolved, ResolveResult } from '../models/resolve-result.model';
 import {
   tiktokLiveUrl,
-  URL_PREFIXES,
   YTDLP_ARGS,
   YTDLP_EXIT_FALLBACK_PREFIX,
   YTDLP_FAILED_EVENT,
@@ -15,6 +14,7 @@ import {
   YTDLP_SUCCESS_DETAIL,
 } from './ytdlp.constants';
 import { YTDLP_RUNNER, YtDlpRunner } from './ytdlp-runner';
+import { HTTP_URL_PREFIXES } from '../../../common/constants/http.constants';
 
 @Injectable()
 export class YtDlpFallback {
@@ -29,13 +29,13 @@ export class YtDlpFallback {
     try {
       run = await this.runner.run([...YTDLP_ARGS, url], timeoutMs, signal);
     } catch (error) {
-      return this.failure(safeError(errorMessage(error)));
+      return this.failure(safeErrorMessage(error));
     }
     if (signal?.aborted) return cancelled();
     const urls = run.stdout
       .split(/\r?\n/)
       .map((line) => line.trim())
-      .filter((line) => URL_PREFIXES.some((prefix) => line.startsWith(prefix)));
+      .filter((line) => HTTP_URL_PREFIXES.some((prefix) => line.startsWith(prefix)));
     if (run.exitCode === PROCESS_SUCCESS_EXIT_CODE && urls.length > 0) {
       return resolved(urls, YTDLP_SUCCESS_DETAIL);
     }

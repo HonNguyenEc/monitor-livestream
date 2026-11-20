@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 
 import {
@@ -12,6 +13,12 @@ import {
   ROOT,
   VERSION,
 } from './package.constants.mjs';
+
+const require = createRequire(import.meta.url);
+const { SWAGGER_UI_FOLDER } = require(join(ROOT, 'dist', 'openapi', 'openapi.constants.js'));
+const { APP_DATA_FOLDER, DATA_FOLDER } = require(
+  join(ROOT, 'dist', 'common', 'constants', 'app.constants.js'),
+);
 
 const ISS_PATH = join(ROOT, 'scripts', 'package', 'installer.iss');
 const INNO_FOLDER = 'Inno Setup 6';
@@ -67,6 +74,9 @@ execFileSync(
     `/DExeName=${EXE_NAME}`,
     `/DOutputDir=${INSTALLER_DIR}`,
     `/DOutputBaseFilename=${baseName}`,
+    `/DSwaggerUiFolder=${SWAGGER_UI_FOLDER}`,
+    `/DAppDataFolder=${APP_DATA_FOLDER}`,
+    `/DDataFolder=${DATA_FOLDER}`,
     ISS_PATH,
   ],
   { stdio: 'inherit' },

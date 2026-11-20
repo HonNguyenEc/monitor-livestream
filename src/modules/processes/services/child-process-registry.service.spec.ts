@@ -1,8 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { EventEmitter } from 'node:events';
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import { Test } from '@nestjs/testing';
 
 import * as jsonFile from '../../../common/fs/json-file';
@@ -15,6 +14,7 @@ import {
   CHILD_PIDS_RETRY_SCHEDULE_MS,
 } from '../constants/processes.constants';
 import { ChildProcessRegistry } from './child-process-registry.service';
+import { createDataDir, removeDataDir } from '../../../../test/helpers/data-dir';
 
 jest.mock('../../../common/process/hidden-process');
 jest.mock('../../../common/process/process-image');
@@ -66,7 +66,7 @@ describe('ChildProcessRegistry', () => {
   };
 
   beforeEach(async () => {
-    dataDir = await mkdtemp(join(tmpdir(), 'live-qc-registry-'));
+    dataDir = await createDataDir({});
     pidsPath = childPidsPathOf(dataDir);
     registry = new ChildProcessRegistry(dataDir);
     killMock.mockResolvedValue(true);
@@ -74,7 +74,7 @@ describe('ChildProcessRegistry', () => {
 
   afterEach(async () => {
     jest.resetAllMocks();
-    await rm(dataDir, { recursive: true, force: true });
+    await removeDataDir(dataDir);
   });
 
   it('records a launched child with its image name and start time, and forgets it on exit', async () => {

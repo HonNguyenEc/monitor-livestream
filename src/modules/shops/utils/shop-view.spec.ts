@@ -38,7 +38,6 @@ describe('toShopRow', () => {
         jobState: JobState.RETRYING,
         attempts: 3,
         reasonCode: ReasonCode.NOT_LIVE,
-        message: 'waiting',
         checkedAt: '2026-01-01T00:00:00Z',
         liveSince: null,
         framePath: 'C:\\frames\\a.jpg',
@@ -51,7 +50,7 @@ describe('toShopRow', () => {
       job_state: 'retrying',
       attempts: 3,
       reason_code: 'not_live',
-      message: 'waiting',
+      message: null,
       checked_at: '2026-01-01T00:00:00Z',
       frame_url: '/api/v1/shops/tiktok_a/frame?t=1234',
     });

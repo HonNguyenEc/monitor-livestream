@@ -15,7 +15,6 @@ import { childPidsPathOf } from '../../../config/runtime-artifacts';
 import {
   CHILD_PIDS_FAILURE_LOG_EVERY,
   CHILD_PIDS_INDENT,
-  CHILD_PIDS_MAX_RETRY_MS,
   CHILD_PIDS_RETRY_SCHEDULE_MS,
   SPAWN_TIME_TOLERANCE_MS,
   UNREADABLE_PIDS_SUFFIX,
@@ -165,7 +164,7 @@ export class ChildProcessRegistry implements OnModuleDestroy {
         this.retryTimer = null;
         void this.flush();
       },
-      retryDelayMs(this.failedWrites, CHILD_PIDS_RETRY_SCHEDULE_MS, null, CHILD_PIDS_MAX_RETRY_MS),
+      retryDelayMs(this.failedWrites, CHILD_PIDS_RETRY_SCHEDULE_MS),
     );
     this.retryTimer.unref();
   }

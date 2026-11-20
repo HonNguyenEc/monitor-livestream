@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Platform } from '../../../common/enums/platform.enum';
-import { errorMessage } from '../../../common/utils/error-message';
+import { safeErrorMessage } from '../../../common/utils/safe-error-message';
 import { isPlainObject } from '../../../common/utils/is-plain-object';
 import { safeError } from '../../../common/utils/safe-error';
 import { ResolveDeadline } from '../utils/resolve-deadline';
@@ -27,18 +27,19 @@ import {
   TIKTOK_LIVE_STATUS,
   TIKTOK_MISSING_USERNAME_MESSAGE,
   TIKTOK_NO_STREAM_URL_MESSAGE,
-  TIKTOK_REASON_INVALID_BODY,
   TIKTOK_REASON_NO_ROOM_STATUS,
   tiktokReasonHttp,
   tiktokReasonStatusCode,
 } from './tiktok.constants';
+import { MSG_INVALID_JSON_BODY } from '../../../common/constants/http.constants';
+import { textOf } from '../../../common/utils/text-of';
 
 type JsonObject = Record<string, unknown>;
 
 /** Why the room API answer cannot be used, or null when it can. */
 function roomApiFailure(response: JsonResponse, room: JsonObject): string | null {
   if (response.status !== HttpStatus.OK) return tiktokReasonHttp(response.status);
-  if (response.invalidBody) return TIKTOK_REASON_INVALID_BODY;
+  if (response.invalidBody) return MSG_INVALID_JSON_BODY;
   const statusCode = response.data['statusCode'];
   if (statusCode !== TIKTOK_API_OK_STATUS_CODE) {
     return tiktokReasonStatusCode(safeError(String(statusCode)));
@@ -75,7 +76,7 @@ export class TikTokResolver implements PlatformResolver {
       response = await this.roomClient.fetchRoom(username, deadline.remainingMs(), deadline.signal);
     } catch (error) {
       if (deadline.signal?.aborted) return cancelled();
-      return this.fallBackToYtDlp(username, request, safeError(errorMessage(error)));
+      return this.fallBackToYtDlp(username, request, safeErrorMessage(error));
     }
 
     const room = extractLiveRoom(response.data);
@@ -87,7 +88,7 @@ export class TikTokResolver implements PlatformResolver {
     }
     const choice = selectTikTokStream(room);
     if (!choice) return failed(ResolveFailureCode.NO_PLAY_URL, TIKTOK_NO_STREAM_URL_MESSAGE);
-    const title = typeof room['title'] === 'string' ? room['title'] : '';
+    const title = textOf(room['title']);
     return resolved(choice.urls, msgTikTokResolved(choice.quality, title));
   }
 

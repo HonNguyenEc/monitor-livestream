@@ -1,18 +1,20 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { EOL, tmpdir } from 'node:os';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { EOL } from 'node:os';
 import { join } from 'node:path';
 
-import { readJsonFile, writeJsonFileAtomic } from './json-file';
+import { readJsonFile, readJsonObject, writeJsonFileAtomic } from './json-file';
+import { NotJsonObjectError } from './not-json-object.error';
+import { createDataDir, removeDataDir } from '../../../test/helpers/data-dir';
 
 describe('json-file', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'json-file-'));
+    dir = await createDataDir({});
   });
 
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+    await removeDataDir(dir);
   });
 
   it('can leave out the newline Python does not write', async () => {
@@ -38,6 +40,15 @@ describe('json-file', () => {
     await writeFile(join(dir, 'a.json'), '{', 'utf8');
 
     await expect(readJsonFile(join(dir, 'a.json'))).rejects.toThrow(SyntaxError);
+  });
+
+  it('reads an object, undefined for a missing file, and throws for any other JSON value', async () => {
+    await writeFile(join(dir, 'a.json'), '{"a": 1}', 'utf8');
+    await writeFile(join(dir, 'b.json'), '[1]', 'utf8');
+
+    expect(await readJsonObject(join(dir, 'a.json'))).toEqual({ a: 1 });
+    expect(await readJsonObject(join(dir, 'missing.json'))).toBeUndefined();
+    await expect(readJsonObject(join(dir, 'b.json'))).rejects.toThrow(NotJsonObjectError);
   });
 
   it('writes indented UTF-8 with OS line endings, creating the folder, and leaves no temp file', async () => {

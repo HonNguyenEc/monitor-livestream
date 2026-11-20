@@ -6,11 +6,9 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 
-import { abortableSleep } from '../../../common/concurrency/abortable-sleep';
 import { JobState } from '../../../common/enums/job-state.enum';
 import { LiveStatus } from '../../../common/enums/live-status.enum';
-import { errorMessage } from '../../../common/utils/error-message';
-import { safeError } from '../../../common/utils/safe-error';
+import { safeErrorMessage } from '../../../common/utils/safe-error-message';
 import { DATA_DIR } from '../../../config/data-dir.module';
 import { framePathOf } from '../../../config/runtime-artifacts';
 import { BackendSyncStore } from '../../backend';
@@ -22,6 +20,7 @@ import { GONE_SWEEP_MS, STOP_WAIT_MS } from '../constants/detection.constants';
 import { FRAME_DETECTORS, FrameDetector } from '../detectors/frame-detector.interface';
 import { JobContext } from '../models/job-context.model';
 import { DetectionJob } from './detection-job';
+import { settleWithin } from '../../../common/concurrency/settle-within';
 
 /** The running jobs, one per channel key: starts, stops and restarts them, and ends the ones whose channel or login is gone. */
 @Injectable()
@@ -111,14 +110,11 @@ export class DetectionJobManager implements OnApplicationBootstrap, OnModuleDest
 
   /** Waits for the job to release its processes, but not longer than STOP_WAIT_MS: a stuck kill must not hold up the request. */
   private async waitForEnd(job: DetectionJob, key: string): Promise<void> {
-    const finishedFirst = new AbortController();
-    const timedOut = await Promise.race([
-      job.finished.then(() => {
-        finishedFirst.abort();
-        return false;
-      }),
-      abortableSleep(STOP_WAIT_MS, finishedFirst.signal),
-    ]);
+    const timedOut = await settleWithin(
+      job.finished.then(() => false),
+      STOP_WAIT_MS,
+      true,
+    );
     if (timedOut) this.logger.warn(`Job of ${key} is slow to stop`);
   }
 
@@ -131,7 +127,8 @@ export class DetectionJobManager implements OnApplicationBootstrap, OnModuleDest
   }
 
   setStreamUrl(key: string, url: string): void {
-    this.jobs.get(key)?.setStreamUrl(url);
+    const job = this.jobs.get(key);
+    if (job) job.streamUrl = url;
   }
 
   /**
@@ -152,7 +149,7 @@ export class DetectionJobManager implements OnApplicationBootstrap, OnModuleDest
       if (this.stopRequests.get(key) !== stopsBefore) return;
       await this.start(channel);
     } catch (error) {
-      this.logger.warn(`Cannot restart the job of ${key}: ${safeError(errorMessage(error))}`);
+      this.logger.warn(`Cannot restart the job of ${key}: ${safeErrorMessage(error)}`);
     }
   }
 
@@ -170,7 +167,7 @@ export class DetectionJobManager implements OnApplicationBootstrap, OnModuleDest
       const gone = running.filter(([key, job]) => !present.has(key) || job.loginEnded());
       await Promise.all(gone.map(([key]) => this.stop(key)));
     } catch (error) {
-      this.logger.warn(`Job sweep failed: ${safeError(errorMessage(error))}`);
+      this.logger.warn(`Job sweep failed: ${safeErrorMessage(error)}`);
     } finally {
       this.sweeping = false;
     }

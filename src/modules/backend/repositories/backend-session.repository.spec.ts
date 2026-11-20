@@ -1,8 +1,8 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { EOL, tmpdir } from 'node:os';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { SESSION_FILE } from '../constants/backend.constants';
+import { createDataDir, pythonJsonText, removeDataDir } from '../../../../test/helpers/data-dir';
+import { SESSION_FILE, SESSION_FILE_INDENT } from '../constants/backend.constants';
 import { BackendSession } from '../models/backend-session.model';
 import { BackendSessionRepository } from './backend-session.repository';
 
@@ -21,17 +21,17 @@ describe('BackendSessionRepository', () => {
     writeFile(join(dir, SESSION_FILE), JSON.stringify(value));
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'live-qc-session-'));
+    dir = await createDataDir({});
     repository = new BackendSessionRepository(dir);
   });
 
-  afterEach(() => rm(dir, { recursive: true, force: true }));
+  afterEach(() => removeDataDir(dir));
 
   it('writes the Python layout and reads it back', async () => {
     await repository.store(SESSION);
 
     const text = await readFile(join(dir, SESSION_FILE), 'utf8');
-    expect(text).toBe(`${JSON.stringify(SESSION, null, 2)}\n`.replace(/\n/g, EOL));
+    expect(text).toBe(pythonJsonText(SESSION, SESSION_FILE_INDENT));
     await expect(repository.load()).resolves.toEqual(SESSION);
   });
 

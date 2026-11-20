@@ -40,8 +40,6 @@ export const INTERNAL_ERROR_BACKOFF_MS: readonly number[] = [
   30 * MS_PER_SECOND,
   60 * MS_PER_SECOND,
 ];
-export const MAX_INTERNAL_ERROR_DELAY_MS =
-  INTERNAL_ERROR_BACKOFF_MS[INTERNAL_ERROR_BACKOFF_MS.length - 1];
 
 /** How often the manager looks for jobs whose channel is gone or whose login ended. */
 export const GONE_SWEEP_MS = 30 * MS_PER_SECOND;

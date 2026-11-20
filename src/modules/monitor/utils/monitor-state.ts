@@ -2,12 +2,6 @@ import { MonitorStateDto } from '../dtos/monitor-state.dto';
 import { StartMonitorDto } from '../dtos/start-monitor.dto';
 import { MonitorSelection } from '../models/monitor-selection.model';
 
-export const STOPPED_MONITOR: Readonly<MonitorStateDto> = Object.freeze({
-  running: false,
-  platforms: [],
-  keys: null,
-});
-
 export function toSelection(body: StartMonitorDto): MonitorSelection {
   return {
     platforms: [...new Set(body.platforms)],
@@ -17,7 +11,7 @@ export function toSelection(body: StartMonitorDto): MonitorSelection {
 
 /** Keys come sorted, as monitor.py lists them. */
 export function toMonitorState(selection: MonitorSelection | null): MonitorStateDto {
-  if (!selection) return { ...STOPPED_MONITOR, platforms: [] };
+  if (!selection) return { running: false, platforms: [], keys: null };
   return {
     running: true,
     platforms: [...selection.platforms],

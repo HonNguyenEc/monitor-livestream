@@ -14,6 +14,15 @@
 #ifndef OutputBaseFilename
   #error OutputBaseFilename is required
 #endif
+#ifndef SwaggerUiFolder
+  #error SwaggerUiFolder is required
+#endif
+#ifndef AppDataFolder
+  #error AppDataFolder is required
+#endif
+#ifndef DataFolder
+  #error DataFolder is required
+#endif
 
 #define AppName "Monitor Livestream"
 #define AppPublisher "eCentric"
@@ -51,7 +60,7 @@ ServiceStillRunning=Không dừng được Monitor Livestream đang chạy ({#Ex
 DeleteDataPrompt=Xóa luôn dữ liệu Monitor Livestream trên máy này (danh sách kênh, đăng nhập backend, log)?
 
 [InstallDelete]
-Type: filesandordirs; Name: "{app}\swagger-ui"
+Type: filesandordirs; Name: "{app}\{#SwaggerUiFolder}"
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -136,7 +145,7 @@ begin
   if (CurUninstallStep = usPostUninstall) and
      (SuppressibleMsgBox(CustomMessage('DeleteDataPrompt'), mbConfirmation, MB_YESNO or MB_DEFBUTTON2, IDNO) = IDYES) then
   begin
-    DelTree(ExpandConstant('{localappdata}\{#AppFolder}\data'), True, True, True);
-    RemoveDir(ExpandConstant('{localappdata}\{#AppFolder}'));
+    DelTree(ExpandConstant('{localappdata}\{#AppDataFolder}\{#DataFolder}'), True, True, True);
+    RemoveDir(ExpandConstant('{localappdata}\{#AppDataFolder}'));
   end;
 end;

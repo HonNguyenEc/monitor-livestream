@@ -1,22 +1,15 @@
-import {
-  BACKEND_API_PREFIX,
-  BACKEND_URL_PROTOCOLS,
-  TRAILING_SLASHES,
-} from '../constants/backend.constants';
+import { BACKEND_API_PREFIX, TRAILING_SLASHES } from '../constants/backend.constants';
+import { HTTP_URL_PROTOCOLS } from '../../../common/constants/http.constants';
 
 /**
  * The backend origin plus path, without a trailing `/api/v1`; null unless it is a plain http(s) URL.
  * Credentials, a query or a fragment are refused because API paths are appended to the result.
  */
 export function normalizeBaseUrl(raw: string): string | null {
-  let url: URL;
-  try {
-    url = new URL(raw.trim());
-  } catch {
-    return null;
-  }
+  const url = URL.parse(raw.trim());
   if (
-    !BACKEND_URL_PROTOCOLS.includes(url.protocol) ||
+    !url ||
+    !HTTP_URL_PROTOCOLS.includes(url.protocol) ||
     url.username ||
     url.password ||
     url.search ||

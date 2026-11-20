@@ -5,8 +5,8 @@ import { ErrorCode } from '../../../common/constants/error-codes.constants';
 import { ErrorMessage } from '../../../common/constants/error-messages.constants';
 import { DomainException } from '../../../common/exceptions/domain.exception';
 import { fsErrorSummary } from '../../../common/fs/fs-error';
-import { readJsonFile, writeJsonFileAtomic } from '../../../common/fs/json-file';
-import { isPlainObject } from '../../../common/utils/is-plain-object';
+import { readJsonObject, writeJsonFileAtomic } from '../../../common/fs/json-file';
+import { NotJsonObjectError } from '../../../common/fs/not-json-object.error';
 import { DATA_DIR } from '../../../config/data-dir.module';
 import { SHOPS_FILE, SHOPS_FILE_INDENT } from '../constants/shops.constants';
 import { ShopsDocument } from '../models/shop-record.model';
@@ -24,18 +24,17 @@ export class ShopRepository {
   // A missing file is an installed copy's first run. Anything present but unusable (bad JSON, a non-object
   // root, a `shops` value that is not a list) must fail rather than be overwritten by the next save.
   async load(): Promise<ShopsDocument> {
-    let parsed: unknown;
+    let parsed: Record<string, unknown> | undefined;
     try {
-      parsed = await readJsonFile(this.path);
+      parsed = await readJsonObject(this.path);
     } catch (error) {
-      this.logger.warn(`Cannot read ${SHOPS_FILE}: ${fsErrorSummary(error)}`);
+      if (!(error instanceof NotJsonObjectError)) {
+        this.logger.warn(`Cannot read ${SHOPS_FILE}: ${fsErrorSummary(error)}`);
+      }
       throw unreadable();
     }
     if (parsed === undefined) {
       return { shops: [] };
-    }
-    if (!isPlainObject(parsed)) {
-      throw unreadable();
     }
     if (parsed.shops !== undefined && !Array.isArray(parsed.shops)) {
       throw unreadable();

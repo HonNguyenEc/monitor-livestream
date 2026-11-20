@@ -6,3 +6,4 @@ export const BUSY_FILE_CODES: readonly string[] = ['EPERM', 'EBUSY', 'EACCES'];
 export const BUSY_FILE_ATTEMPTS = 5;
 export const BUSY_FILE_RETRY_DELAY_MS = 50;
 export const LINE_FEEDS = /\n/g;
+export const msgNotJsonObject = (file: string): string => `${file} is not a JSON object`;

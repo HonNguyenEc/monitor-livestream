@@ -36,5 +36,4 @@ export const PLATFORM_EXTRA_INPUTS: Record<Platform, readonly string[]> = {
 /** Fields this service rewrites on save; any other field of a shops.json entry is kept as it is. */
 export const MANAGED_FIELDS: readonly string[] = [PLATFORM_FIELD, ...Object.values(ShopField)];
 
-export const LIVE_URL_PREFIXES = ['http://', 'https://'];
 export const USERNAME_PREFIX = /^@+/;

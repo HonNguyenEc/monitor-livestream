@@ -4,10 +4,8 @@ import { DIGITS } from '../../../common/constants/patterns.constants';
 import { Platform } from '../../../common/enums/platform.enum';
 import { badRequest } from '../../../common/exceptions/bad-request';
 import { isAllowedShopeeUrl, SHOPEE_ALLOWED_DOMAINS } from '../../shopee';
-import { parseUrl } from '../../../common/utils/parse-url';
 import {
   INTEGER_FIELDS,
-  LIVE_URL_PREFIXES,
   PLATFORM_EXTRA_INPUTS,
   PLATFORM_FIELD,
   PLATFORM_FIELDS,
@@ -18,6 +16,7 @@ import {
 import { ErrorMessage } from '../../../common/constants/error-messages.constants';
 import { ShopInput } from '../models/shop-input.model';
 import { ShopRecord } from '../models/shop-record.model';
+import { HTTP_URL_PREFIXES } from '../../../common/constants/http.constants';
 
 /** validate_shop of the Python tool: the stored fields of one shop, cleaned per platform. */
 @Injectable()
@@ -61,7 +60,7 @@ export class ShopFieldsValidator {
     const liveUrl = shop[ShopField.LIVE_URL];
     if (
       typeof liveUrl === 'string' &&
-      !LIVE_URL_PREFIXES.some((prefix) => liveUrl.toLowerCase().startsWith(prefix))
+      !HTTP_URL_PREFIXES.some((prefix) => liveUrl.toLowerCase().startsWith(prefix))
     ) {
       throw badRequest(ErrorMessage.liveUrlScheme);
     }
@@ -72,7 +71,7 @@ export class ShopFieldsValidator {
 // The link is fetched from the operator's machine, so a supplied one must pass the shared Shopee policy.
 function assertLiveUrl(platform: Platform, liveUrl: string): void {
   if (platform === Platform.SHOPEE) {
-    const parsed = parseUrl(liveUrl);
+    const parsed = URL.parse(liveUrl);
     if (!parsed || !isAllowedShopeeUrl(parsed)) {
       throw badRequest(ErrorMessage.shopeeLiveUrlNotAllowed(SHOPEE_ALLOWED_DOMAINS));
     }

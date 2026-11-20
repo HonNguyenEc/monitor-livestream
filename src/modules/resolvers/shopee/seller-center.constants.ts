@@ -1,10 +1,7 @@
-export const STREAM_URL_PROTOCOLS: readonly string[] = ['https:', 'http:'];
 export const SESSION_STATUS_LIVE = 1;
 export const ONGOING_OK_ERR_CODE = 0;
 export const SESSION_INFO_OK_CODE = 0;
 export const SHOPEE_REQUEST_FAILED_EVENT = 'shopee_request_failed';
-/** Matches what Python prints for a missing value, so details stay comparable. */
-export const ABSENT_VALUE_TEXT = 'None';
 
 export const MSG_MISSING_COOKIE =
   "add the shop's Seller Center cookie (SPC_SC_SESSION) in its config";
@@ -17,7 +14,6 @@ export const msgLoginUnavailable = (status: number): string =>
 export const msgSessionInfoUnavailable = (status: number): string =>
   `Seller Center session info answered http ${status}`;
 export const MSG_NO_ONGOING = 'seller has no ongoing Shopee Live session';
-export const MSG_INVALID_BODY = 'response body is not a JSON object';
 export const MSG_LOGIN_EXPIRED_SUFFIX = '; Seller Center login expired?';
 
 export const msgOngoingLookupFailed = (status: number, errCode: string): string =>

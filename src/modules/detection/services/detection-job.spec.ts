@@ -92,7 +92,6 @@ describe('DetectionJob', () => {
       status: LiveStatus.OFFLINE,
       reasonCode: ReasonCode.NOT_LIVE,
       attempts: 1,
-      message: null,
     });
     await advance(19 * SECOND);
     expect(resolve).toHaveBeenCalledTimes(1);
@@ -247,7 +246,6 @@ describe('DetectionJob', () => {
       jobState: JobState.ERROR,
       status: LiveStatus.NOT_CHECKED,
       reasonCode: reason,
-      message: null,
       checkedAt: null,
       liveSince: null,
     });

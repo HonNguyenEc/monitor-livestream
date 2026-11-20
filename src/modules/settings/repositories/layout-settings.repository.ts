@@ -1,14 +1,9 @@
 import { join } from 'node:path';
 import { Inject, Injectable } from '@nestjs/common';
 
-import { readJsonFile, writeJsonFileAtomic } from '../../../common/fs/json-file';
-import { isPlainObject } from '../../../common/utils/is-plain-object';
+import { readJsonObject, writeJsonFileAtomic } from '../../../common/fs/json-file';
 import { DATA_DIR } from '../../../config/data-dir.module';
-import {
-  LAYOUT_FILE,
-  LAYOUT_FILE_INDENT,
-  msgNotJsonObject,
-} from '../constants/layout-settings.constants';
+import { LAYOUT_FILE, LAYOUT_FILE_INDENT } from '../constants/layout-settings.constants';
 
 /** mpv_layout.json, re-read on every call so edits by hand or by the Python tool apply without a restart. */
 @Injectable()
@@ -21,10 +16,7 @@ export class LayoutSettingsRepository {
 
   /** The stored object, `{}` for a missing file; throws when the file is present but not a JSON object. */
   async load(): Promise<Record<string, unknown>> {
-    const parsed = await readJsonFile(this.path);
-    if (parsed === undefined) return {};
-    if (!isPlainObject(parsed)) throw new Error(msgNotJsonObject(LAYOUT_FILE));
-    return parsed;
+    return (await readJsonObject(this.path)) ?? {};
   }
 
   save(settings: object): Promise<void> {

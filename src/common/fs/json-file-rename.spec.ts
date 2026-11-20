@@ -1,9 +1,9 @@
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { BUSY_FILE_ATTEMPTS } from '../constants/file.constants';
 import { writeJsonFileAtomic } from './json-file';
+import { createDataDir, removeDataDir } from '../../../test/helpers/data-dir';
 
 const mockRename = jest.fn();
 
@@ -21,13 +21,13 @@ describe('writeJsonFileAtomic rename retry', () => {
   let realRename: typeof import('node:fs/promises').rename;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'json-file-rename-'));
+    dir = await createDataDir({});
     realRename = jest.requireActual<typeof import('node:fs/promises')>('node:fs/promises').rename;
     mockRename.mockReset();
   });
 
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+    await removeDataDir(dir);
   });
 
   it('retries while the target is busy, then writes the file', async () => {

@@ -1,9 +1,9 @@
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Logger } from '@nestjs/common';
 
 import { replaceFileWith } from './replace-file-with';
+import { createDataDir, removeDataDir } from '../../../test/helpers/data-dir';
 
 /** Errors the next call of each function rejects with; every other call is real. */
 const mockFailures: { rename: Error[]; rm: Error[] } = { rename: [], rm: [] };
@@ -26,10 +26,10 @@ describe('replaceFileWith', () => {
   let dir: string;
   let destination: string;
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'live-qc-replace-'));
+    dir = await createDataDir({});
     destination = join(dir, 'sub', 'latest.jpg');
   });
-  afterEach(() => rm(dir, { recursive: true, force: true }));
+  afterEach(() => removeDataDir(dir));
 
   it('creates the folder and moves the finished file into place, leaving no temp file', async () => {
     const done = await replaceFileWith(destination, async (temp) => {

@@ -1,10 +1,10 @@
-import { BROWSER_USER_AGENT } from '../../../common/constants/http.constants';
+import { BROWSER_USER_AGENT, JSON_ACCEPT_HEADER } from '../../../common/constants/http.constants';
 
 export const TIKTOK_ROOM_API_URL =
   'https://www.tiktok.com/api-live/user/room/?aid=1988&sourceType=54&uniqueId=';
 
 export const TIKTOK_HEADERS: Readonly<Record<string, string>> = {
-  accept: 'application/json, text/plain, */*',
+  accept: JSON_ACCEPT_HEADER,
   referer: 'https://www.tiktok.com/',
   'user-agent': BROWSER_USER_AGENT,
 };
@@ -24,7 +24,6 @@ export const TIKTOK_MISSING_USERNAME_MESSAGE = 'TikTok shop has no username';
 export const TIKTOK_NO_STREAM_URL_MESSAGE = 'TikTok room is live but returned no stream URL';
 
 export const TIKTOK_API_FAILED_EVENT = 'tiktok_api_failed';
-export const TIKTOK_REASON_INVALID_BODY = 'response body is not a JSON object';
 export const TIKTOK_REASON_NO_ROOM_STATUS = 'room status missing';
 
 export const tiktokReasonHttp = (status: number): string => `http ${status}`;

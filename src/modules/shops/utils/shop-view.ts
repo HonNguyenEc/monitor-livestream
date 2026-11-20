@@ -28,7 +28,7 @@ export function toShopRow(
     status: detection.status,
     job_state: detection.jobState,
     attempts: detection.attempts,
-    message: detection.message,
+    message: null,
     reason_code: detection.reasonCode,
     checked_at: detection.checkedAt,
     live_since: detection.liveSince,

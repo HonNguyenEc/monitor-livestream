@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 
-import { withTimeout } from '../../../common/concurrency/with-timeout';
 import { readCapped } from '../../../common/http/get-json';
 import { DIGITS } from '../../../common/constants/patterns.constants';
 import { isPlainObject } from '../../../common/utils/is-plain-object';
@@ -22,21 +21,15 @@ import {
 } from '../constants/backend.constants';
 import { BackendAnswerError } from '../errors/backend-answer.error';
 import { BackendRequestError } from '../errors/backend-request.error';
-import { textOf } from '../utils/backend-values';
+import { textOf } from '../../../common/utils/text-of';
 
 type BackendMethod = 'GET' | 'POST';
 
 interface BackendRequestOptions {
   body?: unknown;
   token?: string;
-  timeoutMs?: number;
+  /** The caller's whole budget, not cut to the default timeout, which applies only without it. */
   signal?: AbortSignal;
-}
-
-// A signal alone is the caller's whole budget and is not cut to the default timeout; the default applies when nothing else bounds the request.
-function requestSignal({ timeoutMs, signal }: BackendRequestOptions): AbortSignal {
-  if (signal && timeoutMs === undefined) return signal;
-  return withTimeout(timeoutMs ?? BACKEND_TIMEOUT_MS, signal);
 }
 
 /**
@@ -60,7 +53,7 @@ export class BackendHttpClient {
         headers: requestHeaders(options),
         body: options.body === undefined ? undefined : JSON.stringify(options.body),
         redirect: 'manual',
-        signal: requestSignal(options),
+        signal: options.signal ?? AbortSignal.timeout(BACKEND_TIMEOUT_MS),
       });
       text = await readCapped(response, MAX_BACKEND_RESPONSE_BYTES);
     } catch (error) {

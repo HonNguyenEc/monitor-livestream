@@ -1,5 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { ErrorCode } from '../../../common/constants/error-codes.constants';
@@ -7,6 +6,7 @@ import { Detector } from '../../../common/enums/detector.enum';
 import { DEFAULT_LAYOUT_SETTINGS, LAYOUT_FILE } from '../constants/layout-settings.constants';
 import { LayoutSettingsRepository } from '../repositories/layout-settings.repository';
 import { LayoutSettingsStore } from './layout-settings.store';
+import { createDataDir, removeDataDir } from '../../../../test/helpers/data-dir';
 
 describe('LayoutSettingsStore', () => {
   let dir: string;
@@ -14,12 +14,12 @@ describe('LayoutSettingsStore', () => {
   let store: LayoutSettingsStore;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'live-qc-layout-'));
+    dir = await createDataDir({});
     file = join(dir, LAYOUT_FILE);
     store = new LayoutSettingsStore(new LayoutSettingsRepository(dir));
   });
 
-  afterEach(() => rm(dir, { recursive: true, force: true }));
+  afterEach(() => removeDataDir(dir));
 
   it('reads the defaults when the file does not exist', async () => {
     expect(await store.get()).toEqual(DEFAULT_LAYOUT_SETTINGS);

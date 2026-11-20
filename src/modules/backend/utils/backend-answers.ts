@@ -3,8 +3,8 @@ import { BackendAnswerError } from '../errors/backend-answer.error';
 import { BackendBrand } from '../models/backend-brand.model';
 import { BackendSchedule } from '../models/backend-schedule.model';
 import { PlayUrlAnswer } from '../models/play-url-answer.model';
-import { textOf } from './backend-values';
 import { MSG_BRANDS, MSG_BRAND_ID, MSG_BOARD, MSG_PLAY_URL } from '../constants/backend.constants';
+import { textOf } from '../../../common/utils/text-of';
 
 function nullableText(value: unknown): string | null {
   return typeof value === 'string' ? value : null;

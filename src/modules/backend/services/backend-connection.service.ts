@@ -4,6 +4,7 @@ import { ErrorCode } from '../../../common/constants/error-codes.constants';
 import { ErrorMessage } from '../../../common/constants/error-messages.constants';
 import { DomainException } from '../../../common/exceptions/domain.exception';
 import { maskEmail, maskUrl } from '../../../common/utils/mask';
+import { AuthenticatedBackendTransport } from '../clients/authenticated-backend.transport';
 import { BackendLoginDto } from '../dtos/backend-login.dto';
 import { BackendStatusDto } from '../dtos/backend-status.dto';
 import { BackendSessionService } from './backend-session.service';
@@ -14,15 +15,16 @@ import { BackendSyncStore } from './backend-sync-store.service';
 export class BackendConnectionService {
   constructor(
     private readonly session: BackendSessionService,
+    private readonly transport: AuthenticatedBackendTransport,
     private readonly sync: BackendSyncService,
     private readonly store: BackendSyncStore,
   ) {}
 
   status(): BackendStatusDto {
-    const user = this.session.user;
+    const user = this.transport.user;
     const { syncedAt, error, brands, schedules } = this.store.status;
     return {
-      connected: this.session.connected,
+      connected: this.transport.connected,
       backend: maskUrl(this.session.backendUrl),
       email: maskEmail(user?.email ?? ''),
       name: user?.name ?? '',
@@ -31,7 +33,7 @@ export class BackendConnectionService {
       error,
       brands,
       schedules,
-      api_calls_5m: this.session.recentCallCount(),
+      api_calls_5m: this.transport.recentCallCount(),
     };
   }
 
@@ -50,7 +52,7 @@ export class BackendConnectionService {
   }
 
   async syncNow(): Promise<BackendStatusDto> {
-    if (!this.session.connected) {
+    if (!this.transport.connected) {
       throw new DomainException(ErrorCode.BACKEND_NOT_CONNECTED, ErrorMessage.backendNotConnected);
     }
     await this.sync.syncNow();

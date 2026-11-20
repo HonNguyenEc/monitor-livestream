@@ -6,9 +6,8 @@ import { LiveStatus } from '../../../common/enums/live-status.enum';
 import { Platform } from '../../../common/enums/platform.enum';
 import { ReasonCode } from '../../../common/enums/reason-code.enum';
 import { ShopSource } from '../../../common/enums/shop-source.enum';
-import { errorMessage } from '../../../common/utils/error-message';
+import { safeErrorMessage } from '../../../common/utils/safe-error-message';
 import { retryDelayMs } from '../../../common/utils/retry-delay';
-import { safeError } from '../../../common/utils/safe-error';
 import { DetectionSnapshot } from '../../detection-state';
 import { Channel, isCookieStoreUnreadable, isShopsFileUnreadable } from '../../shops';
 import {
@@ -17,7 +16,6 @@ import {
   FAILED_RESOLVE_DELAY_MS,
   INTERNAL_ERROR_BACKOFF_MS,
   LOST_FRAMES_DELAY_MS,
-  MAX_INTERNAL_ERROR_DELAY_MS,
   NO_SIGNAL_DELAY_MS,
 } from '../constants/detection.constants';
 import { DetectorEnd, DetectorReport, FrameDetector } from '../detectors/frame-detector.interface';
@@ -59,7 +57,7 @@ export class DetectionJob {
   private attempts = 0;
   private cookieMisses = 0;
   private internalErrors = 0;
-  private lastUrl: string | null = null;
+  streamUrl: string | null = null;
   private done: Promise<void> = Promise.resolve();
 
   private readonly report: DetectorReport = {
@@ -85,14 +83,6 @@ export class DetectionJob {
   /** Settles when the loop is over and it has asked for the processes it started to be killed. Never rejects. */
   get finished(): Promise<void> {
     return this.done;
-  }
-
-  get streamUrl(): string | null {
-    return this.lastUrl;
-  }
-
-  setStreamUrl(url: string): void {
-    this.lastUrl = url;
   }
 
   start(): void {
@@ -122,7 +112,7 @@ export class DetectionJob {
         if (delay > 0 && !(await abortableSleep(delay, this.signal))) return;
       }
     } catch (error) {
-      this.logger.error(`Job of ${this.key} stopped: ${safeError(errorMessage(error))}`);
+      this.logger.error(`Job of ${this.key} stopped: ${safeErrorMessage(error)}`);
     }
   }
 
@@ -151,7 +141,7 @@ export class DetectionJob {
     if (step.kind === 'cancelled') return FAILED_RESOLVE_DELAY_MS[channel.platform];
     if (step.kind === 'miss') return this.afterMiss(channel, step.observation, step.cookie);
     this.cookieMisses = 0;
-    this.lastUrl = step.url;
+    this.streamUrl = step.url;
     return this.detect(channel, step.url, detector);
   }
 
@@ -259,7 +249,7 @@ export class DetectionJob {
 
   private internalError(error: unknown): Delay {
     this.internalErrors += 1;
-    this.logger.error(`Attempt of ${this.key} failed: ${safeError(errorMessage(error))}`);
+    this.logger.error(`Attempt of ${this.key} failed: ${safeErrorMessage(error)}`);
     const observation = {
       status: LiveStatus.UNKNOWN,
       reasonCode: ReasonCode.INTERNAL_ERROR,
@@ -267,12 +257,7 @@ export class DetectionJob {
     this.record(observation);
     this.setState(JobState.RETRYING);
     const normal = delayAfter(this.platform, observation);
-    return retryDelayMs(
-      this.internalErrors,
-      [normal, ...INTERNAL_ERROR_BACKOFF_MS],
-      null,
-      MAX_INTERNAL_ERROR_DELAY_MS,
-    );
+    return retryDelayMs(this.internalErrors, [normal, ...INTERNAL_ERROR_BACKOFF_MS]);
   }
 
   private record(observation: Observation): void {

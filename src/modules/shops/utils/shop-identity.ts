@@ -12,14 +12,18 @@ import {
 import { BRAND_ID_FIELD, PLATFORM_FIELD, ShopField } from '../constants/shop-fields.constants';
 import { ShopRecord } from '../models/shop-record.model';
 import { isPythonTruthy, pythonStr } from '../../../common/utils/python-values';
+import { textOf } from '../../../common/utils/text-of';
 
 const PLATFORMS: readonly string[] = Object.values(Platform);
 
-/** The platform in lower case, or null for an entry neither tool can monitor. */
-export function shopPlatform(record: ShopRecord): Platform | null {
-  const platform =
-    typeof record[PLATFORM_FIELD] === 'string' ? record[PLATFORM_FIELD].toLowerCase() : '';
+/** The platform in lower case, or null for a value neither tool can monitor. */
+export function toPlatform(value: unknown): Platform | null {
+  const platform = textOf(value).toLowerCase();
   return PLATFORMS.includes(platform) ? (platform as Platform) : null;
+}
+
+export function shopPlatform(record: ShopRecord): Platform | null {
+  return toPlatform(record[PLATFORM_FIELD]);
 }
 
 export function isBackendShop(record: ShopRecord): boolean {

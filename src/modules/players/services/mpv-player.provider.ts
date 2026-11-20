@@ -3,8 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { runHidden } from '../../../common/process/hidden-process';
 import { PROCESS_SUCCESS_EXIT_CODE } from '../../../common/process/process.constants';
-import { errorMessage } from '../../../common/utils/error-message';
-import { safeError } from '../../../common/utils/safe-error';
+import { safeErrorMessage } from '../../../common/utils/safe-error-message';
 import {
   MPV_MISSING_RECHECK_MS,
   MPV_VERSION_ARG,
@@ -46,7 +45,7 @@ export class MpvPlayerProvider {
     try {
       path = await this.locator.find();
     } catch (error) {
-      this.logger.warn(`Cannot look for mpv: ${safeError(errorMessage(error))}`);
+      this.logger.warn(`Cannot look for mpv: ${safeErrorMessage(error)}`);
     }
     if (!path) {
       this.missingUntilMs = nowMs + MPV_MISSING_RECHECK_MS;

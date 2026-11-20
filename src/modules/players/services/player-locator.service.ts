@@ -1,9 +1,10 @@
-import { readdir, stat } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { win32 } from 'node:path';
 import { isSea } from 'node:sea';
 import { Injectable } from '@nestjs/common';
 
+import { isFile } from '../../../common/fs/is-file';
 import {
   DEFAULT_PROGRAM_FILES,
   LOCAL_APPDATA_FALLBACK,
@@ -77,13 +78,5 @@ async function wingetPackages(packagesDir: string): Promise<string[]> {
       .map((name) => win32.join(packagesDir, name, MPV_EXE));
   } catch {
     return [];
-  }
-}
-
-async function isFile(path: string): Promise<boolean> {
-  try {
-    return (await stat(path)).isFile();
-  } catch {
-    return false;
   }
 }

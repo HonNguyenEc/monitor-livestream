@@ -4,10 +4,10 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { abortableSleep } from '../../../common/concurrency/abortable-sleep';
 import { raceAbort } from '../../../common/concurrency/race-abort';
+import { settleWithin } from '../../../common/concurrency/settle-within';
 import { Detector } from '../../../common/enums/detector.enum';
 import { replaceFileWith } from '../../../common/fs/replace-file-with';
-import { errorMessage } from '../../../common/utils/error-message';
-import { safeError } from '../../../common/utils/safe-error';
+import { safeErrorMessage } from '../../../common/utils/safe-error-message';
 import { DATA_DIR } from '../../../config/data-dir.module';
 import { mpvConfigDirOf } from '../../../config/runtime-artifacts';
 import {
@@ -106,7 +106,7 @@ export class MpvFrameDetector implements FrameDetector {
       const child = this.processes.launch(file, args);
       if (child.pid !== undefined) return child;
     } catch (error) {
-      this.logger.warn(`Cannot start mpv: ${safeError(errorMessage(error))}`);
+      this.logger.warn(`Cannot start mpv: ${safeErrorMessage(error)}`);
     }
     this.player.forget();
     return null;
@@ -126,7 +126,7 @@ export class MpvFrameDetector implements FrameDetector {
         ipcError = null;
         return answer;
       } catch (error) {
-        if (!over.aborted) ipcError = safeError(errorMessage(error));
+        if (!over.aborted) ipcError = safeErrorMessage(error);
         return otherwise;
       }
     };
@@ -173,7 +173,8 @@ export class MpvFrameDetector implements FrameDetector {
   private async firstFrames(session: Session): Promise<number> {
     const deadline = Date.now() + IMAGE_CHECK_MS;
     while (Date.now() < deadline && (await abortableSleep(FIRST_FRAME_POLL_MS, session.over))) {
-      const frames = await untilDeadline(session.frames(), deadline);
+      // A pipe connect (10 s) plus a request (3 s) must not stretch the 20 s first-frame window.
+      const frames = await settleWithin(session.frames(), Math.max(0, deadline - Date.now()), 0);
       if (frames > 0) return frames;
     }
     return 0;
@@ -200,12 +201,4 @@ export class MpvFrameDetector implements FrameDetector {
   private ended(session: Session, otherwise: DetectorEnd): DetectorEnd {
     return session.stopped.aborted ? DetectorEnd.STOPPED : otherwise;
   }
-}
-
-// A pipe connect (10 s) plus a request (3 s) must not stretch the 20 s first-frame window.
-function untilDeadline(frames: Promise<number>, deadline: number): Promise<number> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(resolve, Math.max(0, deadline - Date.now()), 0);
-    void frames.then(resolve).finally(() => clearTimeout(timer));
-  });
 }

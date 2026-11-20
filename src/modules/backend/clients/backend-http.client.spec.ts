@@ -79,7 +79,7 @@ describe('BackendHttpClient', () => {
   it('sends a plain GET without body headers, never follows redirects and sets a timeout', async () => {
     answer(200, {});
 
-    await client.request('GET', URL, { timeoutMs: 1234 });
+    await client.request('GET', URL);
 
     const [, init] = fetchMock.mock.calls[0];
     expect(init.headers).toEqual({ accept: 'application/json' });

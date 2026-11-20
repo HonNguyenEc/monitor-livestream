@@ -5,8 +5,8 @@ import { ErrorCode } from '../../../common/constants/error-codes.constants';
 import { ErrorMessage } from '../../../common/constants/error-messages.constants';
 import { DomainException } from '../../../common/exceptions/domain.exception';
 import { fsErrorSummary } from '../../../common/fs/fs-error';
-import { readJsonFile, writeJsonFileAtomic } from '../../../common/fs/json-file';
-import { isPlainObject } from '../../../common/utils/is-plain-object';
+import { readJsonObject, writeJsonFileAtomic } from '../../../common/fs/json-file';
+import { NotJsonObjectError } from '../../../common/fs/not-json-object.error';
 import { DATA_DIR } from '../../../config/data-dir.module';
 import { COOKIES_FILE, COOKIES_FILE_INDENT } from '../constants/shops.constants';
 import { CookieStore } from '../models/shop-record.model';
@@ -24,20 +24,14 @@ export class CookieRepository {
   // Only a missing file is empty. Callers write the result back, so an unreadable file must fail
   // instead of letting the next save replace every stored cookie.
   async load(): Promise<CookieStore> {
-    let parsed: unknown;
     try {
-      parsed = await readJsonFile(this.path);
+      return (await readJsonObject(this.path)) ?? {};
     } catch (error) {
-      this.logger.warn(`Cannot read ${COOKIES_FILE}: ${fsErrorSummary(error)}`);
+      if (!(error instanceof NotJsonObjectError)) {
+        this.logger.warn(`Cannot read ${COOKIES_FILE}: ${fsErrorSummary(error)}`);
+      }
       throw unreadable();
     }
-    if (parsed === undefined) {
-      return {};
-    }
-    if (!isPlainObject(parsed)) {
-      throw unreadable();
-    }
-    return parsed;
   }
 
   save(cookies: CookieStore): Promise<void> {

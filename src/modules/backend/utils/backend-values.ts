@@ -1,12 +1,9 @@
 import { isPlainObject } from '../../../common/utils/is-plain-object';
 import { BackendTokens, BackendUser } from '../models/backend-session.model';
+import { textOf } from '../../../common/utils/text-of';
 
 export function isFilledString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
-}
-
-export function textOf(value: unknown): string {
-  return typeof value === 'string' ? value : '';
 }
 
 export function toUser(value: unknown): BackendUser {

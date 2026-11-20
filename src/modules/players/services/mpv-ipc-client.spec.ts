@@ -1,7 +1,8 @@
 import { createServer, Server, Socket } from 'node:net';
 
-import { MPV_IPC_MAX_BUFFER_CHARS } from '../constants/players.constants';
-import { MpvIpcError, MpvIpcErrorCode } from '../errors/mpv-ipc.error';
+import { MPV_COMMAND_GET_PROPERTY, MPV_IPC_MAX_BUFFER_CHARS } from '../constants/players.constants';
+import { MpvIpcMessage } from '../constants/mpv-ipc-messages.constants';
+import { MpvIpcError } from '../errors/mpv-ipc.error';
 import { MpvIpcClient, MpvIpcOptions, mpvPipePath, newLaunchId } from './mpv-ipc-client';
 
 const FAST: MpvIpcOptions = { connectTimeoutMs: 1_000, connectRetryMs: 20, requestTimeoutMs: 200 };
@@ -164,9 +165,10 @@ describe('MpvIpcClient', () => {
 
   it('gives up connecting after the timeout', async () => {
     server = null;
-    client = new MpvIpcClient(uniquePipe(), { ...FAST, connectTimeoutMs: 100 });
+    const path = uniquePipe();
+    client = new MpvIpcClient(path, { ...FAST, connectTimeoutMs: 100 });
 
-    await expect(client.connect()).rejects.toMatchObject({ code: MpvIpcErrorCode.CONNECT_TIMEOUT });
+    await expect(client.connect()).rejects.toThrow(MpvIpcMessage.pipeUnreachable(path));
   });
 
   it('times out a request mpv never answers', async () => {
@@ -175,9 +177,9 @@ describe('MpvIpcClient', () => {
     client = new MpvIpcClient(path, FAST);
     await client.connect();
 
-    await expect(client.framesShown()).rejects.toMatchObject({
-      code: MpvIpcErrorCode.REQUEST_TIMEOUT,
-    });
+    await expect(client.framesShown()).rejects.toThrow(
+      MpvIpcMessage.noAnswer(MPV_COMMAND_GET_PROPERTY),
+    );
   });
 
   it('fails pending requests when mpv exits', async () => {
@@ -189,7 +191,7 @@ describe('MpvIpcClient', () => {
     const error = await client.framesShown().catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(MpvIpcError);
-    expect(error).toMatchObject({ code: MpvIpcErrorCode.CLOSED });
+    expect(error).toMatchObject({ message: MpvIpcMessage.connectionClosed });
   });
 
   it('shares one connection between repeated connect calls', async () => {
@@ -251,7 +253,7 @@ describe('MpvIpcClient', () => {
   it('can connect again after a connect attempt timed out', async () => {
     const path = uniquePipe();
     client = new MpvIpcClient(path, { ...FAST, connectTimeoutMs: 60 });
-    await expect(client.connect()).rejects.toMatchObject({ code: MpvIpcErrorCode.CONNECT_TIMEOUT });
+    await expect(client.connect()).rejects.toThrow(MpvIpcMessage.pipeUnreachable(path));
     server = await startFakeMpv(path, (request, socket) =>
       reply(socket, request, { error: 'success', data: 3 }),
     );
@@ -284,7 +286,7 @@ describe('MpvIpcClient', () => {
     client = new MpvIpcClient(path, FAST);
     await client.connect();
 
-    await expect(client.framesShown()).rejects.toMatchObject({ code: MpvIpcErrorCode.CLOSED });
+    await expect(client.framesShown()).rejects.toThrow(MpvIpcMessage.connectionClosed);
   });
 
   it('rejects requests after close', async () => {
@@ -296,8 +298,8 @@ describe('MpvIpcClient', () => {
 
     client.close();
 
-    await expect(pending).rejects.toMatchObject({ code: MpvIpcErrorCode.CLOSED });
-    await expect(client.framesShown()).rejects.toMatchObject({ code: MpvIpcErrorCode.CLOSED });
+    await expect(pending).rejects.toThrow(MpvIpcMessage.connectionClosed);
+    await expect(client.framesShown()).rejects.toThrow(MpvIpcMessage.notConnected);
   });
 
   it('stops retrying when closed while connecting', async () => {
@@ -306,6 +308,6 @@ describe('MpvIpcClient', () => {
 
     client.close();
 
-    await expect(connecting).rejects.toMatchObject({ code: MpvIpcErrorCode.CLOSED });
+    await expect(connecting).rejects.toThrow(MpvIpcMessage.closedWhileConnecting);
   });
 });

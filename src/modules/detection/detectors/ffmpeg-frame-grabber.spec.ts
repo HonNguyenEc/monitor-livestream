@@ -1,5 +1,4 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { Logger } from '@nestjs/common';
@@ -7,6 +6,7 @@ import * as hiddenProcess from '../../../common/process/hidden-process';
 import { RunResult } from '../../../common/process/hidden-process';
 import { ToolLocator } from '../../processes';
 import { FfmpegFrameGrabber, GrabOutcome } from './ffmpeg-frame-grabber';
+import { createDataDir, removeDataDir } from '../../../../test/helpers/data-dir';
 
 const OK: RunResult = { exitCode: 0, stdout: '', stderr: '', timedOut: false };
 
@@ -27,14 +27,14 @@ describe('FfmpegFrameGrabber', () => {
   };
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'live-qc-grab-'));
+    dir = await createDataDir({});
     destination = join(dir, 'frames', 'k', 'latest.jpg');
     find.mockResolvedValue('C:/tools/ffmpeg.exe');
     run = jest.spyOn(hiddenProcess, 'runHidden').mockResolvedValue(OK);
   });
   afterEach(async () => {
     jest.restoreAllMocks();
-    await rm(dir, { recursive: true, force: true });
+    await removeDataDir(dir);
   });
 
   it('moves a finished frame into place and leaves no temp file', async () => {

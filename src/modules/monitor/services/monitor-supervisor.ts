@@ -1,8 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 
 import { abortableSleep } from '../../../common/concurrency/abortable-sleep';
-import { errorMessage } from '../../../common/utils/error-message';
-import { safeError } from '../../../common/utils/safe-error';
+import { safeErrorMessage } from '../../../common/utils/safe-error-message';
 import { DetectionService } from '../../detection';
 import { DetectionControl } from '../../detection-state';
 import { Channel, ChannelDirectory } from '../../shops';
@@ -154,7 +153,7 @@ export class MonitorSupervisor implements OnModuleInit, OnModuleDestroy {
         pause = !(await this.startOne(channel, started, stopped));
       }
     } catch (error) {
-      this.logger.error(`Monitor pass failed: ${safeError(errorMessage(error))}`);
+      this.logger.error(`Monitor pass failed: ${safeErrorMessage(error)}`);
     }
   }
 
@@ -165,7 +164,7 @@ export class MonitorSupervisor implements OnModuleInit, OnModuleDestroy {
       this.lastError = '';
       return wanted;
     } catch (error) {
-      const reason = safeError(errorMessage(error));
+      const reason = safeErrorMessage(error);
       if (reason !== this.lastError) this.logger.warn(`${MonitorEvent.configError}: ${reason}`);
       this.lastError = reason;
       return null;
@@ -186,7 +185,7 @@ export class MonitorSupervisor implements OnModuleInit, OnModuleDestroy {
       if (stopped.aborted) await this.detection.stop(channel.key);
     } catch (error) {
       started.delete(channel.key);
-      this.logger.warn(`Cannot start ${channel.key}: ${safeError(errorMessage(error))}`);
+      this.logger.warn(`Cannot start ${channel.key}: ${safeErrorMessage(error)}`);
     }
     return false;
   }

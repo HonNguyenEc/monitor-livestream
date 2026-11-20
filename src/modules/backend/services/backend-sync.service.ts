@@ -2,6 +2,7 @@ import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@ne
 
 import { MAX_RETRY_DELAY_MS, MS_PER_SECOND } from '../../../common/constants/time.constants';
 import { retryDelayMs } from '../../../common/utils/retry-delay';
+import { safeErrorMessage } from '../../../common/utils/safe-error-message';
 import { BackendApiClient } from '../clients/backend-api.client';
 import {
   BOARD_REFRESH_MS,
@@ -13,7 +14,7 @@ import { BackendAuthError } from '../errors/backend-auth.error';
 import { BackendRequestError } from '../errors/backend-request.error';
 import { BackendBrand } from '../models/backend-brand.model';
 import { BackendSchedule } from '../models/backend-schedule.model';
-import { backendErrorDetail, backendErrorText } from '../utils/backend-error-text';
+import { backendErrorText } from '../utils/backend-error-text';
 import { localDate } from '../utils/local-date';
 import { BackendLoginState } from '../models/backend-login-state.model';
 import { BackendSyncStore } from './backend-sync-store.service';
@@ -66,7 +67,7 @@ export class BackendSyncService implements OnApplicationBootstrap, OnModuleDestr
     try {
       await this.tick();
     } catch (error) {
-      this.logger.error(`Sync tick failed: ${backendErrorDetail(error)}`);
+      this.logger.error(`Sync tick failed: ${safeErrorMessage(error)}`);
     }
   }
 
@@ -172,7 +173,7 @@ export class BackendSyncService implements OnApplicationBootstrap, OnModuleDestr
     if (error instanceof BackendAuthError) {
       this.reset();
       this.store.setError(reason);
-      this.logger.warn(`Sync stopped: ${reason} [${backendErrorDetail(error)}]`);
+      this.logger.warn(`Sync stopped: ${reason} [${safeErrorMessage(error)}]`);
       return;
     }
     this.failures += 1;
@@ -186,7 +187,7 @@ export class BackendSyncService implements OnApplicationBootstrap, OnModuleDestr
     this.retryAt = Date.now() + delayMs;
     this.store.setError(reason);
     this.logger.warn(
-      `Sync failed: ${reason} [${backendErrorDetail(error)}]; retrying in ${delayMs / MS_PER_SECOND}s`,
+      `Sync failed: ${reason} [${safeErrorMessage(error)}]; retrying in ${delayMs / MS_PER_SECOND}s`,
     );
   }
 }

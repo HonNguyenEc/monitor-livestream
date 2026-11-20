@@ -8,7 +8,6 @@ export interface DetectionSnapshot {
   jobState: JobState;
   attempts: number;
   reasonCode: ReasonCode | null;
-  message: string | null;
   checkedAt: string | null;
   liveSince: string | null;
   /** Latest captured frame on disk; null until one exists. */
@@ -23,7 +22,6 @@ export const IDLE_DETECTION: Readonly<DetectionSnapshot> = Object.freeze({
   jobState: JobState.STOPPED,
   attempts: 0,
   reasonCode: null,
-  message: null,
   checkedAt: null,
   liveSince: null,
   framePath: null,

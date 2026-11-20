@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { errorMessage } from '../../../common/utils/error-message';
-import { safeError } from '../../../common/utils/safe-error';
+import { safeErrorMessage } from '../../../common/utils/safe-error-message';
 
 export type StopHandler = (key: string) => Promise<unknown>;
 export type RenameListener = (oldKey: string, newKey: string) => void;
@@ -28,7 +27,7 @@ export class DetectionControl {
     try {
       await this.handler?.(key);
     } catch (error) {
-      this.logger.warn(`Cannot stop the job of ${key}: ${safeError(errorMessage(error))}`);
+      this.logger.warn(`Cannot stop the job of ${key}: ${safeErrorMessage(error)}`);
     }
   }
 
@@ -44,9 +43,7 @@ export class DetectionControl {
       try {
         listener(oldKey, newKey);
       } catch (error) {
-        this.logger.warn(
-          `Cannot follow the rename of ${oldKey}: ${safeError(errorMessage(error))}`,
-        );
+        this.logger.warn(`Cannot follow the rename of ${oldKey}: ${safeErrorMessage(error)}`);
       }
     }
   }

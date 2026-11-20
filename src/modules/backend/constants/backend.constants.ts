@@ -1,7 +1,6 @@
 export const BACKEND_URL_ENV = 'AUTO_LIVES_BACKEND_URL';
 export const DEFAULT_BACKEND_URL = 'http://localhost:8000';
 export const BACKEND_API_PREFIX = '/api/v1';
-export const BACKEND_URL_PROTOCOLS: readonly string[] = ['http:', 'https:'];
 export const TRAILING_SLASHES = /\/+$/;
 
 export const LOGIN_PATH = '/auth/login';

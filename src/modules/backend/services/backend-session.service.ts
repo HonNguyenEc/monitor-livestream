@@ -3,9 +3,8 @@ import { HttpStatus, Inject, Injectable, Logger, OnModuleInit } from '@nestjs/co
 import { ErrorCode } from '../../../common/constants/error-codes.constants';
 import { ErrorMessage } from '../../../common/constants/error-messages.constants';
 import { DomainException } from '../../../common/exceptions/domain.exception';
-import { errorMessage } from '../../../common/utils/error-message';
+import { safeErrorMessage } from '../../../common/utils/safe-error-message';
 import { maskEmail, maskUrl } from '../../../common/utils/mask';
-import { safeError } from '../../../common/utils/safe-error';
 import { AuthenticatedBackendTransport } from '../clients/authenticated-backend.transport';
 import { BackendHttpClient } from '../clients/backend-http.client';
 import { BackendConfig, backendConfig } from '../config/backend.config';
@@ -17,7 +16,6 @@ import {
   NO_HTTP_STATUS,
 } from '../constants/backend.constants';
 import { BackendRequestError } from '../errors/backend-request.error';
-import { BackendUser } from '../models/backend-session.model';
 import { BackendSessionRepository } from '../repositories/backend-session.repository';
 import { apiUrl } from '../utils/backend-url';
 import { readLoginAnswer } from '../utils/backend-values';
@@ -46,20 +44,8 @@ export class BackendSessionService implements OnModuleInit {
     }
   }
 
-  get connected(): boolean {
-    return this.transport.connected;
-  }
-
-  get user(): BackendUser | null {
-    return this.transport.user;
-  }
-
   get backendUrl(): string {
     return this.transport.baseUrl ?? this.config.baseUrl ?? this.config.url;
-  }
-
-  recentCallCount(): number {
-    return this.transport.recentCallCount();
   }
 
   /** Throws DomainException BACKEND_LOGIN_FAILED with the reason, and lets an unexpected error pass through; the password is never stored or logged. */
@@ -110,7 +96,7 @@ export class BackendSessionService implements OnModuleInit {
   private loginFailureMessage(error: BackendRequestError): string {
     if (error.status === NO_HTTP_STATUS) {
       this.logger.warn(
-        `Backend login got no answer: ${safeError(errorMessage(error.cause ?? error))}; ${MSG_LOG_CHECK_BACKEND_URL}`,
+        `Backend login got no answer: ${safeErrorMessage(error.cause ?? error)}; ${MSG_LOG_CHECK_BACKEND_URL}`,
       );
       return ErrorMessage.backendUnreachable;
     }

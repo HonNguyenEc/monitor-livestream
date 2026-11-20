@@ -1,4 +1,4 @@
-import { BROWSER_USER_AGENT } from '../../../common/constants/http.constants';
+import { BROWSER_USER_AGENT, JSON_ACCEPT_HEADER } from '../../../common/constants/http.constants';
 
 export const SELLER_CENTER_BASE_URL = 'https://banhang.shopee.vn';
 export const SELLER_CENTER_LOGIN_URL = `${SELLER_CENTER_BASE_URL}/api/v2/login/`;
@@ -7,7 +7,7 @@ export const SELLER_CENTER_COOKIE_PREFIX = `${SELLER_CENTER_COOKIE_NAME}=`;
 export const SELLER_CENTER_TIMEOUT_MS = 25_000;
 
 export const SELLER_CENTER_HEADERS: Readonly<Record<string, string>> = {
-  accept: 'application/json, text/plain, */*',
+  accept: JSON_ACCEPT_HEADER,
   referer: `${SELLER_CENTER_BASE_URL}/`,
   'user-agent': BROWSER_USER_AGENT,
 };
@@ -25,7 +25,7 @@ export const SHOPEE_SESSION_QUERY_PARAM = 'session';
 
 /** iOS app user agent, ported from ihmily/DouyinLiveRecorder. */
 export const SHOPEE_HEADERS: Readonly<Record<string, string>> = {
-  accept: 'application/json, text/plain, */*',
+  accept: JSON_ACCEPT_HEADER,
   'accept-language': 'vi-VN,vi;q=0.9,en;q=0.8',
   'user-agent': 'ios/7.830 (ios 17.0; ; iPhone 15 (A2846/A3089/A3090/A3092))',
 };

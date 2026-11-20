@@ -1,11 +1,11 @@
 import { errorChain } from './error-chain';
+import { textOf } from './text-of';
 
 function describe(value: unknown): string {
   if (typeof value === 'string') return value;
   if (!(value instanceof Error)) return '';
   if (value.message) return value.message;
-  const { code } = value as { code?: unknown };
-  return typeof code === 'string' ? code : '';
+  return textOf((value as { code?: unknown }).code);
 }
 
 /** Message of a thrown value; appends the first thing it wraps that says something (the `cause` that Node's fetch uses to carry the real network error). */

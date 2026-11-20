@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { EOL } from 'node:os';
-import { dirname } from 'node:path';
+import { basename, dirname } from 'node:path';
 
 import {
   FILE_NOT_FOUND,
@@ -12,7 +12,10 @@ import {
   BUSY_FILE_RETRY_DELAY_MS,
   TEMP_FILE_SUFFIX,
   UTF8_BOM,
+  msgNotJsonObject,
 } from '../constants/file.constants';
+import { isPlainObject } from '../utils/is-plain-object';
+import { NotJsonObjectError } from './not-json-object.error';
 
 /** Parsed JSON, or undefined when the file does not exist. Files saved by Notepad may start with a BOM. */
 export async function readJsonFile(path: string): Promise<unknown> {
@@ -26,6 +29,13 @@ export async function readJsonFile(path: string): Promise<unknown> {
     throw error;
   }
   return JSON.parse(text.startsWith(UTF8_BOM) ? text.slice(UTF8_BOM.length) : text);
+}
+
+/** The parsed object, or undefined when the file does not exist; throws NotJsonObjectError for any other JSON value. */
+export async function readJsonObject(path: string): Promise<Record<string, unknown> | undefined> {
+  const parsed = await readJsonFile(path);
+  if (parsed === undefined || isPlainObject(parsed)) return parsed;
+  throw new NotJsonObjectError(msgNotJsonObject(basename(path)));
 }
 
 // Same layout and line endings as Python's write_text(json.dumps(...) + '\n'), which writes CRLF on

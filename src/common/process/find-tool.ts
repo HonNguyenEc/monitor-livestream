@@ -1,18 +1,10 @@
-import { stat } from 'node:fs/promises';
 import { delimiter, join } from 'node:path';
 
+import { isFile } from '../fs/is-file';
 import { ExternalTool, toolFileName } from './external-tool';
 import { TOOLS_FOLDER } from './process.constants';
 
 const SURROUNDING_QUOTES = /^"|"$/g;
-
-async function isFile(path: string): Promise<boolean> {
-  try {
-    return (await stat(path)).isFile();
-  } catch {
-    return false;
-  }
-}
 
 /** The tool in `<dataDir>/tools`, else on PATH; null when neither has it. */
 export async function findTool(

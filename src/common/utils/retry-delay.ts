@@ -7,8 +7,8 @@ import { MS_PER_SECOND } from '../constants/time.constants';
 export function retryDelayMs(
   failures: number,
   scheduleMs: readonly number[],
-  retryAfterSeconds: number | null,
-  capMs: number,
+  retryAfterSeconds: number | null = null,
+  capMs = Number.POSITIVE_INFINITY,
 ): number {
   const step = scheduleMs[Math.min(Math.max(failures, 1), scheduleMs.length) - 1];
   const delay = retryAfterSeconds ? retryAfterSeconds * MS_PER_SECOND : step;

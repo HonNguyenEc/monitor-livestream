@@ -13,7 +13,7 @@ import { ScheduleDto } from '../dtos/schedule.dto';
 import { SessionInfoDto } from '../dtos/session-info.dto';
 import { StoredShop } from '../models/stored-shop.model';
 import { BackendDetailParts } from './shop-view';
-import { shopKey } from './shop-identity';
+import { shopKey, toPlatform } from './shop-identity';
 
 /** Position of a shop that is not an entry of shops.json. */
 const NOT_IN_FILE = -1;
@@ -76,10 +76,7 @@ function toScheduleDto(row: BackendSchedule): ScheduleDto {
   };
 }
 
-const PLATFORMS: readonly string[] = Object.values(Platform);
-
 /** The backend's own value, or the platform it assumes when the row has none or one we do not monitor. */
 function schedulePlatform(value: string | null): Platform {
-  const platform = value?.toLowerCase() ?? '';
-  return PLATFORMS.includes(platform) ? (platform as Platform) : DEFAULT_SCHEDULE_PLATFORM;
+  return toPlatform(value) ?? DEFAULT_SCHEDULE_PLATFORM;
 }

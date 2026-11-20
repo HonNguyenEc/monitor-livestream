@@ -2,7 +2,6 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 
 import { withTimeout } from '../../../common/concurrency/with-timeout';
 import { getJson, JsonResponse } from '../../../common/http/get-json';
-import { parseUrl } from '../../../common/utils/parse-url';
 import { toSafeId } from '../../../common/utils/to-safe-id';
 import {
   LOCATION_HEADER,
@@ -27,6 +26,7 @@ import { SellerAccount } from '../models/seller-account.model';
 import { isLoginOutage } from '../utils/login-outage';
 import { sellerCenterHeaders } from '../utils/seller-center-headers';
 import { isAllowedShopeeUrl } from '../utils/shopee-url-policy';
+import { textOf } from '../../../common/utils/text-of';
 
 export interface LoginLookup extends JsonResponse {
   /** Null unless the login answered 200 with a safe id. */
@@ -55,7 +55,7 @@ export class SellerCenterClient {
     return {
       user_id: login.userId,
       shop_id: toSafeId(login.data.shopid),
-      username: typeof login.data.username === 'string' ? login.data.username : '',
+      username: textOf(login.data.username),
     };
   }
 
@@ -84,7 +84,7 @@ export class SellerCenterClient {
     timeoutMs: number,
     signal?: AbortSignal,
   ): Promise<number | null> {
-    const start = parseUrl(url);
+    const start = URL.parse(url);
     if (!start) return null;
     // One budget for every hop of the redirect chain.
     const target = await this.followRedirects(start, withTimeout(timeoutMs, signal));
@@ -109,7 +109,7 @@ export class SellerCenterClient {
       const redirected =
         response.status >= REDIRECT_STATUS_MIN && response.status <= REDIRECT_STATUS_MAX;
       if (!redirected || !location) return current;
-      const next = parseUrl(location, current);
+      const next = URL.parse(location, current);
       if (!next) return null;
       current = next;
     }

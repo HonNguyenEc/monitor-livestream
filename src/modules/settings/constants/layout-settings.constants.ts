@@ -5,7 +5,6 @@ import { LayoutSettings } from '../models/layout-settings.model';
 export const LAYOUT_FILE = 'mpv_layout.json';
 // The Python tool writes mpv_layout.json with indent=2.
 export const LAYOUT_FILE_INDENT = 2;
-export const msgNotJsonObject = (file: string): string => `${file} is not a JSON object`;
 
 /** Same values as DEFAULTS in livestream_qc/mpv_layout.py, except `show_mpv`, which is `false` (see below). */
 export const DEFAULT_LAYOUT_SETTINGS: Readonly<LayoutSettings> = Object.freeze({

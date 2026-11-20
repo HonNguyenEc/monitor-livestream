@@ -1,5 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { HttpStatus, Logger } from '@nestjs/common';
 
@@ -14,6 +13,7 @@ import { BackendRequestError } from '../errors/backend-request.error';
 import { BackendSession } from '../models/backend-session.model';
 import { BackendSessionRepository } from '../repositories/backend-session.repository';
 import { BackendSessionService } from './backend-session.service';
+import { createDataDir, removeDataDir } from '../../../../test/helpers/data-dir';
 
 const BASE_URL = 'http://backend.test';
 const LOGIN_URL = `${BASE_URL}/api/v1/auth/login`;
@@ -119,11 +119,11 @@ describe('BackendSessionService with its transport', () => {
   };
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'live-qc-backend-'));
+    dir = await createDataDir({});
     request = jest.fn();
   });
 
-  afterEach(() => rm(dir, { recursive: true, force: true }));
+  afterEach(() => removeDataDir(dir));
 
   describe('login', () => {
     it('stores the session of an admin and never the password', async () => {
@@ -135,8 +135,8 @@ describe('BackendSessionService with its transport', () => {
       expect(request).toHaveBeenCalledWith('POST', LOGIN_URL, {
         body: { email: USER.email, password: 'pw' },
       });
-      expect(service.connected).toBe(true);
-      expect(service.user).toEqual(USER);
+      expect(transport.connected).toBe(true);
+      expect(transport.user).toEqual(USER);
       expect(await storedSession()).toEqual(STORED);
     });
 
@@ -149,7 +149,7 @@ describe('BackendSessionService with its transport', () => {
       request.mockRejectedValue(error);
 
       expect((await loginError()).message).toContain(text);
-      expect(service.connected).toBe(false);
+      expect(transport.connected).toBe(false);
     });
 
     it.each([
@@ -187,14 +187,14 @@ describe('BackendSessionService with its transport', () => {
 
       await service.login(USER.email, 'pw');
 
-      expect(service.connected).toBe(true);
+      expect(transport.connected).toBe(true);
     });
   });
 
   describe('stored session', () => {
     it('is used when it belongs to the configured backend', async () => {
       await startLoggedIn();
-      expect(service.connected).toBe(true);
+      expect(transport.connected).toBe(true);
     });
 
     it('is ignored, and logged once with masked URLs, for another backend', async () => {
@@ -204,7 +204,7 @@ describe('BackendSessionService with its transport', () => {
         JSON.stringify({ ...STORED, base_url: 'http://other-backend.example' }),
       );
       await start();
-      expect(service.connected).toBe(false);
+      expect(transport.connected).toBe(false);
       const lines = log.mock.calls
         .map((call) => String(call[0]))
         .filter((l) => l.includes('ignored'));
@@ -218,7 +218,7 @@ describe('BackendSessionService with its transport', () => {
     ])('is ignored %s', async (_case, text) => {
       await writeFile(sessionFile(), text);
       await start();
-      expect(service.connected).toBe(false);
+      expect(transport.connected).toBe(false);
     });
   });
 
@@ -228,7 +228,7 @@ describe('BackendSessionService with its transport', () => {
 
       await service.logout();
 
-      expect(service.connected).toBe(false);
+      expect(transport.connected).toBe(false);
       await expectNoSessionFile();
     });
 
@@ -238,7 +238,7 @@ describe('BackendSessionService with its transport', () => {
 
       await expect(service.logout()).rejects.toThrow('EBUSY');
 
-      expect(service.connected).toBe(true);
+      expect(transport.connected).toBe(true);
     });
   });
 
@@ -385,7 +385,7 @@ describe('BackendSessionService with its transport', () => {
         token: 'a1',
         signal: expect.any(AbortSignal),
       });
-      expect(service.recentCallCount()).toBe(1);
+      expect(transport.recentCallCount()).toBe(1);
     });
 
     it('throws BackendAuthError without a login', async () => {
@@ -402,7 +402,7 @@ describe('BackendSessionService with its transport', () => {
       expect(results).toEqual([['a2'], ['a2']]);
       expect(refreshCalls()).toEqual([['POST', REFRESH_URL, { body: { refresh_token: 'r1' } }]]);
       expect(await storedSession()).toMatchObject(RENEWED);
-      expect(service.recentCallCount()).toBe(4);
+      expect(transport.recentCallCount()).toBe(4);
     });
 
     it('uses the refreshed token when the session file cannot be saved', async () => {
@@ -419,7 +419,7 @@ describe('BackendSessionService with its transport', () => {
 
       await expect(transport.get('/brands')).rejects.toBeInstanceOf(BackendAuthError);
 
-      expect(service.connected).toBe(false);
+      expect(transport.connected).toBe(false);
       await expectNoSessionFile();
     });
 
@@ -428,7 +428,7 @@ describe('BackendSessionService with its transport', () => {
       route({ refresh: () => settle(new BackendRequestError('x', status)) });
 
       await expect(transport.get('/brands')).rejects.toMatchObject({ status });
-      expect(service.connected).toBe(true);
+      expect(transport.connected).toBe(true);
     });
 
     it('keeps the login when the refresh answer has no token pair', async () => {
@@ -436,7 +436,7 @@ describe('BackendSessionService with its transport', () => {
       route({ refresh: () => settle({}) });
 
       await expect(transport.get('/brands')).rejects.toBeInstanceOf(BackendAnswerError);
-      expect(service.connected).toBe(true);
+      expect(transport.connected).toBe(true);
     });
 
     it('passes on a second 401 without refreshing again', async () => {
@@ -489,7 +489,7 @@ describe('BackendSessionService with its transport', () => {
       refresh.settle(outcome);
 
       await expect(pending).resolves.toEqual(['a9']);
-      expect(service.connected).toBe(true);
+      expect(transport.connected).toBe(true);
       expect(await storedSession()).toMatchObject({ access_token: 'a9' });
     });
 
@@ -519,7 +519,7 @@ describe('BackendSessionService with its transport', () => {
       await logout;
 
       expect(await pending).toBeInstanceOf(BackendAuthError);
-      expect(service.connected).toBe(false);
+      expect(transport.connected).toBe(false);
       await expectNoSessionFile();
     });
   });

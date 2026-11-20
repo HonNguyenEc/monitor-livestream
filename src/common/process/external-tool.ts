@@ -6,7 +6,5 @@ export enum ExternalTool {
   FFMPEG = 'ffmpeg',
 }
 
-export const toolFileName = (
-  tool: ExternalTool,
-  platform: NodeJS.Platform = process.platform,
-): string => (platform === 'win32' ? `${tool}${WINDOWS_EXE_SUFFIX}` : tool);
+export const toolFileName = (tool: ExternalTool): string =>
+  process.platform === 'win32' ? `${tool}${WINDOWS_EXE_SUFFIX}` : tool;

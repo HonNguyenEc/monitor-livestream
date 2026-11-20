@@ -23,14 +23,9 @@ export function maskEmail(email: string): string {
 
 /** `https://auto.example.vn` → `https://aut•••.example.vn`; loopback hosts stay readable. For display only. */
 export function maskUrl(url: string): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return '';
-  }
-  const host = parsed.hostname;
-  if (!host) {
+  const parsed = URL.parse(url);
+  const host = parsed?.hostname;
+  if (!parsed || !host) {
     return '';
   }
   const scheme = parsed.protocol.slice(0, -1);

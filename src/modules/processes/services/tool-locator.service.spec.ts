@@ -1,18 +1,18 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { ExternalTool, toolFileName } from '../../../common/process/external-tool';
 import { TOOLS_FOLDER } from '../../../common/process/process.constants';
 import { ToolLocator } from './tool-locator.service';
+import { createDataDir, removeDataDir } from '../../../../test/helpers/data-dir';
 
 describe('ToolLocator', () => {
   let dataDir: string;
 
   beforeEach(async () => {
-    dataDir = await mkdtemp(join(tmpdir(), 'live-qc-locator-'));
+    dataDir = await createDataDir({});
   });
-  afterEach(() => rm(dataDir, { recursive: true, force: true }));
+  afterEach(() => removeDataDir(dataDir));
 
   it('finds a tool dropped into the tools folder after the service started', async () => {
     const locator = new ToolLocator(dataDir);

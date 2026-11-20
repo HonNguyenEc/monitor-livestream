@@ -7,7 +7,7 @@ import {
   SellerCenterClient,
   isLoginOutage,
 } from '../../shopee';
-import { errorMessage } from '../../../common/utils/error-message';
+import { safeErrorMessage } from '../../../common/utils/safe-error-message';
 import { isNetworkError } from '../../../common/utils/is-network-error';
 import { safeError } from '../../../common/utils/safe-error';
 import { isPlainObject } from '../../../common/utils/is-plain-object';
@@ -24,8 +24,6 @@ import {
   ResolveResult,
 } from '../models/resolve-result.model';
 import {
-  ABSENT_VALUE_TEXT,
-  MSG_INVALID_BODY,
   MSG_INVALID_COOKIE,
   MSG_INVALID_LIVE_URL,
   MSG_MISSING_COOKIE,
@@ -43,34 +41,45 @@ import {
   SESSION_INFO_OK_CODE,
   SESSION_STATUS_LIVE,
   SHOPEE_REQUEST_FAILED_EVENT,
-  STREAM_URL_PROTOCOLS,
 } from './seller-center.constants';
 import { toSafeId } from '../../../common/utils/to-safe-id';
+import {
+  HTTP_URL_PROTOCOLS,
+  MSG_INVALID_JSON_BODY,
+} from '../../../common/constants/http.constants';
+import { PYTHON_NONE } from '../../../common/constants/python.constants';
 
 function isStreamUrl(value: string): boolean {
-  try {
-    return STREAM_URL_PROTOCOLS.includes(new URL(value).protocol);
-  } catch {
-    return false;
-  }
+  const url = URL.parse(value);
+  return url !== null && HTTP_URL_PROTOCOLS.includes(url.protocol);
 }
 
-function loginFailure({ status, data, invalidBody }: LoginLookup): ResolveFailure {
+// An outage is not an expired login, so the operator is not sent to paste a new cookie.
+function answerFailure(
+  { status, data, invalidBody }: JsonResponse,
+  refused: boolean,
+  msgUnavailable: (status: number) => string,
+): ResolveFailure | null {
   if (isLoginOutage(status, invalidBody)) {
-    const reason = invalidBody ? MSG_INVALID_BODY : msgLoginUnavailable(status);
+    const reason = invalidBody ? MSG_INVALID_JSON_BODY : msgUnavailable(status);
     return failed(ResolveFailureCode.SHOPEE_REQUEST_FAILED, reason);
   }
-  if (status !== HttpStatus.OK) {
-    const message = safeError(String(data.msg || data.message || ''));
-    return failed(ResolveFailureCode.SELLER_CENTER_AUTH_FAILED, msgAuthFailed(status, message));
-  }
-  return failed(ResolveFailureCode.MISSING_USER_ID, MSG_MISSING_USER_ID);
+  if (!refused) return null;
+  const message = safeError(String(data.msg || data.message || ''));
+  return failed(ResolveFailureCode.SELLER_CENTER_AUTH_FAILED, msgAuthFailed(status, message));
+}
+
+function loginFailure(login: LoginLookup): ResolveFailure {
+  return (
+    answerFailure(login, login.status !== HttpStatus.OK, msgLoginUnavailable) ??
+    failed(ResolveFailureCode.MISSING_USER_ID, MSG_MISSING_USER_ID)
+  );
 }
 
 type SessionLookup = { sessionId: number } | { failure: ResolveFailure };
 
 function text(value: unknown): string {
-  return value === undefined || value === null ? ABSENT_VALUE_TEXT : String(value);
+  return value === undefined || value === null ? PYTHON_NONE : String(value);
 }
 
 @Injectable()
@@ -106,7 +115,7 @@ export class ShopeeSellerCenterResolver implements PlatformResolver {
       }
       if (deadline.signal?.aborted) return cancelled();
       if (!isNetworkError(error)) throw error;
-      const reason = safeError(errorMessage(error));
+      const reason = safeErrorMessage(error);
       this.logger.warn(`${SHOPEE_REQUEST_FAILED_EVENT}: ${reason}`);
       return failed(ResolveFailureCode.SHOPEE_REQUEST_FAILED, reason);
     }
@@ -143,7 +152,7 @@ export class ShopeeSellerCenterResolver implements PlatformResolver {
       return { failure: failed(ResolveFailureCode.NOT_LIVE, MSG_NO_ONGOING) };
     }
     const errCode = 'err_code' in data ? data.err_code : data.error;
-    const reason = invalidBody ? MSG_INVALID_BODY : safeError(text(errCode));
+    const reason = invalidBody ? MSG_INVALID_JSON_BODY : safeError(text(errCode));
     return {
       failure: failed(
         ResolveFailureCode.ONGOING_LOOKUP_FAILED,
@@ -152,23 +161,14 @@ export class ShopeeSellerCenterResolver implements PlatformResolver {
     };
   }
 
-  private fromSessionInfo(
-    sessionId: number,
-    { status, data, invalidBody }: JsonResponse,
-  ): ResolveResult {
-    // An outage is not an expired login, so the operator is not sent to paste a new cookie.
-    if (isLoginOutage(status, invalidBody)) {
-      const reason = invalidBody ? MSG_INVALID_BODY : msgSessionInfoUnavailable(status);
-      return failed(ResolveFailureCode.SHOPEE_REQUEST_FAILED, reason);
-    }
+  private fromSessionInfo(sessionId: number, answer: JsonResponse): ResolveResult {
+    const { status, data } = answer;
     const code = data.code;
-    if (
+    const refused =
       status !== HttpStatus.OK ||
-      (code !== undefined && code !== null && code !== SESSION_INFO_OK_CODE)
-    ) {
-      const message = safeError(String(data.msg || data.message || ''));
-      return failed(ResolveFailureCode.SELLER_CENTER_AUTH_FAILED, msgAuthFailed(status, message));
-    }
+      (code !== undefined && code !== null && code !== SESSION_INFO_OK_CODE);
+    const failure = answerFailure(answer, refused, msgSessionInfoUnavailable);
+    if (failure) return failure;
     const info = isPlainObject(data.data) ? data.data : {};
     if (Object.keys(info).length === 0) {
       return failed(ResolveFailureCode.SELLER_CENTER_NO_ACCESS, msgNoAccess(sessionId));

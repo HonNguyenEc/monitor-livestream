@@ -1,8 +1,8 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { writeJsonFileAtomic } from './json-file';
+import { createDataDir, removeDataDir } from '../../../test/helpers/data-dir';
 
 const order: string[] = [];
 
@@ -30,11 +30,11 @@ describe('writeJsonFileAtomic durability', () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'json-file-durable-'));
+    dir = await createDataDir({});
     order.length = 0;
   });
 
-  afterEach(() => rm(dir, { recursive: true, force: true }));
+  afterEach(() => removeDataDir(dir));
 
   it('flushes the temp file to disk before it takes the final name', async () => {
     await writeJsonFileAtomic(join(dir, 'a.json'), { a: 1 }, 2);

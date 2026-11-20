@@ -17,7 +17,7 @@ import {
   MPV_SCREENSHOT_FLAGS,
 } from '../constants/players.constants';
 import { MpvIpcMessage } from '../constants/mpv-ipc-messages.constants';
-import { MpvIpcError, MpvIpcErrorCode } from '../errors/mpv-ipc.error';
+import { MpvIpcError } from '../errors/mpv-ipc.error';
 
 export interface MpvIpcOptions {
   connectTimeoutMs: number;
@@ -83,10 +83,7 @@ export class MpvIpcClient {
         socket = await openPipe(this.pipePath);
       } catch {
         if (Date.now() + this.options.connectRetryMs > deadline) {
-          throw new MpvIpcError(
-            MpvIpcErrorCode.CONNECT_TIMEOUT,
-            MpvIpcMessage.pipeUnreachable(this.pipePath),
-          );
+          throw new MpvIpcError(MpvIpcMessage.pipeUnreachable(this.pipePath));
         }
         await delay(this.options.connectRetryMs);
         continue;
@@ -98,19 +95,19 @@ export class MpvIpcClient {
       this.attach(socket);
       return;
     }
-    throw new MpvIpcError(MpvIpcErrorCode.CLOSED, MpvIpcMessage.closedWhileConnecting);
+    throw new MpvIpcError(MpvIpcMessage.closedWhileConnecting);
   }
 
   command(args: unknown[]): Promise<MpvReply> {
     const socket = this.socket;
     if (!socket || socket.destroyed) {
-      return Promise.reject(new MpvIpcError(MpvIpcErrorCode.CLOSED, MpvIpcMessage.notConnected));
+      return Promise.reject(new MpvIpcError(MpvIpcMessage.notConnected));
     }
     const requestId = this.nextRequestId++;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId);
-        reject(new MpvIpcError(MpvIpcErrorCode.REQUEST_TIMEOUT, MpvIpcMessage.noAnswer(args[0])));
+        reject(new MpvIpcError(MpvIpcMessage.noAnswer(args[0])));
       }, this.options.requestTimeoutMs);
       this.pending.set(requestId, { resolve, reject, timer });
       socket.write(JSON.stringify({ command: args, request_id: requestId }) + LINE_SEPARATOR);
@@ -181,7 +178,7 @@ export class MpvIpcClient {
   private failPending(): void {
     for (const request of this.pending.values()) {
       clearTimeout(request.timer);
-      request.reject(new MpvIpcError(MpvIpcErrorCode.CLOSED, MpvIpcMessage.connectionClosed));
+      request.reject(new MpvIpcError(MpvIpcMessage.connectionClosed));
     }
     this.pending.clear();
   }

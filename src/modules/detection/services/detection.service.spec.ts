@@ -1,5 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { ErrorCode } from '../../../common/constants/error-codes.constants';
@@ -13,6 +12,7 @@ import { Channel, ChannelDirectory } from '../../shops';
 import { DetectionJobManager } from './detection-job.manager';
 import { DetectionService } from './detection.service';
 import { StreamRefresher } from './stream-refresher';
+import { createDataDir, removeDataDir } from '../../../../test/helpers/data-dir';
 
 const channel: Channel = {
   key: 'tiktok_a',
@@ -73,7 +73,6 @@ describe('DetectionService', () => {
   it('starts the job of a known channel and answers its state', async () => {
     jobs.start.mockResolvedValue({
       jobState: JobState.ERROR,
-      message: null,
       reasonCode: ReasonCode.TOOL_MISSING,
     });
 
@@ -103,9 +102,9 @@ describe('DetectionService', () => {
   describe('frame', () => {
     let dir: string;
     beforeEach(async () => {
-      dir = await mkdtemp(join(tmpdir(), 'live-qc-frame-'));
+      dir = await createDataDir({});
     });
-    afterEach(() => rm(dir, { recursive: true, force: true }));
+    afterEach(() => removeDataDir(dir));
 
     it('serves the latest frame of the channel', async () => {
       const framePath = join(dir, 'latest.jpg');

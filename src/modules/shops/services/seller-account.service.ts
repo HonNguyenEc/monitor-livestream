@@ -7,13 +7,13 @@ import {
   SellerAccount,
   SellerCenterClient,
   SellerCenterUnavailableError,
+  SELLER_CENTER_COOKIE_NAME,
+  SELLER_CENTER_COOKIE_PREFIX,
 } from '../../shopee';
 import { wrappedErrorCode } from '../../../common/utils/error-chain';
-import { errorMessage } from '../../../common/utils/error-message';
-import { safeError } from '../../../common/utils/safe-error';
+import { safeErrorMessage } from '../../../common/utils/safe-error-message';
 import {
   PASTED_COOKIE_PREFIX,
-  SELLER_CENTER_COOKIE,
   SELLER_CENTER_COOKIE_PATTERN,
 } from '../constants/seller-cookie.constants';
 import { ShopField } from '../constants/shop-fields.constants';
@@ -41,7 +41,7 @@ export class SellerAccountService {
       }
       const code = wrappedErrorCode(error);
       this.logger.warn(
-        `Seller Center login check failed: ${safeError(errorMessage(error))}${code ? ` (${code})` : ''}`,
+        `Seller Center login check failed: ${safeErrorMessage(error)}${code ? ` (${code})` : ''}`,
       );
       throw badRequest(ErrorMessage.sellerCenterUnreachable);
     }
@@ -85,10 +85,10 @@ export function extractSellerCookie(pasted: string): string {
     header.startsWith(PASTED_COOKIE_PREFIX) ? header.slice(PASTED_COOKIE_PREFIX.length) : header,
   );
   if (!match) {
-    throw badRequest(ErrorMessage.cookieWithoutSession(SELLER_CENTER_COOKIE));
+    throw badRequest(ErrorMessage.cookieWithoutSession(SELLER_CENTER_COOKIE_NAME));
   }
   if (INVALID_COOKIE_CHARS.test(match[1])) {
     throw badRequest(ErrorMessage.cookieInvalidCharacters);
   }
-  return `${SELLER_CENTER_COOKIE}=${match[1]}`;
+  return `${SELLER_CENTER_COOKIE_PREFIX}${match[1]}`;
 }

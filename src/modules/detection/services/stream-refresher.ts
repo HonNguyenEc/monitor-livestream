@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { errorMessage } from '../../../common/utils/error-message';
-import { safeError } from '../../../common/utils/safe-error';
+import { safeErrorMessage } from '../../../common/utils/safe-error-message';
 import { ResolverService } from '../../resolvers';
 import { Channel, ChannelDirectory } from '../../shops';
 import { DetectionJobManager } from './detection-job.manager';
@@ -34,7 +33,7 @@ export class StreamRefresher {
       if (url) this.jobs.setStreamUrl(channel.key, url);
       return url;
     } catch (error) {
-      this.logger.warn(`Refresh of ${channel.key} failed: ${safeError(errorMessage(error))}`);
+      this.logger.warn(`Refresh of ${channel.key} failed: ${safeErrorMessage(error)}`);
       return null;
     }
   }
