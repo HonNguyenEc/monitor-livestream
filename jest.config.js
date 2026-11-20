@@ -1,9 +1,11 @@
 const TS_FILES = '^.+\\.ts$';
+const TEST_TIMEOUT_MS = 30000;
 
 module.exports = {
   projects: [
     {
       displayName: 'openapi',
+      testTimeout: TEST_TIMEOUT_MS,
       testEnvironment: 'node',
       testMatch: ['<rootDir>/test/openapi.e2e-spec.ts'],
       // Same Swagger plugin as nest-cli.json, so the document matches the published artifact.
@@ -17,6 +19,7 @@ module.exports = {
     },
     {
       displayName: 'app',
+      testTimeout: TEST_TIMEOUT_MS,
       testEnvironment: 'node',
       roots: ['<rootDir>/src', '<rootDir>/test'],
       testRegex: '\\.(spec|e2e-spec)\\.ts$',

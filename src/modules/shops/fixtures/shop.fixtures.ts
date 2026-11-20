@@ -53,7 +53,7 @@ export const SAMPLE_TIKTOK_DETAIL: ShopDetailDto = {
   on_air_schedule_id: null,
 };
 
-export const SAMPLE_BACKEND_DETAIL: ShopDetailDto = {
+const SAMPLE_BACKEND_DETAIL: ShopDetailDto = {
   ...SAMPLE_BACKEND_ROW,
   config: { platform: Platform.SHOPEE, name: BRAND_NAME },
   session: {

@@ -55,6 +55,12 @@ export function buildOpenApiDocument(app: INestApplication, version: string): Op
   return document;
 }
 
-export function setupSwagger(app: INestApplication, version: string): void {
-  SwaggerModule.setup(SWAGGER_PATH, app, () => buildOpenApiDocument(app, version));
+export function setupSwagger(
+  app: INestApplication,
+  version: string,
+  customSwaggerUiPath?: string,
+): void {
+  SwaggerModule.setup(SWAGGER_PATH, app, () => buildOpenApiDocument(app, version), {
+    customSwaggerUiPath,
+  });
 }

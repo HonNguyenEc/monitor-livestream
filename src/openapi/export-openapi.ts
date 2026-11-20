@@ -6,6 +6,7 @@ import { NestFastifyApplication } from '@nestjs/platform-fastify';
 
 import { AppModule } from '../app.module';
 import { configureApp, createFastifyAdapter } from '../app.setup';
+import { FATAL_EXIT_CODE } from '../common/constants/app.constants';
 import { JSON_INDENT, OPENAPI_OUTPUT_FILE } from './openapi.constants';
 import { buildOpenApiDocument } from './openapi.document';
 
@@ -24,5 +25,5 @@ async function exportOpenApi(): Promise<void> {
 
 exportOpenApi().catch((error: unknown) => {
   console.error(error);
-  process.exit(1);
+  process.exit(FATAL_EXIT_CODE);
 });

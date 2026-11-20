@@ -1,4 +1,5 @@
 export const SWAGGER_PATH = 'docs';
+export const SWAGGER_UI_FOLDER = 'swagger-ui';
 export const OPENAPI_TITLE = 'Live QC API';
 export const OPENAPI_DESCRIPTION =
   'Live QC service for the livestream-admin Live QC pages. Contract: docs/contract/live-qc-api.md.';

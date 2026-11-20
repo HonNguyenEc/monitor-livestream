@@ -35,13 +35,18 @@ describe('appConfig', () => {
     expect(appConfig().port).toBe(DEFAULT_QC_PORT);
   });
 
-  it('reads a valid port', () => {
-    process.env.QC_PORT = '8766';
+  it.each([
+    ['8766', 8766],
+    [' 8766 ', 8766],
+    ['1', 1],
+    ['65535', 65535],
+  ])('reads the valid port %p', (value, port) => {
+    process.env.QC_PORT = value;
 
-    expect(appConfig().port).toBe(8766);
+    expect(appConfig().port).toBe(port);
   });
 
-  it.each(['abc', '0', '70000', '8765.5'])('rejects %p', (value) => {
+  it.each(['abc', '0', '65536', '-1', '8765.5', '1e3', '0x1F'])('rejects %p', (value) => {
     process.env.QC_PORT = value;
 
     expect(() => appConfig()).toThrow(/QC_PORT must be an integer/);

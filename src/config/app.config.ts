@@ -11,6 +11,7 @@ import {
   PACKAGE_JSON_FILE,
   UNKNOWN_VERSION,
 } from '../common/constants/app.constants';
+import { PROJECT_ROOT } from './runtime-paths';
 
 export interface AppConfig {
   port: number;
@@ -18,11 +19,16 @@ export interface AppConfig {
   version: string;
 }
 
-// Relative to this file (src/config or dist/config), so the service can start from any directory.
-const PACKAGE_JSON_PATH = join(__dirname, '..', '..', PACKAGE_JSON_FILE);
+// Injected by the packaging bundle, which has no package.json next to the executable.
+declare const BUNDLED_VERSION: string | undefined;
+
+const PACKAGE_JSON_PATH = join(PROJECT_ROOT, PACKAGE_JSON_FILE);
 const logger = new Logger('AppConfig');
 
 function readPackageVersion(): string {
+  if (typeof BUNDLED_VERSION === 'string') {
+    return BUNDLED_VERSION;
+  }
   try {
     const manifest = JSON.parse(readFileSync(PACKAGE_JSON_PATH, 'utf8'));
     if (typeof manifest.version === 'string') {
@@ -37,13 +43,17 @@ function readPackageVersion(): string {
   return UNKNOWN_VERSION;
 }
 
+// Number() also reads "1e3" and "0x1F", so a typo would bind a port nobody configured.
+const DECIMAL_DIGITS = /^\d+$/;
+
 // An empty QC_PORT would become 0, which lets the OS pick a random port the admin cannot find.
 function parsePort(raw: string | undefined): number {
-  if (raw === undefined || raw.trim() === '') {
+  const value = raw?.trim();
+  if (!value) {
     return DEFAULT_QC_PORT;
   }
-  const port = Number(raw);
-  if (!Number.isInteger(port) || port < MIN_PORT || port > MAX_PORT) {
+  const port = Number(value);
+  if (!DECIMAL_DIGITS.test(value) || port < MIN_PORT || port > MAX_PORT) {
     throw new Error(`QC_PORT must be an integer between ${MIN_PORT} and ${MAX_PORT}, got "${raw}"`);
   }
   return port;

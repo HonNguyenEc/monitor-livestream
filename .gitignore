@@ -16,4 +16,5 @@ mpv_layout.json
 /.understand-anything
 node_modules/
 dist/
+build/
 coverage/
