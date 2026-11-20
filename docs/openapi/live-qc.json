@@ -1,0 +1,1868 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/v1/shops": {
+      "get": {
+        "operationId": "ShopsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopListResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "shops"
+        ]
+      },
+      "post": {
+        "operationId": "ShopsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateShopDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SHOP_ALREADY_EXISTS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "shops"
+        ]
+      }
+    },
+    "/api/v1/shops/{key}": {
+      "get": {
+        "operationId": "ShopsController_get",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SHOP_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "shops"
+        ]
+      },
+      "put": {
+        "operationId": "ShopsController_update",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateShopDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SHOP_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "BACKEND_SHOP_READ_ONLY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "shops"
+        ]
+      },
+      "delete": {
+        "operationId": "ShopsController_remove",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SHOP_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "BACKEND_SHOP_READ_ONLY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "shops"
+        ]
+      }
+    },
+    "/api/v1/shops/{key}/detection/start": {
+      "post": {
+        "operationId": "DetectionController_start",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectionStateDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SHOP_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "detection"
+        ]
+      }
+    },
+    "/api/v1/shops/{key}/detection/stop": {
+      "post": {
+        "operationId": "DetectionController_stop",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectionStateDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SHOP_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "detection"
+        ]
+      }
+    },
+    "/api/v1/shops/{key}/frame": {
+      "get": {
+        "operationId": "DetectionController_frame",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Latest frame",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SHOP_NOT_FOUND or FRAME_NOT_FOUND",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "detection"
+        ]
+      }
+    },
+    "/api/v1/monitor": {
+      "get": {
+        "operationId": "MonitorController_current",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitorStateDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "monitor"
+        ]
+      }
+    },
+    "/api/v1/monitor/start": {
+      "post": {
+        "operationId": "MonitorController_start",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartMonitorDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitorStateDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST or NO_PLATFORM_SELECTED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "monitor"
+        ]
+      }
+    },
+    "/api/v1/monitor/stop": {
+      "post": {
+        "operationId": "MonitorController_stop",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitorStateDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "monitor"
+        ]
+      }
+    },
+    "/api/v1/backend/status": {
+      "get": {
+        "operationId": "BackendController_status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendStatusDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "backend"
+        ]
+      }
+    },
+    "/api/v1/backend/login": {
+      "post": {
+        "operationId": "BackendController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackendLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendStatusDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST or BACKEND_LOGIN_FAILED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "backend"
+        ]
+      }
+    },
+    "/api/v1/backend/logout": {
+      "post": {
+        "operationId": "BackendController_logout",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendStatusDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "backend"
+        ]
+      }
+    },
+    "/api/v1/backend/sync": {
+      "post": {
+        "operationId": "BackendController_sync",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackendStatusDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BACKEND_NOT_CONNECTED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "backend"
+        ]
+      }
+    },
+    "/api/v1/settings/layout": {
+      "get": {
+        "operationId": "LayoutController_snapshot",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LayoutSnapshotDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "settings"
+        ]
+      },
+      "put": {
+        "operationId": "LayoutController_update",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLayoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LayoutSnapshotDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/v1/wall": {
+      "get": {
+        "operationId": "WallController_wall",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WallResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "wall"
+        ]
+      }
+    },
+    "/api/v1/wall/{key}/refresh": {
+      "post": {
+        "operationId": "WallController_refresh",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WallRefreshResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "HOST_NOT_ALLOWED or ORIGIN_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SHOP_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "STREAM_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "wall"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Live QC API",
+    "description": "Live QC service for the livestream-admin Live QC pages. Contract: docs/contract/live-qc-api.md.",
+    "version": "0.1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "schemas": {
+      "HealthResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "version"
+        ]
+      },
+      "ShopRowDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "tiktok",
+              "shopee"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "local",
+              "backend"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "live",
+              "offline",
+              "unknown",
+              "no_signal",
+              "checking",
+              "not_checked"
+            ]
+          },
+          "job_state": {
+            "type": "string",
+            "enum": [
+              "stopped",
+              "retrying",
+              "checking_image",
+              "playing",
+              "stopping",
+              "error"
+            ]
+          },
+          "attempts": {
+            "type": "number"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "checked_at": {
+            "type": "string",
+            "nullable": true
+          },
+          "live_since": {
+            "type": "string",
+            "nullable": true
+          },
+          "frame_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Path from the host root with a `t` query that changes on every new frame; null until the first frame."
+          },
+          "cookie_set": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "platform",
+          "label",
+          "source",
+          "status",
+          "job_state",
+          "attempts",
+          "message",
+          "checked_at",
+          "live_since",
+          "frame_url",
+          "cookie_set"
+        ]
+      },
+      "ShopListResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShopRowDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "ShopConfigDto": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "enum": [
+              "tiktok",
+              "shopee"
+            ],
+            "type": "string"
+          },
+          "username": {
+            "type": "string",
+            "description": "Required for TikTok shops."
+          },
+          "name": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "number",
+            "minimum": 1
+          },
+          "shop_id": {
+            "type": "number",
+            "minimum": 1
+          },
+          "live_url": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "platform"
+        ]
+      },
+      "SessionInfoDto": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "shopee_status": {
+            "type": "number",
+            "nullable": true
+          },
+          "is_live": {
+            "type": "boolean"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "share_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "expires_at": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string"
+          },
+          "schedule_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "checked_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "shopee_status",
+          "is_live",
+          "title",
+          "share_url",
+          "expires_at",
+          "source",
+          "schedule_id",
+          "checked_at"
+        ]
+      },
+      "ScheduleDto": {
+        "type": "object",
+        "properties": {
+          "schedule_id": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "tiktok",
+              "shopee"
+            ]
+          },
+          "scheduled_at": {
+            "type": "string",
+            "nullable": true
+          },
+          "expected_end_at": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "status_label": {
+            "type": "string",
+            "nullable": true
+          },
+          "schedule_status": {
+            "type": "string",
+            "nullable": true
+          },
+          "session_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schedule_id",
+          "platform",
+          "scheduled_at",
+          "expected_end_at",
+          "status",
+          "status_label",
+          "schedule_status",
+          "session_id"
+        ]
+      },
+      "ShopDetailDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "platform": {
+            "enum": [
+              "tiktok",
+              "shopee"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "local",
+              "backend"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "live",
+              "offline",
+              "unknown",
+              "no_signal",
+              "checking",
+              "not_checked"
+            ],
+            "type": "string"
+          },
+          "job_state": {
+            "enum": [
+              "stopped",
+              "retrying",
+              "checking_image",
+              "playing",
+              "stopping",
+              "error"
+            ],
+            "type": "string"
+          },
+          "attempts": {
+            "type": "number"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "checked_at": {
+            "type": "string",
+            "nullable": true
+          },
+          "live_since": {
+            "type": "string",
+            "nullable": true
+          },
+          "frame_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Path from the host root with a `t` query that changes on every new frame; null until the first frame."
+          },
+          "cookie_set": {
+            "type": "boolean"
+          },
+          "config": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ShopConfigDto"
+              }
+            ]
+          },
+          "session": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SessionInfoDto"
+              }
+            ]
+          },
+          "schedules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleDto"
+            }
+          },
+          "on_air_schedule_id": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "key",
+          "platform",
+          "label",
+          "source",
+          "status",
+          "job_state",
+          "attempts",
+          "message",
+          "checked_at",
+          "live_since",
+          "frame_url",
+          "cookie_set",
+          "config",
+          "session",
+          "schedules",
+          "on_air_schedule_id"
+        ]
+      },
+      "ErrorBodyDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable machine-readable code, e.g. SHOP_NOT_FOUND."
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "request_id"
+        ]
+      },
+      "ErrorResponseDto": {
+        "type": "object",
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ErrorBodyDto"
+          }
+        },
+        "required": [
+          "detail",
+          "error"
+        ]
+      },
+      "CreateShopDto": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "type": "string",
+            "enum": [
+              "tiktok",
+              "shopee"
+            ]
+          },
+          "username": {
+            "type": "string",
+            "description": "Required for TikTok shops."
+          },
+          "name": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "number",
+            "minimum": 1
+          },
+          "shop_id": {
+            "type": "number",
+            "minimum": 1
+          },
+          "live_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "cookie": {
+            "type": "string",
+            "description": "Raw `cookie` header of a banhang.shopee.vn request, required for Shopee shops. On update, omit it to keep the stored cookie."
+          }
+        },
+        "required": [
+          "platform"
+        ]
+      },
+      "UpdateShopDto": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "Required for TikTok shops."
+          },
+          "name": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "number",
+            "minimum": 1
+          },
+          "shop_id": {
+            "type": "number",
+            "minimum": 1
+          },
+          "live_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "cookie": {
+            "type": "string",
+            "description": "Raw `cookie` header of a banhang.shopee.vn request, required for Shopee shops. On update, omit it to keep the stored cookie."
+          }
+        }
+      },
+      "DetectionStateDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "stopped",
+              "retrying",
+              "checking_image",
+              "playing",
+              "stopping",
+              "error"
+            ],
+            "type": "string"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "key",
+          "state",
+          "message"
+        ]
+      },
+      "MonitorStateDto": {
+        "type": "object",
+        "properties": {
+          "running": {
+            "type": "boolean"
+          },
+          "platforms": {
+            "description": "Platforms selected by the last start; empty while stopped.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "tiktok",
+                "shopee"
+              ]
+            }
+          },
+          "keys": {
+            "nullable": true,
+            "description": "Monitored shop keys, or null when every shop of `platforms` is monitored.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "running",
+          "platforms",
+          "keys"
+        ]
+      },
+      "StartMonitorDto": {
+        "type": "object",
+        "properties": {
+          "platforms": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "tiktok",
+                "shopee"
+              ]
+            }
+          },
+          "keys": {
+            "description": "Limit monitoring to these shops. Every start replaces the monitored set; omitting keys means every shop of `platforms`.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "platforms"
+        ]
+      },
+      "BackendStatusDto": {
+        "type": "object",
+        "properties": {
+          "connected": {
+            "type": "boolean"
+          },
+          "backend": {
+            "type": "string",
+            "description": "Scheme and masked host of livestream-backend, e.g. `https://aut•••.example.vn`."
+          },
+          "email": {
+            "type": "string",
+            "description": "Masked login email, e.g. `ad•••@example.com`; empty while disconnected."
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "synced_at": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "brands": {
+            "type": "number"
+          },
+          "schedules": {
+            "type": "number"
+          },
+          "api_calls_5m": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "connected",
+          "backend",
+          "email",
+          "name",
+          "role",
+          "synced_at",
+          "error",
+          "brands",
+          "schedules",
+          "api_calls_5m"
+        ]
+      },
+      "BackendLoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "LayoutSettingsDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Tile mpv windows into the grid; false leaves each window where mpv opens it."
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "width": {
+            "type": "number",
+            "description": "0 together with height 0 means the full screen work area.",
+            "minimum": 0
+          },
+          "height": {
+            "type": "number",
+            "description": "0 together with width 0 means the full screen work area.",
+            "minimum": 0
+          },
+          "rows": {
+            "type": "number",
+            "description": "0 means chosen from the shop count.",
+            "minimum": 0
+          },
+          "columns": {
+            "type": "number",
+            "description": "0 means chosen from the shop count.",
+            "minimum": 0
+          },
+          "gap": {
+            "type": "number",
+            "minimum": 0
+          },
+          "aspect": {
+            "type": "string",
+            "enum": [
+              "9:16",
+              "16:9",
+              "3:4",
+              "1:1"
+            ]
+          },
+          "live_only": {
+            "type": "boolean"
+          },
+          "ontop": {
+            "type": "boolean"
+          },
+          "detector": {
+            "type": "string",
+            "enum": [
+              "mpv",
+              "ffmpeg"
+            ]
+          },
+          "show_mpv": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "x",
+          "y",
+          "width",
+          "height",
+          "rows",
+          "columns",
+          "gap",
+          "aspect",
+          "live_only",
+          "ontop",
+          "detector",
+          "show_mpv"
+        ]
+      },
+      "ScreenAreaDto": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "width": {
+            "type": "number"
+          },
+          "height": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ]
+      },
+      "LayoutTileDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "live": {
+            "type": "boolean"
+          },
+          "visible": {
+            "type": "boolean",
+            "description": "False when the tile does not fit in rows × columns."
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "live",
+          "visible"
+        ]
+      },
+      "LayoutSnapshotDto": {
+        "type": "object",
+        "properties": {
+          "settings": {
+            "$ref": "#/components/schemas/LayoutSettingsDto"
+          },
+          "screen": {
+            "$ref": "#/components/schemas/ScreenAreaDto"
+          },
+          "area": {
+            "$ref": "#/components/schemas/ScreenAreaDto"
+          },
+          "aspects": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "9:16",
+                "16:9",
+                "3:4",
+                "1:1"
+              ]
+            }
+          },
+          "detectors": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "mpv",
+                "ffmpeg"
+              ]
+            }
+          },
+          "rows": {
+            "type": "number"
+          },
+          "columns": {
+            "type": "number"
+          },
+          "tiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LayoutTileDto"
+            }
+          }
+        },
+        "required": [
+          "settings",
+          "screen",
+          "area",
+          "aspects",
+          "detectors",
+          "rows",
+          "columns",
+          "tiles"
+        ]
+      },
+      "UpdateLayoutDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Tile mpv windows into the grid; false leaves each window where mpv opens it."
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "width": {
+            "type": "number",
+            "description": "0 together with height 0 means the full screen work area.",
+            "minimum": 0
+          },
+          "height": {
+            "type": "number",
+            "description": "0 together with width 0 means the full screen work area.",
+            "minimum": 0
+          },
+          "rows": {
+            "type": "number",
+            "description": "0 means chosen from the shop count.",
+            "minimum": 0
+          },
+          "columns": {
+            "type": "number",
+            "description": "0 means chosen from the shop count.",
+            "minimum": 0
+          },
+          "gap": {
+            "type": "number",
+            "minimum": 0
+          },
+          "aspect": {
+            "enum": [
+              "9:16",
+              "16:9",
+              "3:4",
+              "1:1"
+            ],
+            "type": "string"
+          },
+          "live_only": {
+            "type": "boolean"
+          },
+          "ontop": {
+            "type": "boolean"
+          },
+          "detector": {
+            "enum": [
+              "mpv",
+              "ffmpeg"
+            ],
+            "type": "string"
+          },
+          "show_mpv": {
+            "type": "boolean"
+          }
+        }
+      },
+      "WallSettingsDto": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "number",
+            "description": "Saved layout value; 0 means the wall picks it from its own viewport, unlike the mpv grid."
+          },
+          "columns": {
+            "type": "number",
+            "description": "Saved layout value; 0 means the wall picks it from its own viewport, unlike the mpv grid."
+          },
+          "gap": {
+            "type": "number"
+          },
+          "aspect": {
+            "type": "string",
+            "enum": [
+              "9:16",
+              "16:9",
+              "3:4",
+              "1:1"
+            ]
+          },
+          "live_only": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "rows",
+          "columns",
+          "gap",
+          "aspect",
+          "live_only"
+        ]
+      },
+      "WallTileDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "live": {
+            "type": "boolean"
+          },
+          "visible": {
+            "type": "boolean",
+            "description": "False when the tile does not fit in rows × columns."
+          },
+          "url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Signed HTTP-FLV URL of a live shop; it expires, so refresh it when playback fails."
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "live",
+          "visible",
+          "url"
+        ]
+      },
+      "WallResponseDto": {
+        "type": "object",
+        "properties": {
+          "settings": {
+            "$ref": "#/components/schemas/WallSettingsDto"
+          },
+          "detector": {
+            "type": "string",
+            "enum": [
+              "mpv",
+              "ffmpeg"
+            ]
+          },
+          "tiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WallTileDto"
+            }
+          }
+        },
+        "required": [
+          "settings",
+          "detector",
+          "tiles"
+        ]
+      },
+      "WallRefreshResponseDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      }
+    }
+  }
+}
