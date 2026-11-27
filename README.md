@@ -1,4 +1,23 @@
-# Livestream QC feasibility demo
+# Livestream QC
+
+## Monitor Livestream service (TypeScript)
+
+The NestJS service in `src/` is the product: it serves the livestream-admin Monitor Livestream pages on `http://127.0.0.1:8765` and ships as a Windows installer.
+
+Requirements: Node 24.
+
+```powershell
+npm ci
+npm run dev        # watch mode; Swagger UI at http://127.0.0.1:8765/docs
+npm test
+npm run package    # build/installer/LiveQC-Setup-<version>.exe (needs Inno Setup 6)
+```
+
+Settings come from `.env` in the data folder (`.env.example` lists them): the repo root when run from source, `%LOCALAPPDATA%\LiveQC\data` when installed. The API contract is [docs/contract/live-qc-api.md](docs/contract/live-qc-api.md), with the generated [docs/openapi/live-qc.json](docs/openapi/live-qc.json) (`npm run openapi:export`).
+
+## Python feasibility demo
+
+The rest of this README covers the original Python tool, kept as the reference the service is ported from.
 
 ## Run
 
